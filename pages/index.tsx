@@ -195,13 +195,13 @@ export default function Home() {
               value={residentName}
               onChange={(e) => setResidentName(e.target.value)}
               className="block w-full bg-white dark:bg-slate-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white py-3 px-4 rounded-lg leading-tight focus:outline-none focus:bg-white dark:focus:bg-slate-600 focus:border-brand-green-500 shadow-sm"
-              placeholder="Enter Resident's Name"
+              placeholder="Enter Resident's Name or Evaluation Title"
           />
           <textarea
               value={additionalContext}
               onChange={(e) => setAdditionalContext(e.target.value)}
               className="block w-full bg-white dark:bg-slate-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white py-3 px-4 rounded-lg leading-tight focus:outline-none focus:bg-white dark:focus:bg-slate-600 focus:border-brand-green-500 shadow-sm"
-              placeholder="Additional Context (Optional)"
+              placeholder="Additional Context (This was a simulation, patient had significant issues, etc.)"
               rows={3}
           />
 
