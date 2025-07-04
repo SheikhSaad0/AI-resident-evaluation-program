@@ -4,6 +4,7 @@ import type { Job } from '@prisma/client';
 import { VertexAI, Part } from '@google-cloud/vertexai';
 import { createClient, DeepgramError } from '@deepgram/sdk';
 import path from 'path';
+import { generateV4ReadSignedUrl } from '../../lib/gcs';
 
 const prisma = new PrismaClient();
 
@@ -43,9 +44,9 @@ const EVALUATION_CONFIGS: EvaluationConfigs = {
 
 // --- AUDIO-ONLY ANALYSIS FUNCTIONS ---
 
-async function transcribeWithDeepgram(gcsUrl: string): Promise<string> { 
+async function transcribeWithDeepgram(urlForTranscription: string): Promise<string> { 
     console.log(`Starting audio transcription with Deepgram...`); 
-    const { result, error } = await deepgram.listen.prerecorded.transcribeUrl( { url: gcsUrl }, { model: 'nova-2', diarize: true, punctuate: true, utterances: true } ); 
+    const { result, error } = await deepgram.listen.prerecorded.transcribeUrl( { url: urlForTranscription }, { model: 'nova-2', diarize: true, punctuate: true, utterances: true } ); 
     if (error) throw new DeepgramError(error.message); 
     const utterances = result.results?.utterances; 
     if (!utterances || utterances.length === 0) return "Transcription returned no utterances.";
@@ -141,43 +142,63 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
 
 async function processJob(job: Job) {
     console.log(`Processing job ${job.id} for surgery: ${job.surgeryName}`);
-    if (!job.gcsUrl) throw new Error('Job is missing gcsUrl.');
+    const { gcsObjectPath, gcsUrl, surgeryName, residentName, additionalContext, withVideo, videoAnalysis } = job;
+
+    if (!gcsUrl || !gcsObjectPath) {
+        throw new Error(`Job ${job.id} is missing gcsUrl or gcsObjectPath.`);
+    }
 
     let evaluationResult: GeminiEvaluationResult;
     let transcription: string | undefined;
 
-    if (job.withVideo && job.videoAnalysis) {
-        try {
-            console.log("Visual analysis is enabled. Attempting Vertex AI video evaluation.");
-            await prisma.job.update({ where: { id: job.id }, data: { status: 'processing-in-gemini' } });
-            const gcsUri = job.gcsUrl.replace('https://storage.googleapis.com/', 'gs://');
-            evaluationResult = await evaluateVideo(job.surgeryName, job.additionalContext || '', gcsUri);
-            transcription = evaluationResult.transcription;
-        } catch (videoError) {
-            console.error("Vertex AI video evaluation failed. Falling back to audio-only analysis.", videoError);
+    try {
+        if (withVideo && videoAnalysis) {
+            try {
+                console.log("Visual analysis is enabled. Attempting Vertex AI video evaluation.");
+                await prisma.job.update({ where: { id: job.id }, data: { status: 'processing-in-gemini' } });
+                
+                // For Vertex AI, the service account needs direct access. The gs:// URI is correct here.
+                // You must ensure your Vertex AI service agent has Storage Object Viewer role on the bucket.
+                const gcsUri = gcsUrl.replace('https://storage.googleapis.com/', 'gs://');
+                evaluationResult = await evaluateVideo(surgeryName, additionalContext || '', gcsUri);
+                transcription = evaluationResult.transcription;
+            } catch (videoError) {
+                console.error("Vertex AI video evaluation failed. Falling back to audio-only analysis.", videoError);
+                await prisma.job.update({ where: { id: job.id }, data: { status: 'processing-transcription' } });
+                
+                // Generate a temporary read URL for the audio fallback
+                const readableUrl = await generateV4ReadSignedUrl(gcsObjectPath);
+                transcription = await transcribeWithDeepgram(readableUrl);
+                evaluationResult = await evaluateTranscript(transcription, surgeryName, additionalContext || '');
+            }
+        } else {
+            console.log("Visual analysis is disabled or file is audio-only. Using audio analysis path.");
             await prisma.job.update({ where: { id: job.id }, data: { status: 'processing-transcription' } });
-            transcription = await transcribeWithDeepgram(job.gcsUrl);
-            evaluationResult = await evaluateTranscript(transcription, job.surgeryName, job.additionalContext || '');
-        }
-    } else {
-        console.log("Visual analysis is disabled or file is audio-only. Using audio analysis path.");
-        await prisma.job.update({ where: { id: job.id }, data: { status: 'processing-transcription' } });
-        transcription = await transcribeWithDeepgram(job.gcsUrl);
-        await prisma.job.update({ where: { id: job.id }, data: { status: 'processing-evaluation' } });
-        evaluationResult = await evaluateTranscript(transcription, job.surgeryName, job.additionalContext || '');
-    }
-    
-    console.log(`Job ${job.id}: Gemini evaluation complete.`);
 
-    const finalResult = {
-        ...evaluationResult,
-        transcription,
-        surgery: job.surgeryName,
-        residentName: job.residentName,
-        additionalContext: job.additionalContext,
-        isFinalized: false,
-    };
-    return finalResult;
+            // Generate a temporary read URL for Deepgram
+            const readableUrl = await generateV4ReadSignedUrl(gcsObjectPath);
+            transcription = await transcribeWithDeepgram(readableUrl);
+            
+            await prisma.job.update({ where: { id: job.id }, data: { status: 'processing-evaluation' } });
+            evaluationResult = await evaluateTranscript(transcription, surgeryName, additionalContext || '');
+        }
+        
+        console.log(`Job ${job.id}: Gemini evaluation complete.`);
+
+        const finalResult = {
+            ...evaluationResult,
+            transcription,
+            surgery: surgeryName,
+            residentName: residentName,
+            additionalContext: additionalContext,
+            isFinalized: false,
+        };
+        return finalResult;
+    } catch(error) {
+        console.error(`Error during processing for job ${job.id}:`, error);
+        // Re-throw the error to be caught by the handler
+        throw error;
+    }
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

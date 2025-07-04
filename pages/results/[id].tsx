@@ -43,6 +43,7 @@ const difficultyDescriptions = {
     }
 };
 
+// FIX: Added the 'goalTime' property to every procedure step
 const EVALUATION_CONFIGS: { [key: string]: { procedureSteps: ProcedureStep[], caseDifficultyDescriptions: { [key: number]: string } } } = {
     'Laparoscopic Inguinal Hernia Repair with Mesh (TEP)': {
         procedureSteps: [
@@ -134,8 +135,10 @@ export default function ResultsPage() {
   const [email, setEmail] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [emailMessage, setEmailMessage] = useState('');
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [isOriginalFileVideo, setIsOriginalFileVideo] = useState(false);
+  const [visualAnalysisPerformed, setVisualAnalysisPerformed] = useState(false);
 
   useEffect(() => {
     const fetchEvaluation = async (jobId: string) => {
@@ -154,8 +157,14 @@ export default function ResultsPage() {
                 setResidentName(parsedData.residentName || '');
                 setAdditionalContext(parsedData.additionalContext || '');
                 setIsFinalized(parsedData.isFinalized || false);
-                if (jobData.withVideo) {
-                    setVideoUrl(jobData.gcsUrl);
+
+                setVisualAnalysisPerformed(jobData.withVideo && jobData.videoAnalysis);
+                setIsOriginalFileVideo(jobData.withVideo);
+                
+                if (jobData.readableUrl) {
+                    setMediaUrl(jobData.readableUrl);
+                }
+                if (jobData.thumbnailUrl) {
                     setThumbnailUrl(jobData.thumbnailUrl);
                 }
 
@@ -281,40 +290,54 @@ export default function ResultsPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900 py-10 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto bg-white dark:bg-slate-800 p-8 rounded-2xl shadow-xl">
-        <div className="text-center">
-            <h1 className="text-4xl font-extrabold text-gray-900 dark:text-white mb-2">
-              {isFinalized ? 'Final Evaluation' : 'AI-Generated Evaluation Draft'}
-            </h1>
-            <p className="text-lg text-gray-500 dark:text-gray-300 mb-4">
-              {surgery}
-            </p>
-            {residentName && <p className="text-lg font-semibold text-gray-600 dark:text-gray-400 mb-8">Resident: {residentName}</p>}
+        
+        <div className="flex justify-between items-start mb-8">
+            <div className="w-[160px] flex-shrink-0"></div>
+            <div className="text-center flex-grow">
+                <h1 className="text-4xl font-extrabold text-gray-900 dark:text-white mb-2">
+                  {isFinalized ? 'Final Evaluation' : 'AI-Generated Evaluation Draft'}
+                </h1>
+                <p className="text-lg text-gray-500 dark:text-gray-300 mb-4">
+                  {surgery}
+                </p>
+                {residentName && <p className="text-lg font-semibold text-gray-600 dark:text-gray-400">Resident: {residentName}</p>}
+            </div>
+            <div className="w-[160px] flex-shrink-0 flex justify-end">
+                <Image 
+                    src={visualAnalysisPerformed ? '/images/visualAnalysis.png' : '/images/audioAnalysis.png'}
+                    alt={visualAnalysisPerformed ? 'Visual Analysis' : 'Audio Analysis'}
+                    width={160}
+                    height={50}
+                />
+            </div>
         </div>
 
-        {videoUrl && (
+        {mediaUrl && (
           <div className="mb-8 p-4 border rounded-lg dark:border-gray-700 bg-gray-50 dark:bg-slate-700/50">
-            <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">View Recording</h3>
+            <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">
+              {isOriginalFileVideo ? 'View Recording' : 'Listen to Recording'}
+            </h3>
             <div className="flex items-center space-x-4">
-              <div className="flex-shrink-0 w-32 h-20 bg-black rounded-md overflow-hidden relative">
-                {thumbnailUrl ? (
-                    <Image src={thumbnailUrl} alt="Video thumbnail" layout="fill" objectFit="cover" />
+              <div className="flex-shrink-0 w-32 h-20 bg-black rounded-md overflow-hidden relative flex items-center justify-center">
+                {isOriginalFileVideo ? (
+                    thumbnailUrl ? (
+                        <Image src={thumbnailUrl} alt="Video thumbnail" layout="fill" objectFit="cover" />
+                    ) : (
+                        <svg className="h-8 w-8 text-gray-500" fill="currentColor" viewBox="0 0 24 24"><path d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.647c1.295.742 1.295 2.545 0 3.286L7.279 20.99c-1.25.717-2.779-.217-2.779-1.643V5.653z" /></svg>
+                    )
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                        <svg className="h-8 w-8 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
-                           <path d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.647c1.295.742 1.295 2.545 0 3.286L7.279 20.99c-1.25.717-2.779-.217-2.779-1.643V5.653z" />
-                        </svg>
-                    </div>
+                    <svg className="h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"></path></svg>
                 )}
               </div>
               <div className="flex-grow">
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">The original uploaded recording is available for review.</p>
                 <a
-                  href={videoUrl}
+                  href={mediaUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-block bg-brand-green text-white px-5 py-2.5 rounded-lg shadow-md text-sm font-semibold hover:bg-brand-green-500 transform transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-green-500 focus:ring-offset-2"
                 >
-                  Open Video in New Tab
+                  {isOriginalFileVideo ? 'Open Video in New Tab' : 'Open Audio in New Tab'}
                 </a>
               </div>
             </div>

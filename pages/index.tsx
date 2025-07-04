@@ -10,6 +10,7 @@ interface PastEvaluation {
   date: string;
   residentName?: string;
   withVideo?: boolean;
+  videoAnalysis?: boolean; // FIX: Add videoAnalysis to the interface
 }
 
 export default function Home() {
@@ -263,7 +264,7 @@ export default function Home() {
             <p className="text-center text-sm text-gray-600 dark:text-gray-300 mb-2">{progressStep}</p>
             <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
               <div
-                className="bg-brand-green h-2.5 rounded-full transition-all duration-300"
+                className="bg-green-500 h-2.5 rounded-full transition-all duration-500 ease-in-out"
                 style={{ width: `${progress}%` }}
               ></div>
             </div>
@@ -276,24 +277,37 @@ export default function Home() {
               <summary className="text-lg font-semibold text-gray-700 dark:text-gray-300 cursor-pointer">
                 Past Evaluations
               </summary>
-              <ul className="mt-4 space-y-2">
-                {pastEvaluations.map(evalItem => (
-                  <li key={evalItem.id} className="flex justify-between items-center p-2 border rounded-md dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-slate-700">
-                    <a href={`/results/${evalItem.id}`} className="flex-grow">
-                      <span>{evalItem.surgery}{evalItem.residentName ? ` - ${evalItem.residentName}`: ''}</span>
-                      <span className="block text-sm text-gray-500 dark:text-gray-400">
-                        {evalItem.date} {evalItem.withVideo && ' (Video)'}
-                      </span>
-                    </a>
-                    <button 
-                      onClick={() => handleDelete(evalItem.id)}
-                      className="ml-4 p-1.5"
-                      aria-label={`Delete evaluation for ${evalItem.surgery}`}
-                    >
-                        <Image src="/images/trashcanIcon.png" alt="Delete" width={24} height={24} />
-                    </button>
-                  </li>
-                ))}
+              <ul className="mt-4 space-y-3">
+                {pastEvaluations.map(evalItem => {
+                  // FIX: Determine which analysis was performed
+                  const visualAnalysisPerformed = evalItem.withVideo && evalItem.videoAnalysis;
+                  return (
+                    <li key={evalItem.id} className="flex justify-between items-center p-3 border rounded-lg dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-slate-700">
+                      <a href={`/results/${evalItem.id}`} className="flex-grow flex justify-between items-center">
+                        <div>
+                          <span className="font-medium text-gray-800 dark:text-gray-200">{evalItem.surgery}{evalItem.residentName ? ` - ${evalItem.residentName}`: ''}</span>
+                          <span className="block text-sm text-gray-500 dark:text-gray-400">
+                            {evalItem.date}
+                          </span>
+                        </div>
+                        <Image
+                            src={visualAnalysisPerformed ? '/images/videoSmall.png' : '/images/audioSmall.png'}
+                            alt={visualAnalysisPerformed ? 'Visual analysis' : 'Audio analysis'}
+                            width={90}
+                            height={90}
+                            className="flex-shrink-0"
+                        />
+                      </a>
+                      <button 
+                        onClick={() => handleDelete(evalItem.id)}
+                        className="ml-4 p-1.5 flex-shrink-0 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                        aria-label={`Delete evaluation for ${evalItem.surgery}`}
+                      >
+                          <Image src="/images/trashcanIcon.png" alt="Delete" width={24} height={24} />
+                      </button>
+                    </li>
+                  )
+                })}
               </ul>
             </details>
           </div>

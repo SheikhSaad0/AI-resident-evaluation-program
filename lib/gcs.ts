@@ -28,6 +28,34 @@ function initializeGCS() {
 }
 
 /**
+ * NEW FUNCTION
+ * Generates a v4 signed URL for reading/downloading a private file.
+ * @param fileName The path to the file in the bucket (e.g., 'uploads/my-file.mp3').
+ * @returns A promise that resolves to the signed URL for a GET request.
+ */
+export async function generateV4ReadSignedUrl(fileName: string): Promise<string> {
+    initializeGCS();
+    if (!bucket) {
+        throw new Error('GCS Bucket is not initialized.');
+    }
+
+    const options = {
+        version: 'v4' as const,
+        action: 'read' as const,
+        expires: Date.now() + 15 * 60 * 1000, // URL expires in 15 minutes
+    };
+
+    try {
+        const [url] = await bucket.file(fileName).getSignedUrl(options);
+        return url;
+    } catch (error) {
+        console.error('ERROR generating read signed GCS URL:', error);
+        throw error;
+    }
+}
+
+
+/**
  * Uploads a local file to Google Cloud Storage. (Used by the backend)
  * @param localPath The path to the local file to upload.
  * @param destination The destination path in the GCS bucket.
@@ -72,7 +100,6 @@ export function getPublicUrl(destination: string): string {
 
 
 /**
- * NEW FUNCTION
  * Generates a v4 signed URL for uploading a file directly from the client.
  * @param destination The destination path in the GCS bucket (e.g., 'uploads/my-file.mp3').
  * @param contentType The MIME type of the file being uploaded.

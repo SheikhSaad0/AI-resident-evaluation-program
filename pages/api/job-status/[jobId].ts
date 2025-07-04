@@ -1,52 +1,40 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
+import { generateV4ReadSignedUrl } from '../../../lib/gcs'; // Corrected import path
 
 const prisma = new PrismaClient();
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-    if (req.method !== 'GET') {
-        res.setHeader('Allow', ['GET']);
-        return res.status(405).json({ message: 'Method not allowed' });
-    }
-
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-
     const { jobId } = req.query;
 
-    if (typeof jobId !== 'string') {
-        return res.status(400).json({ message: 'jobId must be a string.' });
+    if (!jobId || typeof jobId !== 'string') {
+        return res.status(400).json({ error: 'A valid jobId must be provided.' });
     }
 
     try {
-        const job = await prisma.job.findUnique({ where: { id: jobId } });
+        const job = await prisma.job.findUnique({
+            where: { id: jobId },
+        });
 
         if (!job) {
-            return res.status(404).json({ message: 'Job not found.' });
+            return res.status(404).json({ error: 'Job not found.' });
+        }
+        
+        if (job.status === 'complete' && job.gcsObjectPath) {
+            const readableUrl = await generateV4ReadSignedUrl(job.gcsObjectPath);
+            const result = job.result ? JSON.parse(job.result as string) : null;
+
+            return res.status(200).json({
+                ...job,
+                result,
+                readableUrl,
+            });
         }
 
-        let result = undefined;
-        if (job.result) {
-            try {
-                result = JSON.parse(job.result);
-            } catch {
-                result = job.result;
-            }
-        }
+        return res.status(200).json(job);
 
-        res.status(200).json({
-            id: job.id,
-            status: job.status,
-            gcsUrl: job.gcsUrl,
-            withVideo: job.withVideo,
-            thumbnailUrl: job.thumbnailUrl,
-            result,
-            error: job.error,
-        });
     } catch (error) {
-        console.error(`Error fetching job status for ${jobId}:`, error);
-        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-        res.status(500).json({ message: errorMessage });
+        console.error(`Error fetching status for job ${jobId}:`, error);
+        res.status(500).json({ error: 'Failed to fetch job status.' });
     }
 }
