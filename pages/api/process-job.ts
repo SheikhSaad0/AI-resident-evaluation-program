@@ -81,10 +81,12 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
     if (!responseText) throw new Error("Failed to get a valid response from text model.");
     
     // ...
+    // ...
     try {
         const cleanedJsonText = responseText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
         return JSON.parse(cleanedJsonText);
-    } catch (_e) { // Prefix with an underscore
+        // Add the comment below
+    } catch (_e) { // eslint-disable-line @typescript-eslint/no-unused-vars
         console.error("Failed to parse JSON from text model. Raw response:", responseText);
         throw new Error("AI model returned invalid JSON.");
     }
@@ -130,10 +132,12 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
     const responseText = aggregatedResponse.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!responseText) throw new Error("Failed to get a valid response from the video model.");
 
+    // ...
     try {
         const cleanedJsonText = responseText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
         return JSON.parse(cleanedJsonText);
-    } catch(_e) { // Prefix with an underscore
+        // Add the comment below
+    } catch(_e) { // eslint-disable-line @typescript-eslint/no-unused-vars
         console.error("Failed to parse JSON from video model. Raw response:", responseText);
         throw new Error("AI model returned invalid JSON.");
     }
