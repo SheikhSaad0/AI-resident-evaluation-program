@@ -291,7 +291,7 @@ export default function Home() {
                           </span>
                         </div>
                         <Image
-                            src={visualAnalysisPerformed ? '/images/videoSmall.png' : '/images/audioSmall.png'}
+                            src={visualAnalysisPerformed ? '/images/videoSmall.svg' : '/images/audioSmall.svg'}
                             alt={visualAnalysisPerformed ? 'Visual analysis' : 'Audio analysis'}
                             width={90}
                             height={90}
@@ -303,7 +303,7 @@ export default function Home() {
                         className="ml-4 p-1.5 flex-shrink-0 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                         aria-label={`Delete evaluation for ${evalItem.surgery}`}
                       >
-                          <Image src="/images/trashcanIcon.png" alt="Delete" width={24} height={24} />
+                          <Image src="/images/trashcanIcon.svg" alt="Delete" width={24} height={24} />
                       </button>
                     </li>
                   )

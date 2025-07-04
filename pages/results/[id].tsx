@@ -304,7 +304,7 @@ export default function ResultsPage() {
             </div>
             <div className="w-[160px] flex-shrink-0 flex justify-end">
                 <Image 
-                    src={visualAnalysisPerformed ? '/images/visualAnalysis.png' : '/images/audioAnalysis.png'}
+                    src={visualAnalysisPerformed ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg'}
                     alt={visualAnalysisPerformed ? 'Visual Analysis' : 'Audio Analysis'}
                     width={160}
                     height={50}
