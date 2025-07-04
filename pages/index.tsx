@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
-import { Analytics } from "@vercel/analytics/next"
 import Image from 'next/image';
 import SurgerySelector from '../components/SurgerySelector';
+import { Analytics } from "@vercel/analytics/next"
 
 interface PastEvaluation {
   id: string;
