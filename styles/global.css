@@ -9,3 +9,30 @@
     @apply bg-slate-900 text-gray-50;
   }
 }
+
+/* Add new styles for the glowing progress bar */
+@layer utilities {
+  .progress-bar-glow {
+    background-size: 200% 100%;
+    background-image: linear-gradient(
+      to right,
+      #ec4899,
+      #8b5cf6,
+      #3b82f6,
+      #14b8a6,
+      #84cc16,
+      #f59e0b,
+      #ec4899
+    );
+    animation: shimmer 3s linear infinite;
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+}

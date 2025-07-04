@@ -260,11 +260,11 @@ export default function Home() {
         </div>
 
         {isAnalyzing && (
-          <div className="mt-6">
+          <div className="mt-6 transition-opacity duration-500 ease-in-out opacity-100">
             <p className="text-center text-sm text-gray-600 dark:text-gray-300 mb-2">{progressStep}</p>
             <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
               <div
-                className="bg-green-500 h-2.5 rounded-full transition-all duration-500 ease-in-out"
+                className="progress-bar-glow h-2.5 rounded-full transition-all duration-500 ease-in-out"
                 style={{ width: `${progress}%` }}
               ></div>
             </div>
