@@ -43,10 +43,11 @@ export async function generateV4ReadSignedUrl(fileName: string): Promise<string>
         version: 'v4' as const,
         action: 'read' as const,
         expires: Date.now() + 15 * 60 * 1000, // URL expires in 15 minutes
+        contentDisposition: 'inline',
     };
 
     try {
-        const [url] = await bucket.file(fileName).getSignedUrl(options);
+        const [url] = await bucket.file(fileName).getSignedUrl(options as any);
         return url;
     } catch (error) {
         console.error('ERROR generating read signed GCS URL:', error);
