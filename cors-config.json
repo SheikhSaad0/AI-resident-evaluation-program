@@ -1,17 +1,7 @@
 [
   {
-    "origin": [
-      "https://ai-resident-evaluation-program.vercel.app",
-      "http://localhost:3000",
-      "https://residency-evaluation-project-ai.vercel.app"
-    ],
-    "method": ["GET", "PUT"],
-    "responseHeader": ["Content-Type", "Content-Length"],
-    "maxAgeSeconds": 3600
-  },
-  {
     "origin": ["*"],
-    "method": ["GET"],
+    "method": ["GET", "PUT"],
     "responseHeader": ["Content-Type", "Content-Length"],
     "maxAgeSeconds": 3600
   }
