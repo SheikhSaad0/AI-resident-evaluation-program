@@ -5,16 +5,33 @@ import { VertexAI, Part } from '@google-cloud/vertexai';
 import { createClient, DeepgramError } from '@deepgram/sdk';
 import path from 'path';
 import { generateV4ReadSignedUrl } from '../../lib/gcs';
+import fs from 'fs';
+import os from 'os';
 
 const prisma = new PrismaClient();
 
 // --- Services Configuration ---
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY || '');
 
-// FIX: Revert to implicit authentication.
-// The VertexAI client will automatically find credentials from the environment.
+// --- VertexAI Authentication Setup ---
+// Decode the service account key from environment variables
+const serviceAccountB64 = process.env.GCP_SERVICE_ACCOUNT_B64;
+if (!serviceAccountB64) {
+  throw new Error('GCP_SERVICE_ACCOUNT_B64 environment variable is not set.');
+}
+const serviceAccountJson = Buffer.from(serviceAccountB64, 'base64').toString('utf-8');
+const credentials = JSON.parse(serviceAccountJson);
+
+// In a serverless environment, we write credentials to a temporary file
+// and set the GOOGLE_APPLICATION_CREDENTIALS env var to point to it.
+const credentialsPath = path.join(os.tmpdir(), 'gcp-credentials.json');
+fs.writeFileSync(credentialsPath, serviceAccountJson);
+process.env.GOOGLE_APPLICATION_CREDENTIALS = credentialsPath;
+
+// Now, initialize VertexAI. It will automatically find the credentials via the
+// GOOGLE_APPLICATION_CREDENTIALS environment variable.
 const vertex_ai = new VertexAI({
-    project: process.env.GCP_PROJECT_ID!,
+    project: credentials.project_id,
     location: 'us-central1',
 });
 
