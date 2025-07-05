@@ -9,15 +9,21 @@ function initializeGCS() {
         return;
     }
 
+    const serviceAccountB64 = process.env.GCP_SERVICE_ACCOUNT_B64;
     const bucketName = process.env.GCS_BUCKET_NAME;
 
-    if (!bucketName) {
-        throw new Error("GCS_BUCKET_NAME environment variable is not set.");
+    if (!serviceAccountB64 || !bucketName) {
+        throw new Error("GCS environment variables (GCP_SERVICE_ACCOUNT_B64, GCS_BUCKET_NAME) are not set.");
     }
-    
-    // FIX: Use implicit authentication. The Storage client will automatically
-    // find and use the GOOGLE_APPLICATION_CREDENTIALS_JSON environment variable.
-    storage = new Storage();
+
+    const serviceAccountJson = Buffer.from(serviceAccountB64, 'base64').toString('utf-8');
+    const credentials = JSON.parse(serviceAccountJson);
+
+    storage = new Storage({
+        projectId: credentials.project_id,
+        credentials,
+    });
+
     bucket = storage.bucket(bucketName);
 }
 
