@@ -120,11 +120,16 @@ export default function Home() {
       setProgress(10);
       setProgressStep('Uploading file...');
       
-      await fetch(signedUrl, {
+      const uploadResponse = await fetch(signedUrl, {
         method: 'PUT',
         body: file,
         headers: { 'Content-Type': file.type },
       });
+
+      if (!uploadResponse.ok) {
+        throw new Error('File upload failed.');
+      }
+
 
       setProgressStep('File uploaded. Submitting for analysis...');
       const gcsUrl = `https://storage.googleapis.com/${process.env.NEXT_PUBLIC_GCS_BUCKET_NAME}/${destination}`;
