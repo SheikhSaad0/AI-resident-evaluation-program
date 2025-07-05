@@ -9,21 +9,15 @@ function initializeGCS() {
         return;
     }
 
-    const serviceAccountB64 = process.env.GCP_SERVICE_ACCOUNT_B64;
     const bucketName = process.env.GCS_BUCKET_NAME;
 
-    if (!serviceAccountB64 || !bucketName) {
-        throw new Error("GCS environment variables (GCP_SERVICE_ACCOUNT_B64, GCS_BUCKET_NAME) are not set.");
+    if (!bucketName) {
+        throw new Error("GCS_BUCKET_NAME environment variable is not set.");
     }
-
-    const serviceAccountJson = Buffer.from(serviceAccountB64, 'base64').toString('utf-8');
-    const credentials = JSON.parse(serviceAccountJson);
-
-    storage = new Storage({
-        projectId: credentials.project_id,
-        credentials,
-    });
-
+    
+    // FIX: Use implicit authentication. The Storage client will automatically
+    // find and use the GOOGLE_APPLICATION_CREDENTIALS_JSON environment variable.
+    storage = new Storage();
     bucket = storage.bucket(bucketName);
 }
 
@@ -70,7 +64,7 @@ export async function uploadFileToGCS(localPath: string, destination: string): P
     try {
         const options = {
             destination: destination,
-            public: true, 
+            public: true,
             metadata: {
                 cacheControl: 'public, max-age=31536000',
             },
