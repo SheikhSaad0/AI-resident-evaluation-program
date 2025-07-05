@@ -1,4 +1,5 @@
 import { Storage, Bucket } from '@google-cloud/storage';
+import path from 'path';
 
 let storage: Storage | null = null;
 let bucket: Bucket | null = null;
@@ -43,7 +44,7 @@ export async function generateV4ReadSignedUrl(fileName: string): Promise<string>
         version: 'v4' as const,
         action: 'read' as const,
         expires: Date.now() + 15 * 60 * 1000, // URL expires in 15 minutes
-        contentDisposition: 'inline',
+        contentDisposition: `inline; filename="${path.basename(fileName)}"`,
     };
 
     try {
