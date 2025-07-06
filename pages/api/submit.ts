@@ -19,17 +19,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             videoAnalysis 
         } = req.body;
 
-        // Add a more robust check to ensure gcsObjectPath is valid
+        // This robust check ensures gcsObjectPath is present and valid
         if (!gcsUrl || !surgeryName || !gcsObjectPath || typeof gcsObjectPath !== 'string' || gcsObjectPath.trim() === '') {
             return res.status(400).json({ message: 'A valid gcsUrl, gcsObjectPath, and surgeryName are required.' });
         }
 
-        // Create the job in the database with all the necessary data
+        // Create the job in the database, ensuring gcsObjectPath is included
         const job = await prisma.job.create({
             data: {
-                status: 'pending', // The job is queued as 'pending'
+                status: 'pending',
                 gcsUrl,
-                gcsObjectPath,    // Ensure this is saved
+                gcsObjectPath,    // This ensures the path is saved
                 surgeryName,
                 residentName,
                 additionalContext,
@@ -38,10 +38,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             },
         });
 
-        // The immediate processing trigger has been removed.
-        // The GitHub Actions cron will handle the processing.
+        // The job is now correctly queued for the background worker.
 
-        // Return the jobId so the frontend can start polling for status
         res.status(202).json({ jobId: job.id });
 
     } catch (error) {
