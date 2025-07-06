@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "pages/api/cron/process-job.ts": {
+      "maxDuration": 300
+    }
+  }
+}
