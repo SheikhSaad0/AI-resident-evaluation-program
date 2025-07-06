@@ -45,7 +45,7 @@ const vertex_ai = new VertexAI({
     location: 'us-central1',
 });
 
-const modelIdentifier = 'gemini-1.5-flash-001';
+const modelIdentifier = 'gemini-2.5-flash';
 const generativeModel = vertex_ai.getGenerativeModel({ model: modelIdentifier });
 const textModel = vertex_ai.getGenerativeModel({ model: modelIdentifier });
 
