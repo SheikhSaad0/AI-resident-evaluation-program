@@ -36,19 +36,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             },
         });
 
-        const host = req.headers.host || 'localhost:3000';
-        const protocol = /^localhost/.test(host) ? 'http' : 'https';
-        const processUrl = new URL(`${protocol}://${host}/api/process-job?jobId=${job.id}`);
+        // The immediate fetch call that was here has been REMOVED.
+        // The GitHub Actions cron job will now be responsible for processing.
 
-        fetch(processUrl.href, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${process.env.CRON_SECRET}`
-            }
-        }).catch(error => {
-            console.error('[Trigger Error] Failed to start job processing:', error);
-        });
-
+        // Immediately return the job ID so the frontend can start polling.
         res.status(202).json({ jobId: job.id });
 
     } catch (error) {
