@@ -25,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const job = await prisma.job.create({
             data: {
-                status: 'pending',
+                status: 'pending', // The job is now queued as 'pending'
                 gcsUrl,
                 gcsObjectPath,
                 surgeryName,
@@ -36,10 +36,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             },
         });
 
-        // The immediate fetch call that was here has been REMOVED.
-        // The GitHub Actions cron job will now be responsible for processing.
+        // The immediate processing trigger has been removed.
+        // The GitHub Actions cron will handle it.
 
-        // Immediately return the job ID so the frontend can start polling.
         res.status(202).json({ jobId: job.id });
 
     } catch (error) {

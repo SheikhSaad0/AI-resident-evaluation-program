@@ -11,12 +11,15 @@ import os from 'os';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 
-// Set the path for the ffmpeg binary
+// Set the path for the ffmpeg binary to work in Vercel
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 const prisma = new PrismaClient();
 
-// --- Cloud Services Clients ---
+// --- Services Configuration ---
+const deepgram = createClient(process.env.DEEPGRAM_API_KEY || '');
+
+// --- Cloud Services Authentication & Setup ---
 const serviceAccountB64 = process.env.GCP_SERVICE_ACCOUNT_B64;
 if (!serviceAccountB64) throw new Error('GCP_SERVICE_ACCOUNT_B64 environment variable is not set.');
 const serviceAccountJson = Buffer.from(serviceAccountB64, 'base64').toString('utf-8');
@@ -28,11 +31,12 @@ if (!bucketName) throw new Error('GCS_BUCKET_NAME environment variable not set.'
 const bucket = storage.bucket(bucketName);
 
 const vertex_ai = new VertexAI({ project: credentials.project_id, location: 'us-central1' });
-// Using a specific, versioned model name for stability. NOTE: Make sure the Vertex AI API is enabled in your GCP project.
+
+// Using a stable, versioned model name. Ensure Vertex AI API is enabled in your GCP Project.
 const modelIdentifier = 'gemini-2.5-flash';
 const generativeModel = vertex_ai.getGenerativeModel({ model: modelIdentifier });
 const textModel = vertex_ai.getGenerativeModel({ model: modelIdentifier });
-const deepgram = createClient(process.env.DEEPGRAM_API_KEY || '');
+
 
 // --- TYPE DEFINITIONS AND CONFIGS ---
 interface ProcedureStepConfig { key: string; name: string; }
@@ -52,6 +56,7 @@ const EVALUATION_CONFIGS: EvaluationConfigs = {
     'Robotic Lap Ventral Hernia Repair (TAPP)': { procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'robotDocking', name: 'Docking the robot' }, { key: 'instrumentPlacement', name: 'Instrument Placement' }, { key: 'herniaReduction', name: 'Reduction of Hernia' }, { key: 'flapCreation', name: 'Flap Creation' }, { key: 'herniaClosure', name: 'Hernia Closure' }, { key: 'meshPlacement', name: 'Mesh Placement/Fixation' }, { key: 'flapClosure', name: 'Flap Closure' }, { key: 'undocking', name: 'Undocking/trocar removal' }, { key: 'skinClosure', name: 'Skin Closure' }, ] },
     'Laparoscopic Appendicectomy': { procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'appendixDissection', name: 'Identification, Dissection & Exposure of Appendix' }, { key: 'mesoappendixDivision', name: 'Division of Mesoappendix and Appendix Base' }, { key: 'specimenExtraction', name: 'Specimen Extraction' }, { key: 'portClosure', name: 'Port Closure' }, { key: 'skinClosure', name: 'Skin Closure' }, ] },
 };
+
 
 // --- HELPER FUNCTIONS ---
 function robustJsonParse(responseText: string): GeminiEvaluationResult {
@@ -99,22 +104,13 @@ const getMimeTypeFromGcsUri = (gcsUri: string): string => {
 const buildEvaluationPrompt = (surgeryName: string, additionalContext: string, withTranscription: boolean): string => {
     const config = EVALUATION_CONFIGS[surgeryName as keyof typeof EVALUATION_CONFIGS];
     const transcriptionInstruction = withTranscription ? '- Provide a full transcription of the audio under a "transcription" key.' : '';
-    return `You are a surgical education analyst. Your task is to provide a structured JSON evaluation.
-        Procedure: ${surgeryName}
-        Additional Context: ${additionalContext || 'None'}.
-        Instructions:
-        ${transcriptionInstruction}
-        - Provide a "caseDifficulty" as a single integer (1-3).
-        - Provide a concise summary in "additionalComments".
-        - For each procedure step, provide a nested object with "score" (integer 1-5, or 0 if not performed), "time" (string "X minutes Y seconds"), and "comments" (string).
-        - Your entire response must be ONLY a single, valid JSON object with the specified keys.
-        - The keys are: "caseDifficulty", "additionalComments", ${withTranscription ? '"transcription", ' : ''}${config.procedureSteps.map(s => `"${s.key}"`).join(', ')}.`;
+    return `You are a surgical education analyst. Your task is to provide a structured JSON evaluation. Procedure: ${surgeryName}. Additional Context: ${additionalContext || 'None'}. Instructions: ${transcriptionInstruction} - Provide a "caseDifficulty" as a single integer (1-3). - Provide a concise summary in "additionalComments". - For each procedure step, provide a nested object with "score" (integer 1-5, or 0 if not performed), "time" (string "X minutes Y seconds"), and "comments" (string). - Your entire response must be ONLY a single, valid JSON object with the specified keys. - The keys are: "caseDifficulty", "additionalComments", ${withTranscription ? '"transcription", ' : ''}${config.procedureSteps.map(s => `"${s.key}"`).join(', ')}.`;
 };
 
 
 // --- MAIN JOB PROCESSING LOGIC ---
-async function processJob(job: Job) {
-    console.log(`Processing job ${job.id} for surgery: ${job.surgeryName}`);
+async function processSingleJob(job: Job) {
+    console.log(`Background worker processing job ${job.id} for surgery: ${job.surgeryName}`);
     const { gcsObjectPath, surgeryName, residentName, additionalContext, withVideo, videoAnalysis } = job;
     if (!gcsObjectPath) throw new Error(`Job ${job.id} is missing gcsObjectPath.`);
 
@@ -190,7 +186,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     let jobToProcess: Job | null = null;
     try {
-        // 1. Find the oldest "pending" job
         jobToProcess = await prisma.job.findFirst({
             where: { status: 'pending' },
             orderBy: { createdAt: 'asc' },
@@ -202,16 +197,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         console.log(`Cron job started. Processing job: ${jobToProcess.id}`);
 
-        // 2. Mark the job as "processing" immediately to prevent other cron instances from picking it up
         await prisma.job.update({
             where: { id: jobToProcess.id },
             data: { status: 'processing' }, 
         });
 
-        // 3. Execute the long-running job logic
-        const { finalResult, thumbnailUrl } = await processJob(jobToProcess);
+        const { finalResult, thumbnailUrl } = await processSingleJob(jobToProcess);
         
-        // 4. Update the job with the final result
         await prisma.job.update({
             where: { id: jobToProcess.id },
             data: { status: 'complete', result: JSON.stringify(finalResult), thumbnailUrl: thumbnailUrl, error: null },
@@ -223,15 +215,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } catch (e) {
         const errorMessage = e instanceof Error ? e.message : String(e);
         console.error(`[Cron] Job processing failed for job ${jobToProcess?.id}:`, errorMessage);
-
-        // If a job was fetched before the error, mark it as 'failed'
         if (jobToProcess) {
             await prisma.job.update({
                 where: { id: jobToProcess.id },
                 data: { status: 'failed', error: errorMessage },
             });
         }
-        
         res.status(500).json({ message: 'Cron job failed.', error: errorMessage });
     }
 }
