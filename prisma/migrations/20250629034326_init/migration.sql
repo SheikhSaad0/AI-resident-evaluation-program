@@ -1,3 +1,5 @@
+-- prisma/migrations/20250629034326_init/migration.sql
+
 -- CreateTable
 CREATE TABLE "Job" (
     "id" TEXT NOT NULL,
@@ -7,6 +9,7 @@ CREATE TABLE "Job" (
     "residentName" TEXT,
     "additionalContext" TEXT,
     "result" TEXT,
+    "thumbnailUrl" TEXT, -- ADD THIS LINE
     "error" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
