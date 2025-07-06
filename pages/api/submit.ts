@@ -24,12 +24,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             return res.status(400).json({ message: 'A valid gcsUrl, gcsObjectPath, and surgeryName are required.' });
         }
 
-        // Create the job in the database, ensuring gcsObjectPath is included
+        // Create the job in the database with all the necessary data
         const job = await prisma.job.create({
             data: {
-                status: 'pending',
+                status: 'pending', // This line is crucial. It queues the job for the cron.
                 gcsUrl,
-                gcsObjectPath,    // This ensures the path is saved
+                gcsObjectPath,
                 surgeryName,
                 residentName,
                 additionalContext,
@@ -37,8 +37,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 videoAnalysis: !!videoAnalysis,
             },
         });
-
-        // The job is now correctly queued for the background worker.
 
         res.status(202).json({ jobId: job.id });
 
