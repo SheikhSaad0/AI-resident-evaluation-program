@@ -9,6 +9,9 @@ import { generateV4ReadSignedUrl } from '../../lib/gcs';
 import fs from 'fs';
 import os from 'os';
 import ffmpeg from 'fluent-ffmpeg';
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'; // <-- ADD THIS LINE
+
+ffmpeg.setFfmpegPath(ffmpegInstaller.path); // <-- AND ADD THIS LINE
 
 const prisma = new PrismaClient();
 
@@ -42,8 +45,7 @@ const vertex_ai = new VertexAI({
     location: 'us-central1',
 });
 
-// Using a specific, versioned model name for stability.
-const modelIdentifier = 'gemini-2.5-flash';
+const modelIdentifier = 'gemini-1.5-flash-001';
 const generativeModel = vertex_ai.getGenerativeModel({ model: modelIdentifier });
 const textModel = vertex_ai.getGenerativeModel({ model: modelIdentifier });
 
