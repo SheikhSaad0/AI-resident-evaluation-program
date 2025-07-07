@@ -315,32 +315,29 @@ export default function ResultsPage() {
         {mediaUrl && (
           <div className="mb-8 p-4 border rounded-lg dark:border-gray-700 bg-gray-50 dark:bg-slate-700/50">
             <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">
-              {isOriginalFileVideo ? 'View Recording' : 'Listen to Recording'}
+              {isOriginalFileVideo ? 'Review Recording' : 'Listen to Recording'}
             </h3>
-            <div className="flex items-center space-x-4">
-              <div className="flex-shrink-0 w-32 h-20 bg-black rounded-md overflow-hidden relative flex items-center justify-center">
-                {isOriginalFileVideo ? (
-                    thumbnailUrl ? (
-                        <Image src={thumbnailUrl} alt="Video thumbnail" layout="fill" objectFit="cover" />
-                    ) : (
-                        <svg className="h-8 w-8 text-gray-500" fill="currentColor" viewBox="0 0 24 24"><path d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.647c1.295.742 1.295 2.545 0 3.286L7.279 20.99c-1.25.717-2.779-.217-2.779-1.643V5.653z" /></svg>
-                    )
-                ) : (
-                    <svg className="h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"></path></svg>
-                )}
-              </div>
-              <div className="flex-grow">
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">The original uploaded recording is available for review.</p>
-                <a
-                  href={mediaUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block bg-brand-green text-white px-5 py-2.5 rounded-lg shadow-md text-sm font-semibold hover:bg-brand-green-500 transform transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-green-500 focus:ring-offset-2"
-                >
-                  {isOriginalFileVideo ? 'Open Video in New Tab' : 'Open Audio in New Tab'}
-                </a>
-              </div>
-            </div>
+            {isOriginalFileVideo ? (
+              <video
+                controls
+                src={mediaUrl}
+                className="w-full rounded-lg"
+              >
+                Your browser does not support the video tag. You can{' '}
+                <a href={mediaUrl} className="text-brand-green hover:underline">download the video</a>{' '}
+                instead.
+              </video>
+            ) : (
+              <audio
+                controls
+                src={mediaUrl}
+                className="w-full"
+              >
+                Your browser does not support the audio element. You can{' '}
+                <a href={mediaUrl} className="text-brand-green hover:underline">download the audio</a>{' '}
+                instead.
+              </audio>
+            )}
           </div>
         )}
 

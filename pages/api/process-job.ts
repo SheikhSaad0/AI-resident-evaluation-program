@@ -73,41 +73,7 @@ async function transcribeWithDeepgram(urlForTranscription: string): Promise<stri
     return utterances.map(utt => `[Speaker ${utt.speaker}] (${utt.start.toFixed(2)}s): ${utt.transcript}`).join('\n');
 }
 
-async function evaluateTranscript(transcription: string, surgeryName: string, additionalContext: string): Promise<GeminiEvaluationResult> {
-    console.log('Starting text-based evaluation...');
-    const config = EVALUATION_CONFIGS[surgeryName as keyof typeof EVALUATION_CONFIGS];
-    const prompt = `
-      You are a surgical education analyst. Based on the transcript, provide a detailed evaluation for ${surgeryName}.
-      Additional Context: ${additionalContext || 'None'}.
-      
-      **Instructions:**
-      - Provide a "caseDifficulty" as a single integer ONLY: 1, 2, or 3.
-      - Provide a concise summary in "additionalComments".
-      - For each procedure step, provide a nested object with "score", "time", and "comments".
-      - The "score" MUST be an integer between 1 and 5, based on this scale:
-        1: Unsafe, attending took over (Resident observed only or attempted but was unsafe; attending performed the step.)
-        2: Performed <50% of step. (Resident performed less than 50% of the step before the attending took over.)
-        3: Performed >50% but needed assistance. (Resident performed more than 50% of the step but required assistance.)
-        4: Completed with coaching. (Resident completed the entire step with coaching or guidance from the attending.)
-        5: Completed independently. (Resident completed the entire step independently, without assistance.)
-      - If a step was not performed, the score MUST be 0.
-      - For each step, provide "score", "comments", and the estimated "time" in a "minutes:seconds" format (e.g., "2 Minutes and 35 seconds").
-      - Return ONLY a single, valid JSON object with the specified keys: "caseDifficulty", "additionalComments", ${config.procedureSteps.map(s=>`"${s.key}"`).join(', ')}.`;
 
-    const request = { contents: [{ role: 'user', parts: [{ text: prompt }, {text: `Transcript:\n${transcription}`}] }] };
-    const streamingResp = await textModel.generateContentStream(request);
-    const aggregatedResponse = await streamingResp.response;
-    const responseText = aggregatedResponse.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!responseText) throw new Error("Failed to get a valid response from text model.");
-    
-    try {
-        const cleanedJsonText = responseText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-        return JSON.parse(cleanedJsonText);
-    } catch (_e) { // eslint-disable-line @typescript-eslint/no-unused-vars
-        console.error("Failed to parse JSON from text model. Raw response:", responseText);
-        throw new Error("AI model returned invalid JSON.");
-    }
-}
 
 // --- VIDEO ANALYSIS FUNCTION ---
 
@@ -118,12 +84,73 @@ const getMimeTypeFromGcsUri = (gcsUri: string): string => {
     return 'video/mp4';
 };
 
+// In pages/api/process-job.ts
+
+async function evaluateTranscript(transcription: string, surgeryName: string, additionalContext: string): Promise<GeminiEvaluationResult> {
+    console.log('Starting text-based evaluation with JSON mode...');
+    const config = EVALUATION_CONFIGS[surgeryName as keyof typeof EVALUATION_CONFIGS];
+    const prompt = `
+      You are an expert surgical education analyst. Your task is to provide a detailed, constructive evaluation of a resident's performance based on a transcript and the provided context.
+      **Procedure:** ${surgeryName}
+      **Additional Context to Consider:**
+      ---
+      ${additionalContext || 'None'}
+      ---
+      **Transcript with Speaker Labels:**
+      ---
+      ${transcription}
+      ---
+      **Instructions:**
+      1.  Review all the information provided.
+      2.  If the transcript is too short or lacks meaningful surgical dialogue, you MUST refuse to evaluate. Return a JSON object where 'additionalComments' explains why the evaluation is not possible, 'caseDifficulty' is 0, and all step scores are 0.
+      3.  For EACH procedure step listed, evaluate the resident's performance based on the transcript.
+          * **If a step WAS performed:**
+              * 'score': (Number 1-5) based on a standard surgical scoring scale (1=unsafe, 5=expert).
+              * 1: Unsafe, attending took over (Resident observed only or attempted but was unsafe; attending performed the step.)
+              * 2: Performed <50% of step. (Resident performed less than 50% of the step before the attending took over.)
+              * 3: Performed >50% but needed assistance. (Resident performed more than 50% of the step but required assistance.)
+              * 4: Completed with coaching. (Resident completed the entire step with coaching or guidance from the attending.)
+              * 5: Completed independently. (Resident completed the entire step independently, without assistance.)
+      - If a step was not performed, the score MUST be 0
+              * 'time': (String) Estimate the time spent on this step in the format "X minutes Y seconds" by analyzing timestamps.
+              * 'comments': (String) Provide DETAILED, constructive feedback.
+          * **If a step was NOT performed or mentioned:**
+              * 'score': 0
+              * 'time': "N/A"
+              * 'comments': "This step was not performed or mentioned."
+      4.  **Overall Assessment:**
+          * 'caseDifficulty': (Number 1-3) Analyze the entire transcript to determine the overall case difficulty (1=Low, 2=Moderate, 3=High).
+          * 'additionalComments': (String) Provide a concise summary of the resident's overall performance.
+      5.  **Return ONLY the JSON object.** The entire response must be a single JSON object.`;
+
+    const request = {
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+            responseMimeType: "application/json",
+        },
+    };
+    
+    const result = await textModel.generateContent(request);
+    const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!responseText) {
+        throw new Error("Failed to get a valid response from text model.");
+    }
+    
+    try {
+        return JSON.parse(responseText) as GeminiEvaluationResult;
+    } catch (error) {
+        console.error("Failed to parse JSON from text model. Raw response:", responseText);
+        throw new Error("AI model returned invalid JSON.");
+    }
+}
+
 async function evaluateVideo(surgeryName: string, additionalContext: string, gcsUri: string): Promise<GeminiEvaluationResult> {
     const config = EVALUATION_CONFIGS[surgeryName as keyof typeof EVALUATION_CONFIGS];
     console.log(`Starting video evaluation with GCS URI: ${gcsUri}`);
 
     const prompt = `
-      You are a surgical education analyst. Based on the provided video, provide a detailed evaluation for ${surgeryName}.
+      You are an expert surgical education analyst. Based on the provided video, provide a detailed evaluation for ${surgeryName}.
       Additional Context: ${additionalContext || 'None'}
       
       **Instructions:**
@@ -142,22 +169,27 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
       - Return ONLY a single, valid JSON object with the specified keys: "transcription", "caseDifficulty", "additionalComments", ${config.procedureSteps.map(s=>`"${s.key}"`).join(', ')}.`;
 
     const filePart: Part = { fileData: { mimeType: getMimeTypeFromGcsUri(gcsUri), fileUri: gcsUri } };
-    const request = { contents: [{ role: 'user', parts: [filePart, { text: prompt }] }] };
+    const request = {
+        contents: [{ role: 'user', parts: [filePart, { text: prompt }] }],
+        generationConfig: {
+            responseMimeType: "application/json",
+        },
+    };
 
-    const streamingResp = await generativeModel.generateContentStream(request);
-    const aggregatedResponse = await streamingResp.response;
-    const responseText = aggregatedResponse.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!responseText) throw new Error("Failed to get a valid response from the video model.");
+    const result = await generativeModel.generateContent(request);
+    const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!responseText) {
+        throw new Error("Failed to get a valid response from the video model.");
+    }
 
     try {
-        const cleanedJsonText = responseText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-        return JSON.parse(cleanedJsonText);
-    } catch(_e) { // eslint-disable-line @typescript-eslint/no-unused-vars
+        return JSON.parse(responseText) as GeminiEvaluationResult;
+    } catch(error) {
         console.error("Failed to parse JSON from video model. Raw response:", responseText);
         throw new Error("AI model returned invalid JSON.");
     }
 }
-
 // --- MAIN JOB PROCESSING LOGIC ---
 
 async function processJob(job: Job) {
