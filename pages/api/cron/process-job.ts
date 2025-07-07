@@ -11,7 +11,6 @@ import os from 'os';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 
-// Set the path for the ffmpeg binary to work in Vercel
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 const prisma = new PrismaClient();
@@ -19,26 +18,32 @@ const prisma = new PrismaClient();
 // --- Services Configuration ---
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY || '');
 
-// --- Cloud Services Authentication & Setup ---
+// --- Parse credentials once ---
 const serviceAccountB64 = process.env.GCP_SERVICE_ACCOUNT_B64;
 if (!serviceAccountB64) throw new Error('GCP_SERVICE_ACCOUNT_B64 environment variable is not set.');
 const serviceAccountJson = Buffer.from(serviceAccountB64, 'base64').toString('utf-8');
 const credentials = JSON.parse(serviceAccountJson);
 
+// --- Initialize clients with credentials ---
 const storage = new Storage({ projectId: credentials.project_id, credentials });
 const bucketName = process.env.GCS_BUCKET_NAME;
 if (!bucketName) throw new Error('GCS_BUCKET_NAME environment variable not set.');
 const bucket = storage.bucket(bucketName);
 
-const vertex_ai = new VertexAI({ project: credentials.project_id, location: 'us-central1' });
+// Note: We are now passing credentials directly during initialization here as well.
+const vertex_ai = new VertexAI({
+    project: credentials.project_id,
+    location: 'us-central1',
+    // The VertexAI constructor doesn't take 'credentials' directly, so we rely on ADC
+    // We will set the ADC environment variable inside the handler
+});
 
-// Using a stable, versioned model name. Ensure Vertex AI API is enabled in your GCP Project.
-const modelIdentifier = 'gemini-2.5-flash';
+const modelIdentifier = 'gemini-1.5-flash-001';
 const generativeModel = vertex_ai.getGenerativeModel({ model: modelIdentifier });
 const textModel = vertex_ai.getGenerativeModel({ model: modelIdentifier });
 
 
-// --- TYPE DEFINITIONS AND CONFIGS ---
+// --- TYPE DEFINITIONS AND CONFIGS (No Changes) ---
 interface ProcedureStepConfig { key: string; name: string; }
 interface EvaluationStep { score: number; time: string; comments: string; }
 interface GeminiEvaluationResult {
@@ -107,7 +112,6 @@ const buildEvaluationPrompt = (surgeryName: string, additionalContext: string, w
     return `You are a surgical education analyst. Your task is to provide a structured JSON evaluation. Procedure: ${surgeryName}. Additional Context: ${additionalContext || 'None'}. Instructions: ${transcriptionInstruction} - Provide a "caseDifficulty" as a single integer (1-3). - Provide a concise summary in "additionalComments". - For each procedure step, provide a nested object with "score" (integer 1-5, or 0 if not performed), "time" (string "X minutes Y seconds"), and "comments" (string). - Your entire response must be ONLY a single, valid JSON object with the specified keys. - The keys are: "caseDifficulty", "additionalComments", ${withTranscription ? '"transcription", ' : ''}${config.procedureSteps.map(s => `"${s.key}"`).join(', ')}.`;
 };
 
-
 // --- MAIN JOB PROCESSING LOGIC ---
 async function processSingleJob(job: Job) {
     console.log(`Background worker processing job ${job.id} for surgery: ${job.surgeryName}`);
@@ -144,6 +148,7 @@ async function processSingleJob(job: Job) {
         }
     }
     
+    // This try-catch block is for the AI evaluation part
     try {
         if (withVideo && videoAnalysis) {
             try {
@@ -184,6 +189,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    // --- FIX: Set up authentication for this specific serverless invocation ---
+    const credentialsPath = path.join(os.tmpdir(), `gcp-credentials-cron.json`);
+    fs.writeFileSync(credentialsPath, serviceAccountJson);
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = credentialsPath;
+
     let jobToProcess: Job | null = null;
     try {
         jobToProcess = await prisma.job.findFirst({
@@ -222,5 +232,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             });
         }
         res.status(500).json({ message: 'Cron job failed.', error: errorMessage });
+    } finally {
+        // Clean up the temporary credentials file
+        if (fs.existsSync(credentialsPath)) {
+            fs.unlinkSync(credentialsPath);
+        }
     }
 }
