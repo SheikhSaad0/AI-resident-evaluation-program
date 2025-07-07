@@ -30,6 +30,7 @@ interface EvaluationData {
   isFinalized?: boolean;
 }
 
+// --- NEW: Centralized config to match the backend ---
 const difficultyDescriptions = {
     standard: {
         1: 'Low Difficulty: Primary, straightforward case with normal anatomy and no prior abdominal or pelvic surgeries. Minimal dissection required; no significant adhesions or anatomical distortion.',
@@ -43,7 +44,6 @@ const difficultyDescriptions = {
     }
 };
 
-// FIX: Added the 'goalTime' property to every procedure step
 const EVALUATION_CONFIGS: { [key: string]: { procedureSteps: ProcedureStep[], caseDifficultyDescriptions: { [key: number]: string } } } = {
     'Laparoscopic Inguinal Hernia Repair with Mesh (TEP)': {
         procedureSteps: [
@@ -535,4 +535,4 @@ const EvaluationSection = ({ step, aiData, editedData, isFinalized, onChange }: 
         </div>
       </div>
     );
-};
+};  

@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import nodemailer from 'nodemailer';
 
+// --- NEW: Centralized config to match the rest of the app ---
 const difficultyDescriptions = {
     standard: {
         1: 'Low Difficulty: Primary, straightforward case with normal anatomy and no prior abdominal or pelvic surgeries. Minimal dissection required; no significant adhesions or anatomical distortion.',
@@ -185,7 +186,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const subject = `Final Evaluation Results for ${residentName || 'Resident'} - ${surgery}`;
   const html = createEmailHtml(surgery, evaluation, residentName, additionalContext);
   
-  // Moved transporter creation inside the handler to avoid build-time errors
   const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
     port: Number(process.env.EMAIL_PORT),

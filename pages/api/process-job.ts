@@ -14,7 +14,6 @@ const prisma = new PrismaClient();
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY || '');
 
 // --- VertexAI Authentication Setup ---
-// Decode the service account key from environment variables
 const serviceAccountB64 = process.env.GCP_SERVICE_ACCOUNT_B64;
 if (!serviceAccountB64) {
   throw new Error('GCP_SERVICE_ACCOUNT_B64 environment variable is not set.');
@@ -22,26 +21,22 @@ if (!serviceAccountB64) {
 const serviceAccountJson = Buffer.from(serviceAccountB64, 'base64').toString('utf-8');
 const credentials = JSON.parse(serviceAccountJson);
 
-// In a serverless environment, we write credentials to a temporary file
-// and set the GOOGLE_APPLICATION_CREDENTIALS env var to point to it.
 const credentialsPath = path.join(os.tmpdir(), 'gcp-credentials.json');
 fs.writeFileSync(credentialsPath, serviceAccountJson);
 process.env.GOOGLE_APPLICATION_CREDENTIALS = credentialsPath;
 
-// Now, initialize VertexAI. It will automatically find the credentials via the
-// GOOGLE_APPLICATION_CREDENTIALS environment variable.
 const vertex_ai = new VertexAI({
     project: credentials.project_id,
     location: 'us-central1',
 });
 
+// Using a more powerful model for better instruction following
 const generativeModel = vertex_ai.getGenerativeModel({
     model: 'gemini-2.5-flash',
 });
 const textModel = vertex_ai.getGenerativeModel({
     model: 'gemini-2.5-flash',
 });
-
 
 // --- TYPE DEFINITIONS AND CONFIGS ---
 interface ProcedureStepConfig { key: string; name: string; }
@@ -52,18 +47,57 @@ interface GeminiEvaluationResult {
     additionalComments: string;
     transcription?: string;
 }
-interface EvaluationConfigs { [key: string]: { procedureSteps: ProcedureStepConfig[]; }; }
-const EVALUATION_CONFIGS: EvaluationConfigs = {
-    'Laparoscopic Inguinal Hernia Repair with Mesh (TEP)': { procedureSteps: [ { key: 'portPlacement', name: 'Port Placement and Creation of Preperitoneal Space' }, { key: 'herniaDissection', name: 'Hernia Sac Reduction and Dissection of Hernia Space' }, { key: 'meshPlacement', name: 'Mesh Placement' }, { key: 'portClosure', name: 'Port Closure' }, { key: 'skinClosure', name: 'Skin Closure' }, ] },
-    'Laparoscopic Cholecystectomy': { procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'calotTriangleDissection', name: "Dissection of Calot's Triangle" }, { key: 'cysticArteryDuctClipping', name: 'Clipping and division of Cystic Artery and Duct' }, { key: 'gallbladderDissection', name: 'Gallbladder Dissection of the Liver' }, { key: 'specimenRemoval', name: 'Specimen removal' }, { key: 'portClosure', name: 'Port Closure' }, { key: 'skinClosure', name: 'Skin Closure' }, ] },
-    'Robotic Cholecystectomy': { procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'calotTriangleDissection', name: "Dissection of Calot's Triangle" }, { key: 'cysticArteryDuctClipping', name: 'Clipping and division of Cystic Artery and Duct' }, { key: 'gallbladderDissection', name: 'Gallbladder Dissection of the Liver' }, { key: 'specimenRemoval', name: 'Specimen removal' }, { key: 'portClosure', name: 'Port Closure' }, { key: 'skinClosure', name: 'Skin Closure' }, ] },
-    'Robotic Assisted Laparoscopic Inguinal Hernia Repair (TAPP)': { procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'robotDocking', name: 'Docking the robot' }, { key: 'instrumentPlacement', name: 'Instrument Placement' }, { key: 'herniaReduction', name: 'Reduction of Hernia' }, { key: 'flapCreation', name: 'Flap Creation' }, { key: 'meshPlacement', name: 'Mesh Placement/Fixation' }, { key: 'flapClosure', name: 'Flap Closure' }, { key: 'undocking', name: 'Undocking/trocar removal' }, { key: 'skinClosure', name: 'Skin Closure' }, ] },
-    'Robotic Lap Ventral Hernia Repair (TAPP)': { procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'robotDocking', name: 'Docking the robot' }, { key: 'instrumentPlacement', name: 'Instrument Placement' }, { key: 'herniaReduction', name: 'Reduction of Hernia' }, { key: 'flapCreation', name: 'Flap Creation' }, { key: 'herniaClosure', name: 'Hernia Closure' }, { key: 'meshPlacement', name: 'Mesh Placement/Fixation' }, { key: 'flapClosure', name: 'Flap Closure' }, { key: 'undocking', name: 'Undocking/trocar removal' }, { key: 'skinClosure', name: 'Skin Closure' }, ] },
-    'Laparoscopic Appendicectomy': { procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'appendixDissection', name: 'Identification, Dissection & Exposure of Appendix' }, { key: 'mesoappendixDivision', name: 'Division of Mesoappendix and Appendix Base' }, { key: 'specimenExtraction', name: 'Specimen Extraction' }, { key: 'portClosure', name: 'Port Closure' }, { key: 'skinClosure', name: 'Skin Closure' }, ] },
+
+// --- NEW: Centralized difficulty descriptions ---
+const difficultyDescriptions = {
+    standard: {
+        1: 'Low Difficulty: Primary, straightforward case with normal anatomy and no prior abdominal or pelvic surgeries. Minimal dissection required; no significant adhesions or anatomical distortion.',
+        2: 'Moderate Difficulty: Case involves mild to moderate adhesions or anatomical variation. May include BMI-related challenges, large hernias, or prior unrelated abdominal surgeries not directly affecting the operative field.',
+        3: 'High Difficulty: Redo or complex case with prior related surgeries (e.g., prior hernia repair, laparotomy). Significant adhesions, distorted anatomy, fibrosis, or other factors requiring advanced dissection and judgment.'
+    },
+    lapAppy: {
+        1: 'Low: Primary, straightforward case with normal anatomy',
+        2: 'Moderate: Mild adhesions or anatomical variation',
+        3: 'High: Dense adhesions, distorted anatomy, prior surgery, or perforated/complicated appendicitis'
+    }
 };
 
-// --- AUDIO-ONLY ANALYSIS FUNCTIONS ---
+interface EvaluationConfigs {
+    [key: string]: {
+        procedureSteps: ProcedureStepConfig[];
+        caseDifficultyDescriptions: { [key: number]: string };
+    };
+}
 
+const EVALUATION_CONFIGS: EvaluationConfigs = {
+    'Laparoscopic Inguinal Hernia Repair with Mesh (TEP)': {
+        procedureSteps: [ { key: 'portPlacement', name: 'Port Placement and Creation of Preperitoneal Space' }, { key: 'herniaDissection', name: 'Hernia Sac Reduction and Dissection of Hernia Space' }, { key: 'meshPlacement', name: 'Mesh Placement' }, { key: 'portClosure', name: 'Port Closure' }, { key: 'skinClosure', name: 'Skin Closure' }, ],
+        caseDifficultyDescriptions: difficultyDescriptions.standard,
+    },
+    'Laparoscopic Cholecystectomy': {
+        procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'calotTriangleDissection', name: "Dissection of Calot's Triangle" }, { key: 'cysticArteryDuctClipping', name: 'Clipping and division of Cystic Artery and Duct' }, { key: 'gallbladderDissection', name: 'Gallbladder Dissection of the Liver' }, { key: 'specimenRemoval', name: 'Specimen removal' }, { key: 'portClosure', name: 'Port Closure' }, { key: 'skinClosure', name: 'Skin Closure' }, ],
+        caseDifficultyDescriptions: difficultyDescriptions.standard,
+    },
+    'Robotic Cholecystectomy': {
+        procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'calotTriangleDissection', name: "Dissection of Calot's Triangle" }, { key: 'cysticArteryDuctClipping', name: 'Clipping and division of Cystic Artery and Duct' }, { key: 'gallbladderDissection', name: 'Gallbladder Dissection of the Liver' }, { key: 'specimenRemoval', name: 'Specimen removal' }, { key: 'portClosure', name: 'Port Closure' }, { key: 'skinClosure', name: 'Skin Closure' }, ],
+        caseDifficultyDescriptions: difficultyDescriptions.standard,
+    },
+    'Robotic Assisted Laparoscopic Inguinal Hernia Repair (TAPP)': {
+        procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'robotDocking', name: 'Docking the robot' }, { key: 'instrumentPlacement', name: 'Instrument Placement' }, { key: 'herniaReduction', name: 'Reduction of Hernia' }, { key: 'flapCreation', name: 'Flap Creation' }, { key: 'meshPlacement', name: 'Mesh Placement/Fixation' }, { key: 'flapClosure', name: 'Flap Closure' }, { key: 'undocking', name: 'Undocking/trocar removal' }, { key: 'skinClosure', name: 'Skin Closure' }, ],
+        caseDifficultyDescriptions: difficultyDescriptions.standard,
+    },
+    'Robotic Lap Ventral Hernia Repair (TAPP)': {
+        procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'robotDocking', name: 'Docking the robot' }, { key: 'instrumentPlacement', name: 'Instrument Placement' }, { key: 'herniaReduction', name: 'Reduction of Hernia' }, { key: 'flapCreation', name: 'Flap Creation' }, { key: 'herniaClosure', name: 'Hernia Closure' }, { key: 'meshPlacement', name: 'Mesh Placement/Fixation' }, { key: 'flapClosure', name: 'Flap Closure' }, { key: 'undocking', name: 'Undocking/trocar removal' }, { key: 'skinClosure', name: 'Skin Closure' }, ],
+        caseDifficultyDescriptions: difficultyDescriptions.standard,
+    },
+    'Laparoscopic Appendicectomy': {
+        procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'appendixDissection', name: 'Identification, Dissection & Exposure of Appendix' }, { key: 'mesoappendixDivision', name: 'Division of Mesoappendix and Appendix Base' }, { key: 'specimenExtraction', name: 'Specimen Extraction' }, { key: 'portClosure', name: 'Port Closure' }, { key: 'skinClosure', name: 'Skin Closure' }, ],
+        caseDifficultyDescriptions: difficultyDescriptions.lapAppy,
+    },
+};
+
+
+// --- AUDIO-ONLY ANALYSIS FUNCTIONS ---
 async function transcribeWithDeepgram(urlForTranscription: string): Promise<string> {
     console.log(`Starting audio transcription with Deepgram...`);
     const { result, error } = await deepgram.listen.prerecorded.transcribeUrl( { url: urlForTranscription }, { model: 'nova-2', diarize: true, punctuate: true, utterances: true } );
@@ -73,24 +107,22 @@ async function transcribeWithDeepgram(urlForTranscription: string): Promise<stri
     return utterances.map(utt => `[Speaker ${utt.speaker}] (${utt.start.toFixed(2)}s): ${utt.transcript}`).join('\n');
 }
 
-
-
-// --- VIDEO ANALYSIS FUNCTION ---
-
 const getMimeTypeFromGcsUri = (gcsUri: string): string => {
     const extension = path.extname(gcsUri).toLowerCase();
     if (extension === '.mov') return 'video/quicktime';
     if (extension === '.mp4') return 'video/mp4';
-    return 'video/mp4'; 
+    if (extension === '.webm') return 'video/webm';
+    return 'video/mp4';
 };
 
-// In pages/api/process-job.ts
-
-// --- PROMPT IMPROVEMENT: More detailed and structured prompt with JSON example ---
+// --- UPDATED PROMPT with custom difficulty descriptions ---
 async function evaluateTranscript(transcription: string, surgeryName: string, additionalContext: string): Promise<GeminiEvaluationResult> {
     console.log('Starting text-based evaluation with JSON mode...');
     const config = EVALUATION_CONFIGS[surgeryName as keyof typeof EVALUATION_CONFIGS];
     const stepKeys = config.procedureSteps.map(s => `"${s.key}": { "score": ..., "time": "...", "comments": "..." }`).join(',\n    ');
+    const difficultyText = Object.entries(config.caseDifficultyDescriptions)
+        .map(([key, value]) => `- ${key}: ${value}`)
+        .join('\n          ');
 
     const prompt = `
       You are an expert surgical education analyst. Your task is to provide a detailed, constructive evaluation of a resident's performance based on the provided transcript for the **${surgeryName}** procedure.
@@ -111,8 +143,9 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
             - **5:** Completed independently and proficiently.
           - **If a step was NOT performed:** Use a score of 0, time "N/A", and comment "This step was not performed or mentioned."
       3.  **Provide Overall Assessment:**
-          - \`caseDifficulty\`: (Number 1-3) Rate the case difficulty (1=Low, 2=Moderate, 3=High).
-          - \`additionalComments\`: (String) Provide a concise summary of the resident's overall performance.
+          - **\`caseDifficulty\`**: (Number 1-3) Rate the case difficulty based on the following procedure-specific scale:
+          ${difficultyText}
+          - **\`additionalComments\`**: (String) Provide a concise summary of the resident's overall performance.
       
       4.  **JSON OUTPUT FORMAT:** You MUST return ONLY a single, valid JSON object matching this exact structure. Do not include any other text or markdown formatting.
 
@@ -152,11 +185,14 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
     }
 }
 
-// --- PROMPT IMPROVEMENT: More detailed and structured prompt with JSON example ---
+// --- UPDATED PROMPT with custom difficulty descriptions ---
 async function evaluateVideo(surgeryName: string, additionalContext: string, gcsUri: string): Promise<GeminiEvaluationResult> {
     const config = EVALUATION_CONFIGS[surgeryName as keyof typeof EVALUATION_CONFIGS];
     console.log(`Starting video evaluation with GCS URI: ${gcsUri}`);
     const stepKeys = config.procedureSteps.map(s => `"${s.key}": { "score": ..., "time": "...", "comments": "..." }`).join(',\n    ');
+    const difficultyText = Object.entries(config.caseDifficultyDescriptions)
+        .map(([key, value]) => `- ${key}: ${value}`)
+        .join('\n          ');
 
     const prompt = `
       You are an expert surgical education analyst. Your task is to provide a detailed, constructive evaluation of a resident's performance based on the provided video for the **${surgeryName}** procedure.
@@ -178,8 +214,9 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
             - **5:** Completed independently and proficiently.
           - **If a step was NOT performed:** Use a score of 0, time "N/A", and comment "This step was not performed or mentioned."
       4.  **Provide Overall Assessment:**
-          - \`caseDifficulty\`: (Number 1-3) Rate the case difficulty (1=Low, 2=Moderate, 3=High).
-          - \`additionalComments\`: (String) Provide a concise summary of the resident's overall performance.
+          - **\`caseDifficulty\`**: (Number 1-3) Rate the case difficulty based on the following procedure-specific scale:
+          ${difficultyText}
+          - **\`additionalComments\`**: (String) Provide a concise summary of the resident's overall performance.
 
       5.  **JSON OUTPUT FORMAT:** You MUST return ONLY a single, valid JSON object matching this exact structure. Do not include any other text or markdown formatting.
 
@@ -216,8 +253,7 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
     }
 }
 
-// --- MAIN JOB PROCESSING LOGIC ---
-
+// --- MAIN JOB PROCESSING LOGIC (No changes needed here) ---
 async function processJob(job: Job) {
     console.log(`Processing job ${job.id} for surgery: ${job.surgeryName}`);
     const { gcsObjectPath, gcsUrl, surgeryName, residentName, additionalContext, withVideo, videoAnalysis } = job;
