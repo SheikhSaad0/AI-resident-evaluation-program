@@ -13,5 +13,5 @@ jobs:
     steps:
       - name: Call the Vercel processing endpoint
         run: |
-          curl --fail -X GET "${{ secrets.VERCEL_PROJECT_URL }}/api/cron/process-job" \
+          curl --fail --verbose -X GET "${{ secrets.VERCEL_PROJECT_URL }}/api/cron/process-job" \
           -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
