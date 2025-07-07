@@ -30,12 +30,12 @@ const vertex_ai = new VertexAI({
     location: 'us-central1',
 });
 
-// --- MODEL UPGRADE: Using a more powerful model for better instruction following ---
+// Using a more powerful model for better instruction following
 const generativeModel = vertex_ai.getGenerativeModel({
-    model: 'gemini-1.5-pro-latest',
+    model: 'gemini-2.5-flash',
 });
 const textModel = vertex_ai.getGenerativeModel({
-    model: 'gemini-1.5-pro-latest',
+    model: 'gemini-2.5-flash',
 });
 
 // --- TYPE DEFINITIONS AND CONFIGS ---
@@ -95,7 +95,6 @@ const EVALUATION_CONFIGS: EvaluationConfigs = {
         caseDifficultyDescriptions: difficultyDescriptions.lapAppy,
     },
 };
-
 
 // --- AUDIO-ONLY ANALYSIS FUNCTIONS ---
 async function transcribeWithDeepgram(urlForTranscription: string): Promise<string> {
@@ -341,9 +340,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log(`[Cron] Found pending job ${jobToProcess.id}. Starting processing now.`);
     
-    // Respond immediately to the cron trigger
-    res.status(202).json({ message: `Processing started for job ${jobToProcess.id}` });
-    
-    // Process the job in the background
+    // Process the job directly in this function
     await processJob(jobToProcess);
+    
+    res.status(200).json({ message: `Successfully processed job ${jobToProcess.id}` });
 }
