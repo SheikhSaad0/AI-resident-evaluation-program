@@ -9,14 +9,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     try {
-        const { 
-            gcsUrl, 
-            gcsObjectPath, 
-            surgeryName, 
-            residentName, 
-            additionalContext, 
-            withVideo, 
-            videoAnalysis 
+        const {
+            gcsUrl,
+            gcsObjectPath,
+            surgeryName,
+            residentName,
+            additionalContext,
+            withVideo,
+            videoAnalysis
         } = req.body;
 
         if (!gcsUrl || !surgeryName || !gcsObjectPath) {
@@ -25,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const job = await prisma.job.create({
             data: {
-                status: 'pending',
+                status: 'pending', // The job is now queued
                 gcsUrl,
                 gcsObjectPath,
                 surgeryName,
@@ -36,19 +36,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             },
         });
 
-        const host = req.headers.host || 'localhost:3000';
-        const protocol = /^localhost/.test(host) ? 'http' : 'https';
-        const processUrl = new URL(`${protocol}://${host}/api/process-job?jobId=${job.id}`);
+        // --- REMOVED ---
+        // The fetch call to process-job has been removed.
+        // The cron job will now handle picking up and processing this job.
 
-        fetch(processUrl.href, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${process.env.CRON_SECRET}`
-            }
-        }).catch(error => {
-            console.error('[Trigger Error] Failed to start job processing:', error);
-        });
-
+        // Immediately respond to the client with the new job ID
         res.status(202).json({ jobId: job.id });
 
     } catch (error) {
