@@ -19,8 +19,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             videoAnalysis 
         } = req.body;
 
-        if (!gcsUrl || !surgeryName || !gcsObjectPath || typeof gcsObjectPath !== 'string' || gcsObjectPath.trim() === '') {
-            return res.status(400).json({ message: 'A valid gcsUrl, gcsObjectPath, and surgeryName are required.' });
+        if (!gcsUrl || !surgeryName || !gcsObjectPath) {
+            return res.status(400).json({ message: 'gcsUrl, gcsObjectPath, and surgeryName are required.' });
         }
 
         const job = await prisma.job.create({
@@ -34,6 +34,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 withVideo: !!withVideo,
                 videoAnalysis: !!videoAnalysis,
             },
+        });
+
+        const host = req.headers.host || 'localhost:3000';
+        const protocol = /^localhost/.test(host) ? 'http' : 'https';
+        const processUrl = new URL(`${protocol}://${host}/api/process-job?jobId=${job.id}`);
+
+        fetch(processUrl.href, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${process.env.CRON_SECRET}`
+            }
+        }).catch(error => {
+            console.error('[Trigger Error] Failed to start job processing:', error);
         });
 
         res.status(202).json({ jobId: job.id });

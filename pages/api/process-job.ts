@@ -5,16 +5,36 @@ import { VertexAI, Part } from '@google-cloud/vertexai';
 import { createClient, DeepgramError } from '@deepgram/sdk';
 import path from 'path';
 import { generateV4ReadSignedUrl } from '../../lib/gcs';
+import fs from 'fs';
+import os from 'os';
 
 const prisma = new PrismaClient();
 
 // --- Services Configuration ---
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY || '');
 
-const vertex_ai = new VertexAI({ 
-    project: process.env.GCP_PROJECT_ID!, 
-    location: 'us-central1' 
+// --- VertexAI Authentication Setup ---
+// Decode the service account key from environment variables
+const serviceAccountB64 = process.env.GCP_SERVICE_ACCOUNT_B64;
+if (!serviceAccountB64) {
+  throw new Error('GCP_SERVICE_ACCOUNT_B64 environment variable is not set.');
+}
+const serviceAccountJson = Buffer.from(serviceAccountB64, 'base64').toString('utf-8');
+const credentials = JSON.parse(serviceAccountJson);
+
+// In a serverless environment, we write credentials to a temporary file
+// and set the GOOGLE_APPLICATION_CREDENTIALS env var to point to it.
+const credentialsPath = path.join(os.tmpdir(), 'gcp-credentials.json');
+fs.writeFileSync(credentialsPath, serviceAccountJson);
+process.env.GOOGLE_APPLICATION_CREDENTIALS = credentialsPath;
+
+// Now, initialize VertexAI. It will automatically find the credentials via the
+// GOOGLE_APPLICATION_CREDENTIALS environment variable.
+const vertex_ai = new VertexAI({
+    project: credentials.project_id,
+    location: 'us-central1',
 });
+
 const generativeModel = vertex_ai.getGenerativeModel({
     model: 'gemini-2.5-flash',
 });
@@ -26,9 +46,9 @@ const textModel = vertex_ai.getGenerativeModel({
 // --- TYPE DEFINITIONS AND CONFIGS ---
 interface ProcedureStepConfig { key: string; name: string; }
 interface EvaluationStep { score: number; time: string; comments: string; }
-interface GeminiEvaluationResult { 
+interface GeminiEvaluationResult {
     [key: string]: EvaluationStep | number | string | undefined;
-    caseDifficulty: number; 
+    caseDifficulty: number;
     additionalComments: string;
     transcription?: string;
 }
@@ -44,13 +64,13 @@ const EVALUATION_CONFIGS: EvaluationConfigs = {
 
 // --- AUDIO-ONLY ANALYSIS FUNCTIONS ---
 
-async function transcribeWithDeepgram(urlForTranscription: string): Promise<string> { 
-    console.log(`Starting audio transcription with Deepgram...`); 
-    const { result, error } = await deepgram.listen.prerecorded.transcribeUrl( { url: urlForTranscription }, { model: 'nova-2', diarize: true, punctuate: true, utterances: true } ); 
-    if (error) throw new DeepgramError(error.message); 
-    const utterances = result.results?.utterances; 
+async function transcribeWithDeepgram(urlForTranscription: string): Promise<string> {
+    console.log(`Starting audio transcription with Deepgram...`);
+    const { result, error } = await deepgram.listen.prerecorded.transcribeUrl( { url: urlForTranscription }, { model: 'nova-2', diarize: true, punctuate: true, utterances: true } );
+    if (error) throw new DeepgramError(error.message);
+    const utterances = result.results?.utterances;
     if (!utterances || utterances.length === 0) return "Transcription returned no utterances.";
-    return utterances.map(utt => `[Speaker ${utt.speaker}] (${utt.start.toFixed(2)}s): ${utt.transcript}`).join('\n'); 
+    return utterances.map(utt => `[Speaker ${utt.speaker}] (${utt.start.toFixed(2)}s): ${utt.transcript}`).join('\n');
 }
 
 async function evaluateTranscript(transcription: string, surgeryName: string, additionalContext: string): Promise<GeminiEvaluationResult> {
@@ -73,19 +93,16 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
       - If a step was not performed, the score MUST be 0.
       - For each step, provide "score", "comments", and the estimated "time" in a "minutes:seconds" format (e.g., "2 Minutes and 35 seconds").
       - Return ONLY a single, valid JSON object with the specified keys: "caseDifficulty", "additionalComments", ${config.procedureSteps.map(s=>`"${s.key}"`).join(', ')}.`;
-    
+
     const request = { contents: [{ role: 'user', parts: [{ text: prompt }, {text: `Transcript:\n${transcription}`}] }] };
     const streamingResp = await textModel.generateContentStream(request);
     const aggregatedResponse = await streamingResp.response;
     const responseText = aggregatedResponse.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!responseText) throw new Error("Failed to get a valid response from text model.");
     
-    // ...
-    // ...
     try {
         const cleanedJsonText = responseText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
         return JSON.parse(cleanedJsonText);
-        // Add the comment below
     } catch (_e) { // eslint-disable-line @typescript-eslint/no-unused-vars
         console.error("Failed to parse JSON from text model. Raw response:", responseText);
         throw new Error("AI model returned invalid JSON.");
@@ -104,7 +121,7 @@ const getMimeTypeFromGcsUri = (gcsUri: string): string => {
 async function evaluateVideo(surgeryName: string, additionalContext: string, gcsUri: string): Promise<GeminiEvaluationResult> {
     const config = EVALUATION_CONFIGS[surgeryName as keyof typeof EVALUATION_CONFIGS];
     console.log(`Starting video evaluation with GCS URI: ${gcsUri}`);
-    
+
     const prompt = `
       You are a surgical education analyst. Based on the provided video, provide a detailed evaluation for ${surgeryName}.
       Additional Context: ${additionalContext || 'None'}
@@ -115,13 +132,13 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
       - Provide a concise summary in "additionalComments".
       - For each procedure step, provide a nested object with "score", "time", and "comments".
       - The "score" MUST be an integer between 1 and 5, based on this scale:
-      - For each step, provide "score", "comments", and the estimated "time" in a "minutes:seconds" format (e.g., "2 Minutes and 35 seconds").
         1: Unsafe, attending took over (Resident observed only or attempted but was unsafe; attending performed the step.)
         2: Performed <50% of step. (Resident performed less than 50% of the step before the attending took over.)
         3: Performed >50% but needed assistance. (Resident performed more than 50% of the step but required assistance.)
         4: Completed with coaching. (Resident completed the entire step with coaching or guidance from the attending.)
         5: Completed independently. (Resident completed the entire step independently, without assistance.)
       - If a step was not performed, the score MUST be 0
+      - For each step, provide "score", "comments", and the estimated "time" in a "minutes:seconds" format (e.g., "2 Minutes and 35 seconds").
       - Return ONLY a single, valid JSON object with the specified keys: "transcription", "caseDifficulty", "additionalComments", ${config.procedureSteps.map(s=>`"${s.key}"`).join(', ')}.`;
 
     const filePart: Part = { fileData: { mimeType: getMimeTypeFromGcsUri(gcsUri), fileUri: gcsUri } };
@@ -132,11 +149,9 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
     const responseText = aggregatedResponse.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!responseText) throw new Error("Failed to get a valid response from the video model.");
 
-    // ...
     try {
         const cleanedJsonText = responseText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
         return JSON.parse(cleanedJsonText);
-        // Add the comment below
     } catch(_e) { // eslint-disable-line @typescript-eslint/no-unused-vars
         console.error("Failed to parse JSON from video model. Raw response:", responseText);
         throw new Error("AI model returned invalid JSON.");
@@ -161,17 +176,14 @@ async function processJob(job: Job) {
             try {
                 console.log("Visual analysis is enabled. Attempting Vertex AI video evaluation.");
                 await prisma.job.update({ where: { id: job.id }, data: { status: 'processing-in-gemini' } });
-                
-                // For Vertex AI, the service account needs direct access. The gs:// URI is correct here.
-                // You must ensure your Vertex AI service agent has Storage Object Viewer role on the bucket.
+
                 const gcsUri = gcsUrl.replace('https://storage.googleapis.com/', 'gs://');
                 evaluationResult = await evaluateVideo(surgeryName, additionalContext || '', gcsUri);
                 transcription = evaluationResult.transcription;
             } catch (videoError) {
                 console.error("Vertex AI video evaluation failed. Falling back to audio-only analysis.", videoError);
                 await prisma.job.update({ where: { id: job.id }, data: { status: 'processing-transcription' } });
-                
-                // Generate a temporary read URL for the audio fallback
+
                 const readableUrl = await generateV4ReadSignedUrl(gcsObjectPath);
                 transcription = await transcribeWithDeepgram(readableUrl);
                 evaluationResult = await evaluateTranscript(transcription, surgeryName, additionalContext || '');
@@ -180,14 +192,13 @@ async function processJob(job: Job) {
             console.log("Visual analysis is disabled or file is audio-only. Using audio analysis path.");
             await prisma.job.update({ where: { id: job.id }, data: { status: 'processing-transcription' } });
 
-            // Generate a temporary read URL for Deepgram
             const readableUrl = await generateV4ReadSignedUrl(gcsObjectPath);
             transcription = await transcribeWithDeepgram(readableUrl);
-            
+
             await prisma.job.update({ where: { id: job.id }, data: { status: 'processing-evaluation' } });
             evaluationResult = await evaluateTranscript(transcription, surgeryName, additionalContext || '');
         }
-        
+
         console.log(`Job ${job.id}: Gemini evaluation complete.`);
 
         const finalResult = {
@@ -201,7 +212,6 @@ async function processJob(job: Job) {
         return finalResult;
     } catch(error) {
         console.error(`Error during processing for job ${job.id}:`, error);
-        // Re-throw the error to be caught by the handler
         throw error;
     }
 }

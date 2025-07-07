@@ -23,7 +23,7 @@ interface EvaluationData {
   additionalComments: string;
   attendingCaseDifficulty?: number;
   attendingAdditionalComments?: string;
-  transcription?: string; 
+  transcription: string;
   surgery: string;
   residentName?: string;
   additionalContext?: string;
@@ -43,6 +43,7 @@ const difficultyDescriptions = {
     }
 };
 
+// FIX: Added the 'goalTime' property to every procedure step
 const EVALUATION_CONFIGS: { [key: string]: { procedureSteps: ProcedureStep[], caseDifficultyDescriptions: { [key: number]: string } } } = {
     'Laparoscopic Inguinal Hernia Repair with Mesh (TEP)': {
         procedureSteps: [
@@ -130,11 +131,7 @@ export default function ResultsPage() {
   const [residentName, setResidentName] = useState('');
   const [additionalContext, setAdditionalContext] = useState('');
   const [procedureSteps, setProcedureSteps] = useState<ProcedureStep[]>([]);
-  
   const [showTranscription, setShowTranscription] = useState(false);
-  const [transcription, setTranscription] = useState<string | null>(null);
-  const [isFetchingTranscription, setIsFetchingTranscription] = useState(false);
-
   const [email, setEmail] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [emailMessage, setEmailMessage] = useState('');
@@ -148,35 +145,30 @@ export default function ResultsPage() {
         try {
             const response = await fetch(`/api/job-status/${jobId}`);
             if (!response.ok) {
-                const errorData = await response.json().catch(() => null);
-                throw new Error(errorData?.error || `Failed to fetch evaluation data: ${response.statusText}`);
+                throw new Error('Failed to fetch evaluation data.');
             }
             const jobData = await response.json();
 
-            if (jobData.error) {
-                throw new Error(jobData.error);
-            }
-
             if (jobData.status === 'complete' && jobData.result) {
-                const evaluationData = jobData.result; 
-                setEvaluation(evaluationData);
-                setEditedEvaluation(JSON.parse(JSON.stringify(evaluationData)));
-                setSurgery(evaluationData.surgery);
-                setResidentName(evaluationData.residentName || '');
-                setAdditionalContext(evaluationData.additionalContext || '');
-                setIsFinalized(evaluationData.isFinalized || false);
+                const parsedData = jobData.result;
+                setEvaluation(parsedData);
+                setEditedEvaluation(JSON.parse(JSON.stringify(parsedData)));
+                setSurgery(parsedData.surgery);
+                setResidentName(parsedData.residentName || '');
+                setAdditionalContext(parsedData.additionalContext || '');
+                setIsFinalized(parsedData.isFinalized || false);
+
                 setVisualAnalysisPerformed(jobData.withVideo && jobData.videoAnalysis);
                 setIsOriginalFileVideo(jobData.withVideo);
                 
                 if (jobData.readableUrl) {
                     setMediaUrl(jobData.readableUrl);
                 }
-
                 if (jobData.thumbnailUrl) {
                     setThumbnailUrl(jobData.thumbnailUrl);
                 }
 
-                const config = EVALUATION_CONFIGS[evaluationData.surgery as keyof typeof EVALUATION_CONFIGS];
+                const config = EVALUATION_CONFIGS[parsedData.surgery as keyof typeof EVALUATION_CONFIGS];
                 if (config) {
                     setProcedureSteps(config.procedureSteps);
                 }
@@ -188,7 +180,7 @@ export default function ResultsPage() {
             }
         } catch (error) {
             console.error("Failed to fetch evaluation data", error);
-            alert(`Could not load the evaluation: ${error instanceof Error ? error.message : 'Unknown error'}. Redirecting to home.`);
+            alert("Could not load the evaluation. Redirecting to the home page.");
             router.push('/');
         }
     };
@@ -198,28 +190,6 @@ export default function ResultsPage() {
     }
   }, [id, router]);
 
-  const handleToggleTranscription = async () => {
-    const newShowState = !showTranscription;
-    setShowTranscription(newShowState);
-
-    if (newShowState && !transcription && id) {
-        setIsFetchingTranscription(true);
-        try {
-            const response = await fetch(`/api/transcription/${id}`);
-            if (!response.ok) {
-                throw new Error('Failed to fetch transcription text.');
-            }
-            const text = await response.text();
-            setTranscription(text);
-        } catch (error) {
-            console.error(error);
-            setTranscription('Error: Could not load transcription.');
-        } finally {
-            setIsFetchingTranscription(false);
-        }
-    }
-  };
-  
   const handleFinalize = async () => {
     if (editedEvaluation && id) {
       const finalEvaluation = { ...editedEvaluation, isFinalized: true };
@@ -266,7 +236,7 @@ export default function ResultsPage() {
         body: JSON.stringify({
           to: email,
           surgery: surgery,
-          evaluation: { ...editedEvaluation, transcription },
+          evaluation: editedEvaluation,
           residentName: residentName,
           additionalContext: additionalContext,
         }),
@@ -434,7 +404,7 @@ export default function ResultsPage() {
         </div>
         <div className="mt-8">
           <div
-            onClick={handleToggleTranscription}
+            onClick={() => setShowTranscription(!showTranscription)}
             className="flex justify-between items-center cursor-pointer border-b pb-2 border-gray-200 dark:border-gray-700"
           >
             <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Full Transcription</h2>
@@ -442,10 +412,10 @@ export default function ResultsPage() {
           </div>
           {showTranscription && (
             <div className="mt-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-slate-900/50 max-h-72 overflow-y-auto">
-              {isFetchingTranscription ? (
-                <p className="text-gray-500 dark:text-gray-400">Loading transcription...</p>
+              {evaluation.transcription && evaluation.transcription.trim() !== '' ? (
+                <p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap font-mono text-sm">{evaluation.transcription}</p>
               ) : (
-                <p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap font-mono text-sm">{transcription || 'Transcription not available.'}</p>
+                <p className="text-gray-500 dark:text-gray-400">Full transcription is not available.</p>
               )}
             </div>
           )}

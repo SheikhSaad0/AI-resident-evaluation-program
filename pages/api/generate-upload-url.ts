@@ -11,13 +11,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (!fileName || !fileType) {
             return res.status(400).json({ message: 'fileName and fileType are required.' });
         }
-
-        // Sanitize the filename to remove special characters that can cause issues.
-        // This replaces anything that is not a letter, number, dot, hyphen, or underscore with an underscore.
-        const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-
-        const destination = `uploads/${Date.now()}-${sanitizedFileName}`;
-        
+        const destination = `uploads/${Date.now()}-${fileName.replace(/\s/g, '_')}`;
         const signedUrl = await generateV4UploadSignedUrl(destination, fileType);
         
         res.status(200).json({ signedUrl, destination });

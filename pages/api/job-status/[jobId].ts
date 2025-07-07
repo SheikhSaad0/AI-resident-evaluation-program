@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { generateV4ReadSignedUrl } from '../../../lib/gcs';
+import { generateV4ReadSignedUrl } from '../../../lib/gcs'; // Corrected import path
 
 const prisma = new PrismaClient();
 
@@ -20,21 +20,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             return res.status(404).json({ error: 'Job not found.' });
         }
         
-        // If the job is complete, add the direct, playable GCS URL to the response
         if (job.status === 'complete' && job.gcsObjectPath) {
             const readableUrl = await generateV4ReadSignedUrl(job.gcsObjectPath);
-            const resultData = JSON.parse(job.result || '{}');
-            
-            // Remove transcription from main payload to keep it small
-            delete resultData.transcription;
+            const result = job.result ? JSON.parse(job.result as string) : null;
 
-            const responsePayload = {
+            return res.status(200).json({
                 ...job,
-                result: resultData,
-                readableUrl: readableUrl, // Add the signed URL here
-            };
-
-            return res.status(200).json(responsePayload);
+                result,
+                readableUrl,
+            });
         }
 
         return res.status(200).json(job);
