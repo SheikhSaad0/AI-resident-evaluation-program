@@ -172,8 +172,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(401).json({ error: 'Unauthorized' });
     }
     
-    // This is required for Vercel's serverless environment to find the credentials
-    process.env.GOOGLE_APPLICATION_CREDENTIALS = process.env.GCP_SERVICE_ACCOUNT_B64;
+    // Set credentials via temp file for this invocation
+    const credentialsPath = path.join(os.tmpdir(), `gcp-credentials-${Date.now()}.json`);
+    fs.writeFileSync(credentialsPath, serviceAccountJson);
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = credentialsPath;
 
     let jobToProcess: Job | null = null;
     try {
@@ -213,5 +215,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             });
         }
         res.status(500).json({ message: 'Cron job failed.', error: errorMessage });
+    } finally {
+        if (fs.existsSync(credentialsPath)) {
+            fs.unlinkSync(credentialsPath);
+        }
     }
 }
