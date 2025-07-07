@@ -38,7 +38,7 @@ const vertex_ai = new VertexAI({
     // We will set the ADC environment variable inside the handler
 });
 
-const modelIdentifier = 'gemini-1.5-flash-001';
+const modelIdentifier = 'gemini-2.5-flash';
 const generativeModel = vertex_ai.getGenerativeModel({ model: modelIdentifier });
 const textModel = vertex_ai.getGenerativeModel({ model: modelIdentifier });
 
