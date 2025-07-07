@@ -23,7 +23,7 @@ interface EvaluationData {
   additionalComments: string;
   attendingCaseDifficulty?: number;
   attendingAdditionalComments?: string;
-  transcription?: string; // This is now optional in the main data object
+  transcription?: string; 
   surgery: string;
   residentName?: string;
   additionalContext?: string;
@@ -131,7 +131,6 @@ export default function ResultsPage() {
   const [additionalContext, setAdditionalContext] = useState('');
   const [procedureSteps, setProcedureSteps] = useState<ProcedureStep[]>([]);
   
-  // State for on-demand transcription
   const [showTranscription, setShowTranscription] = useState(false);
   const [transcription, setTranscription] = useState<string | null>(null);
   const [isFetchingTranscription, setIsFetchingTranscription] = useState(false);
@@ -159,7 +158,7 @@ export default function ResultsPage() {
             }
 
             if (jobData.status === 'complete' && jobData.result) {
-                const evaluationData = jobData.result; // Result is now the direct object
+                const evaluationData = jobData.result; 
                 setEvaluation(evaluationData);
                 setEditedEvaluation(JSON.parse(JSON.stringify(evaluationData)));
                 setSurgery(evaluationData.surgery);
@@ -169,9 +168,8 @@ export default function ResultsPage() {
                 setVisualAnalysisPerformed(jobData.withVideo && jobData.videoAnalysis);
                 setIsOriginalFileVideo(jobData.withVideo);
                 
-                // Use the new media proxy that relies on the Job ID
-                if (jobData.gcsObjectPath) {
-                    setMediaUrl(`/api/media/by-job/${jobData.id}`);
+                if (jobData.readableUrl) {
+                    setMediaUrl(jobData.readableUrl);
                 }
 
                 if (jobData.thumbnailUrl) {
@@ -200,12 +198,10 @@ export default function ResultsPage() {
     }
   }, [id, router]);
 
-  // New handler to fetch transcription when the section is clicked
   const handleToggleTranscription = async () => {
     const newShowState = !showTranscription;
     setShowTranscription(newShowState);
 
-    // Fetch transcription only the first time it's opened
     if (newShowState && !transcription && id) {
         setIsFetchingTranscription(true);
         try {
@@ -270,7 +266,7 @@ export default function ResultsPage() {
         body: JSON.stringify({
           to: email,
           surgery: surgery,
-          evaluation: editedEvaluation,
+          evaluation: { ...editedEvaluation, transcription },
           residentName: residentName,
           additionalContext: additionalContext,
         }),
@@ -449,7 +445,7 @@ export default function ResultsPage() {
               {isFetchingTranscription ? (
                 <p className="text-gray-500 dark:text-gray-400">Loading transcription...</p>
               ) : (
-                <p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap font-mono text-sm">{transcription}</p>
+                <p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap font-mono text-sm">{transcription || 'Transcription not available.'}</p>
               )}
             </div>
           )}

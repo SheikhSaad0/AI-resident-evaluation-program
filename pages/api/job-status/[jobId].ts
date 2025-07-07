@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
+import { generateV4ReadSignedUrl } from '../../../lib/gcs';
 
 const prisma = new PrismaClient();
 
@@ -19,25 +20,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             return res.status(404).json({ error: 'Job not found.' });
         }
         
-        // If the job is complete, process the result to avoid sending the large transcription
-        if (job.status === 'complete' && job.result) {
-            const resultData = JSON.parse(job.result);
+        // If the job is complete, add the direct, playable GCS URL to the response
+        if (job.status === 'complete' && job.gcsObjectPath) {
+            const readableUrl = await generateV4ReadSignedUrl(job.gcsObjectPath);
+            const resultData = JSON.parse(job.result || '{}');
             
-            // Create a copy of the result and delete the large transcription property
-            const evaluationData = { ...resultData };
-            delete evaluationData.transcription;
+            // Remove transcription from main payload to keep it small
+            delete resultData.transcription;
 
-            // Create the final payload for the response
             const responsePayload = {
                 ...job,
-                // Replace the original massive result string with the smaller evaluation data object
-                result: evaluationData, 
+                result: resultData,
+                readableUrl: readableUrl, // Add the signed URL here
             };
 
             return res.status(200).json(responsePayload);
         }
 
-        // For jobs that are not complete, the 'result' field is null, so it's safe to send as-is
         return res.status(200).json(job);
 
     } catch (error) {
