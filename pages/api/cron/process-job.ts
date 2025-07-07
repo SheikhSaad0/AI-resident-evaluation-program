@@ -11,39 +11,28 @@ import os from 'os';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 
+// Set the path for the ffmpeg binary to work in Vercel
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 const prisma = new PrismaClient();
 
-// --- Services Configuration ---
-const deepgram = createClient(process.env.DEEPGRAM_API_KEY || '');
-
-// --- Parse credentials once ---
+// --- Services Configuration & Authentication ---
 const serviceAccountB64 = process.env.GCP_SERVICE_ACCOUNT_B64;
 if (!serviceAccountB64) throw new Error('GCP_SERVICE_ACCOUNT_B64 environment variable is not set.');
 const serviceAccountJson = Buffer.from(serviceAccountB64, 'base64').toString('utf-8');
 const credentials = JSON.parse(serviceAccountJson);
 
-// --- Initialize clients with credentials ---
 const storage = new Storage({ projectId: credentials.project_id, credentials });
+const vertex_ai = new VertexAI({ project: credentials.project_id, location: 'us-central1' });
+const deepgram = createClient(process.env.DEEPGRAM_API_KEY || '');
 const bucketName = process.env.GCS_BUCKET_NAME;
 if (!bucketName) throw new Error('GCS_BUCKET_NAME environment variable not set.');
 const bucket = storage.bucket(bucketName);
-
-// Note: We are now passing credentials directly during initialization here as well.
-const vertex_ai = new VertexAI({
-    project: credentials.project_id,
-    location: 'us-central1',
-    // The VertexAI constructor doesn't take 'credentials' directly, so we rely on ADC
-    // We will set the ADC environment variable inside the handler
-});
-
-const modelIdentifier = 'gemini-2.5-flash';
+const modelIdentifier = 'gemini-1.5-flash-001';
 const generativeModel = vertex_ai.getGenerativeModel({ model: modelIdentifier });
 const textModel = vertex_ai.getGenerativeModel({ model: modelIdentifier });
 
-
-// --- TYPE DEFINITIONS AND CONFIGS (No Changes) ---
+// --- TYPE DEFINITIONS AND CONFIGS ---
 interface ProcedureStepConfig { key: string; name: string; }
 interface EvaluationStep { score: number; time: string; comments: string; }
 interface GeminiEvaluationResult {
@@ -61,7 +50,6 @@ const EVALUATION_CONFIGS: EvaluationConfigs = {
     'Robotic Lap Ventral Hernia Repair (TAPP)': { procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'robotDocking', name: 'Docking the robot' }, { key: 'instrumentPlacement', name: 'Instrument Placement' }, { key: 'herniaReduction', name: 'Reduction of Hernia' }, { key: 'flapCreation', name: 'Flap Creation' }, { key: 'herniaClosure', name: 'Hernia Closure' }, { key: 'meshPlacement', name: 'Mesh Placement/Fixation' }, { key: 'flapClosure', name: 'Flap Closure' }, { key: 'undocking', name: 'Undocking/trocar removal' }, { key: 'skinClosure', name: 'Skin Closure' }, ] },
     'Laparoscopic Appendicectomy': { procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'appendixDissection', name: 'Identification, Dissection & Exposure of Appendix' }, { key: 'mesoappendixDivision', name: 'Division of Mesoappendix and Appendix Base' }, { key: 'specimenExtraction', name: 'Specimen Extraction' }, { key: 'portClosure', name: 'Port Closure' }, { key: 'skinClosure', name: 'Skin Closure' }, ] },
 };
-
 
 // --- HELPER FUNCTIONS ---
 function robustJsonParse(responseText: string): GeminiEvaluationResult {
@@ -124,14 +112,13 @@ async function processSingleJob(job: Job) {
 
     if (withVideo) {
         console.log(`Generating thumbnail for job ${job.id}...`);
-        const tempVideoPath = path.join(os.tmpdir(), job.id + path.extname(gcsObjectPath));
         const tempThumbFilename = `${job.id}.jpg`;
         const tempThumbPath = path.join(os.tmpdir(), tempThumbFilename);
         
         try {
-            await bucket.file(gcsObjectPath).download({ destination: tempVideoPath });
+            const videoStream = bucket.file(gcsObjectPath).createReadStream();
             await new Promise<void>((resolve, reject) => {
-                ffmpeg(tempVideoPath)
+                ffmpeg(videoStream)
                     .on('end', () => resolve())
                     .on('error', (err: Error) => reject(err))
                     .screenshots({ timestamps: ['00:05'], filename: tempThumbFilename, folder: os.tmpdir(), size: '320x240' });
@@ -139,16 +126,14 @@ async function processSingleJob(job: Job) {
             const thumbDestination = `thumbnails/${tempThumbFilename}`;
             await bucket.upload(tempThumbPath, { destination: thumbDestination });
             thumbnailUrl = await generateV4ReadSignedUrl(thumbDestination);
-            console.log(`Thumbnail generated and signed URL created.`);
+            console.log(`Thumbnail generated via streaming and uploaded.`);
         } catch (thumbError) {
             console.error(`Could not generate thumbnail for job ${job.id}:`, thumbError);
         } finally {
-            if (fs.existsSync(tempVideoPath)) fs.unlinkSync(tempVideoPath);
             if (fs.existsSync(tempThumbPath)) fs.unlinkSync(tempThumbPath);
         }
     }
     
-    // This try-catch block is for the AI evaluation part
     try {
         if (withVideo && videoAnalysis) {
             try {
@@ -188,8 +173,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
-
-    // --- FIX: Set up authentication for this specific serverless invocation ---
+    
+    // Set up authentication for this specific serverless invocation
     const credentialsPath = path.join(os.tmpdir(), `gcp-credentials-cron.json`);
     fs.writeFileSync(credentialsPath, serviceAccountJson);
     process.env.GOOGLE_APPLICATION_CREDENTIALS = credentialsPath;
