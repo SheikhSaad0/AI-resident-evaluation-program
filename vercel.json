@@ -2,6 +2,9 @@
   "functions": {
     "pages/api/cron/process-job.ts": {
       "maxDuration": 300
+    },
+    "pages/api/process-job.ts": {
+      "maxDuration": 300
     }
   }
 }
