@@ -11,7 +11,6 @@ import os from 'os';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 
-// Set the path for the ffmpeg binary to work in Vercel
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 const prisma = new PrismaClient();
@@ -167,17 +166,14 @@ async function processSingleJob(job: Job) {
     }
 }
 
-
 // --- Cron Job API Handler ---
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
     
-    // Set up authentication for this specific serverless invocation
-    const credentialsPath = path.join(os.tmpdir(), `gcp-credentials-cron.json`);
-    fs.writeFileSync(credentialsPath, serviceAccountJson);
-    process.env.GOOGLE_APPLICATION_CREDENTIALS = credentialsPath;
+    // This is required for Vercel's serverless environment to find the credentials
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = process.env.GCP_SERVICE_ACCOUNT_B64;
 
     let jobToProcess: Job | null = null;
     try {
@@ -217,10 +213,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             });
         }
         res.status(500).json({ message: 'Cron job failed.', error: errorMessage });
-    } finally {
-        // Clean up the temporary credentials file
-        if (fs.existsSync(credentialsPath)) {
-            fs.unlinkSync(credentialsPath);
-        }
     }
 }
