@@ -44,7 +44,7 @@ export async function generateV4ReadSignedUrl(fileName: string): Promise<string>
         version: 'v4' as const,
         action: 'read' as const,
         expires: Date.now() + 15 * 60 * 1000, // URL expires in 15 minutes
-        contentDisposition: `inline; filename="${path.basename(fileName)}"`,
+        contentDisposition: 'inline',
     };
 
     try {
