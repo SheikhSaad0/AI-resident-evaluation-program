@@ -16,7 +16,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             gcsUrl,
             gcsObjectPath,
             surgeryName,
-            residentName,
+            residentId, // Changed from residentName
             additionalContext,
             withVideo,
             videoAnalysis
@@ -28,17 +28,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 gcsUrl,
                 gcsObjectPath,
                 surgeryName,
-                residentName,
+                residentId, // Storing the ID
                 additionalContext,
                 withVideo: !!withVideo,
                 videoAnalysis: !!videoAnalysis,
             },
         });
 
-        // Determine the correct base URL
-        // 1. Use ngrok for local development
-        // 2. Use the Vercel Production URL for production deployments
-        // 3. Fallback for other environments
         const baseUrl = process.env.QSTASH_URL_OVERRIDE || 
                         `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` ||
                         (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
@@ -49,8 +45,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           url: destinationUrl,
           body: { jobId: job.id },
         });
-
-        console.log(`Job ${job.id} has been successfully queued with QStash to be sent to ${destinationUrl}`);
 
         res.status(202).json({ jobId: job.id });
 

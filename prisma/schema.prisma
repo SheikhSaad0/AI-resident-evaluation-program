@@ -1,29 +1,38 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
 }
 
 model Job {
   id                String    @id @default(cuid())
   status            String
   gcsUrl            String
-  gcsObjectPath     String?
-  thumbnailUrl      String?
-  geminiFileUri     String?   // <-- ADD THIS LINE BACK
+  gcsObjectPath     String?   // This field is used by your code
   surgeryName       String
-  residentName      String?
   additionalContext String?
-  result            String?
+  result            Json?
   error             String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   withVideo         Boolean   @default(false)
   videoAnalysis     Boolean   @default(false)
+
+  // Link to the new Resident model
+  residentId        String?
+  resident          Resident? @relation(fields: [residentId], references: [id], onDelete: SetNull)
+}
+
+model Resident {
+  id        String   @id @default(cuid())
+  name      String
+  photoUrl  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // A resident can have many jobs
+  jobs      Job[]
 }

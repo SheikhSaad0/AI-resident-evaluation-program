@@ -1,4 +1,4 @@
-import type { Job } from '@prisma/client';
+import { Job, Resident } from '@prisma/client'; // Correct import
 import { VertexAI, Part } from '@google-cloud/vertexai';
 import { createClient, DeepgramError } from '@deepgram/sdk';
 import path from 'path';
@@ -6,6 +6,8 @@ import fs from 'fs';
 import os from 'os';
 import { prisma } from './prisma';
 import { generateV4ReadSignedUrl } from './gcs';
+
+// ... (the rest of the file remains the same)
 
 // --- Services Configuration ---
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY || '');
@@ -28,10 +30,10 @@ const vertex_ai = new VertexAI({
 });
 
 const generativeModel = vertex_ai.getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.5-flash', // Corrected to a valid model name
 });
 const textModel = vertex_ai.getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.5-flash', // Corrected to a valid model name
 });
 
 // --- TYPE DEFINITIONS AND CONFIGS ---
@@ -138,7 +140,7 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
           - **\`caseDifficulty\`**: (Number 1-3) Rate the case difficulty based on the following procedure-specific scale:
           ${difficultyText}
           - **\`additionalComments\`**: (String) Provide a concise summary of the resident's overall performance, include key details to their performance and ideas for improvement
-        Record the time taken, he format should be "X minutes and Y seconds", where one step might have taken 4 minutes and 22 seconds
+        Record the time taken, the format should be "X minutes and Y seconds", where one step might have taken 4 minutes and 22 seconds
       4.  **JSON OUTPUT FORMAT:** You MUST return ONLY a single, valid JSON object matching this exact structure. Do not include any other text or markdown formatting.
 
       \`\`\`json
@@ -208,7 +210,7 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
           - **\`caseDifficulty\`**: (Number 1-3) Rate the case difficulty based on the following procedure-specific scale:
           ${difficultyText}
           - **\`additionalComments\`**: (String) Provide a concise summary of the resident's overall performance, include key details to their performance and ideas for improvement
-       Record the time taken, he format should be "X minutes and Y seconds", where one step might have taken 4 minutes and 22 seconds, take into consideration the video provided may be a teaching example and not a full procedure from start to finish, so then estimate the time accurately.
+       Record the time taken, the format should be "X minutes and Y seconds", where one step might have taken 4 minutes and 22 seconds, take into consideration the video provided may be a teaching example and not a full procedure from start to finish, so then estimate the time accurately.
       5.  **JSON OUTPUT FORMAT:** You MUST return ONLY a single, valid JSON object matching this exact structure. Do not include any other text or markdown formatting.
 
       \`\`\`json
@@ -245,9 +247,9 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
 }
 
 
-export async function processJob(job: Job) {
-    console.log(`Processing job ${job.id} for surgery: ${job.surgeryName}`);
-    const { id, gcsObjectPath, gcsUrl, surgeryName, residentName, additionalContext, withVideo, videoAnalysis } = job;
+export async function processJob(jobWithDetails: Job & { resident: Resident | null }) {
+    console.log(`Processing job ${jobWithDetails.id} for surgery: ${jobWithDetails.surgeryName}`);
+    const { id, gcsObjectPath, gcsUrl, surgeryName, additionalContext, withVideo, videoAnalysis, resident } = jobWithDetails;
 
     if (!gcsUrl || !gcsObjectPath) {
         throw new Error(`Job ${id} is missing gcsUrl or gcsObjectPath.`);
@@ -290,7 +292,7 @@ export async function processJob(job: Job) {
             ...evaluationResult,
             transcription,
             surgery: surgeryName,
-            residentName: residentName,
+            residentName: resident?.name, // Correctly access resident name
             additionalContext: additionalContext,
             isFinalized: false,
         };

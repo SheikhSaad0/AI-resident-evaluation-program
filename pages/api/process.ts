@@ -16,12 +16,19 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(400).json({ error: 'A valid jobId must be provided.' });
     }
 
-    const job = await prisma.job.findUnique({ where: { id: jobId } });
+    // Fetch the job and explicitly include the related resident data
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+      include: {
+        resident: true, // This is the crucial addition
+      },
+    });
 
     if (!job) {
       return res.status(404).json({ message: 'Job not found.' });
     }
     
+    // Now the 'job' object has the required 'resident' property
     await processJob(job);
 
     res.status(200).json({ message: `Successfully processed job ${jobId}` });
