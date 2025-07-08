@@ -26,25 +26,48 @@ export default function Dashboard() {
   const router = useRouter();
 
   useEffect(() => {
-    // Mock data for demonstration
-    const mockResidents = [
-      { id: '1', name: 'Dr. Sarah Johnson', photoUrl: null },
-      { id: '2', name: 'Dr. Michael Chen', photoUrl: null },
-      { id: '3', name: 'Dr. Emily Rodriguez', photoUrl: null }
-    ];
+    const fetchData = async () => {
+      try {
+        // Fetch residents from API
+        const residentsResponse = await fetch('/api/residents');
+        if (residentsResponse.ok) {
+          const residentsData = await residentsResponse.json();
+          setResidents(residentsData);
+        } else {
+          // Fallback to mock data if API fails
+          const mockResidents = [
+            { id: '1', name: 'Dr. Sarah Johnson', photoUrl: null },
+            { id: '2', name: 'Dr. Michael Chen', photoUrl: null },
+            { id: '3', name: 'Dr. Emily Rodriguez', photoUrl: null }
+          ];
+          setResidents(mockResidents);
+        }
 
-    const mockEvaluations = [
-      { id: '1', surgery: 'Laparoscopic Cholecystectomy', date: '2024-01-15', residentName: 'Dr. Sarah Johnson', score: 4.5, type: 'video' as const },
-      { id: '2', surgery: 'Robotic Cholecystectomy', date: '2024-01-14', residentName: 'Dr. Michael Chen', score: 4.2, type: 'audio' as const },
-      { id: '3', surgery: 'Laparoscopic Appendicectomy', date: '2024-01-13', residentName: 'Dr. Emily Rodriguez', score: 4.8, type: 'video' as const }
-    ];
+        // For now, keep mock evaluations as they might require more complex API setup
+        const mockEvaluations = [
+          { id: '1', surgery: 'Laparoscopic Cholecystectomy', date: '2024-01-15', residentName: 'Dr. Sarah Johnson', score: 4.5, type: 'video' as const },
+          { id: '2', surgery: 'Robotic Cholecystectomy', date: '2024-01-14', residentName: 'Dr. Michael Chen', score: 4.2, type: 'audio' as const },
+          { id: '3', surgery: 'Laparoscopic Appendicectomy', date: '2024-01-13', residentName: 'Dr. Emily Rodriguez', score: 4.8, type: 'video' as const }
+        ];
 
-    setResidents(mockResidents);
-    setEvaluations(mockEvaluations);
-    setStats({ 
-      totalEvals: mockEvaluations.length, 
-      avgScore: mockEvaluations.reduce((acc, evaluation) => acc + (evaluation.score || 0), 0) / mockEvaluations.length 
-    });
+        setEvaluations(mockEvaluations);
+        setStats({ 
+          totalEvals: mockEvaluations.length, 
+          avgScore: mockEvaluations.reduce((acc, evaluation) => acc + (evaluation.score || 0), 0) / mockEvaluations.length 
+        });
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        // Fallback to mock data
+        const mockResidents = [
+          { id: '1', name: 'Dr. Sarah Johnson', photoUrl: null },
+          { id: '2', name: 'Dr. Michael Chen', photoUrl: null },
+          { id: '3', name: 'Dr. Emily Rodriguez', photoUrl: null }
+        ];
+        setResidents(mockResidents);
+      }
+    };
+
+    fetchData();
   }, []);
 
   const handleResidentAdded = (newResident: Resident) => {
@@ -172,14 +195,14 @@ const RecentEvaluationsWidget = ({ evaluations }: { evaluations: Evaluation[] })
               </div>
               
               <div className="flex items-center space-x-3">
-                {/* Type Indicator */}
-                <div className="glassmorphism-subtle p-2 rounded-2xl">
+                {/* Type Indicator - larger and no bubble */}
+                <div className="p-1">
                   <Image 
                     src={getTypeIcon(evaluation.type)} 
                     alt={evaluation.type || 'analysis'} 
-                    width={20} 
-                    height={20}
-                    className="opacity-70"
+                    width={32} 
+                    height={32}
+                    className="opacity-90"
                   />
                 </div>
                 
@@ -243,19 +266,32 @@ const ResidentsWidget = ({
 
     setIsAdding(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      const newResident: Resident = {
-        id: Date.now().toString(),
-        name: name.trim(),
-        photoUrl: photo.trim() || null
-      };
-      
+    try {
+      const response = await fetch('/api/residents', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          photoUrl: photo.trim() || null
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add resident');
+      }
+
+      const newResident = await response.json();
       onResidentAdded(newResident);
       setName('');
       setPhoto('');
+    } catch (error) {
+      console.error('Error adding resident:', error);
+      alert('Failed to add resident. Please try again.');
+    } finally {
       setIsAdding(false);
-    }, 500);
+    }
   };
 
   const handleDelete = async (id: string) => {

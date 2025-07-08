@@ -79,20 +79,20 @@ export default function Evaluations() {
 
     // Apply search filter
     if (searchTerm) {
-      filtered = filtered.filter(eval => 
-        eval.surgery.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (eval.residentName && eval.residentName.toLowerCase().includes(searchTerm.toLowerCase()))
+      filtered = filtered.filter(evaluation => 
+        evaluation.surgery.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (evaluation.residentName && evaluation.residentName.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
 
     // Apply type filter
     if (filterType !== 'all') {
-      filtered = filtered.filter(eval => eval.type === filterType);
+      filtered = filtered.filter(evaluation => evaluation.type === filterType);
     }
 
     // Apply status filter
     if (filterStatus !== 'all') {
-      filtered = filtered.filter(eval => eval.status === filterStatus);
+      filtered = filtered.filter(evaluation => evaluation.status === filterStatus);
     }
 
     setFilteredEvaluations(filtered);
@@ -198,14 +198,14 @@ export default function Evaluations() {
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  {/* Type Icon */}
-                  <div className="glassmorphism-subtle p-3 rounded-2xl">
+                  {/* Type Icon - larger and no bubble */}
+                  <div className="p-1">
                     <Image 
                       src={getTypeIcon(evaluation.type)} 
                       alt={evaluation.type} 
-                      width={24} 
-                      height={24}
-                      className="opacity-80"
+                      width={36} 
+                      height={36}
+                      className="opacity-90"
                     />
                   </div>
                   

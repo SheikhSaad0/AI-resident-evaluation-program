@@ -49,26 +49,71 @@ export default function Home() {
     setIsAnalyzing(true);
     
     try {
-      // Simulate API call with realistic timing
+      if (!file) {
+        throw new Error('No file selected');
+      }
+
       console.log("Processing file upload...");
-      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      console.log("Analyzing surgical performance...");
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // First, get upload URL
+      const uploadResponse = await fetch('/api/generate-upload-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileType: file.type,
+        }),
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to get upload URL');
+      }
+
+      const { uploadUrl, filePath } = await uploadResponse.json();
+
+      // Upload file to Google Cloud Storage
+      const fileUploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type,
+        },
+      });
+
+      if (!fileUploadResponse.ok) {
+        throw new Error('Failed to upload file');
+      }
+
+      console.log("File uploaded successfully. Starting analysis...");
+
+      // Submit for analysis
+      const analysisResponse = await fetch('/api/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gcsUrl: `gs://ai-surgical-evaluator/${filePath}`,
+          gcsObjectPath: filePath,
+          surgeryName: selectedSurgery,
+          residentId: selectedResidentId,
+          additionalContext,
+          withVideo: file.type.startsWith('video/'),
+          videoAnalysis: file.type.startsWith('video/')
+        }),
+      });
+
+      if (!analysisResponse.ok) {
+        throw new Error('Failed to start analysis');
+      }
+
+      const { jobId } = await analysisResponse.json();
+      console.log("Analysis job started:", jobId);
       
-      console.log("Generating evaluation report...");
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Create a new evaluation ID and redirect to results
-      const evaluationId = `eval_${Date.now()}`;
-      console.log("Analysis complete! Redirecting to results...", evaluationId);
-      
-      // Redirect to results page
-      router.push(`/results/${evaluationId}`);
+      // Redirect to results page to monitor progress
+      router.push(`/results/${jobId}`);
       
     } catch (error) {
       console.error("Analysis failed:", error);
-      alert("Analysis failed. Please try again.");
+      alert(`Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsAnalyzing(false);
     }

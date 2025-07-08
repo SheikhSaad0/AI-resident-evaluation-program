@@ -57,10 +57,10 @@ const config: Config = {
         'glass-border-strong': 'rgba(255, 255, 255, 0.15)',
         
         // Text colors optimized for dark glass with better contrast
-        'text-primary': '#FFFFFF',
-        'text-secondary': '#F1F5F9',
-        'text-tertiary': '#CBD5E1',
-        'text-quaternary': '#94A3B8',
+        'text-primary': '#FFFFFF',         // Pure white for headings
+        'text-secondary': '#F8FAFC',       // Very light gray for important text
+        'text-tertiary': '#E2E8F0',        // Light gray for readable secondary text
+        'text-quaternary': '#CBD5E1',      // Medium gray for labels
       },
       
       backgroundImage: {
