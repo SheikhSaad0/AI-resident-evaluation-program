@@ -1,4 +1,5 @@
 import React from 'react';
+import { GlassSelect } from './ui';
 
 // A list of surgeries that the user can select from.
 // This could be fetched from a database in a real application.
@@ -17,26 +18,24 @@ interface Props {
 }
 
 const SurgerySelector: React.FC<Props> = ({ selected, setSelected }) => {
+  const surgeryOptions = surgeries.map(surgery => ({
+    value: surgery,
+    label: surgery
+  }));
+
   return (
     <div>
-      <label htmlFor="surgery-select" className="block mb-2 text-lg font-medium text-gray-700 dark:text-gray-300">
-        Select a Surgery
+      <label htmlFor="surgery-select" className="block mb-3 text-sm font-medium text-text-secondary">
+        Select Surgery Type
       </label>
-      <select
+      <GlassSelect
         id="surgery-select"
-        className="block appearance-none w-full bg-white dark:bg-slate-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white
-                   py-3 px-4 pr-8 rounded-lg leading-tight focus:outline-none focus:bg-white dark:focus:bg-slate-600 focus:border-brand-green-500
-                   shadow-sm cursor-pointer"
+        options={surgeryOptions}
         value={selected}
         onChange={(e) => setSelected(e.target.value)}
-      >
-        <option value="">-- Choose a procedure --</option>
-        {surgeries.map((surgery) => (
-          <option key={surgery} value={surgery}>
-            {surgery}
-          </option>
-        ))}
-      </select>
+        placeholder="— Choose a procedure —"
+        className="w-full"
+      />
     </div>
   );
 };

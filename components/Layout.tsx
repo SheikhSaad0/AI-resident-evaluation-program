@@ -12,39 +12,78 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen w-full p-4 sm:p-6 gap-6">
-      {/* Sidebar */}
-      <aside className="w-64 flex-shrink-0">
-        <div className="h-full rounded-2xl bg-navy-700/80 backdrop-blur-2xl border border-glass-border p-4 flex flex-col">
-          <div className="flex items-center justify-center h-16 mb-6">
-             <Image src="/images/logo.svg" alt="Logo" width={120} height={40} />
+      {/* Enhanced Glassmorphism Sidebar */}
+      <aside className="w-72 flex-shrink-0">
+        <div className="h-full glassmorphism-strong rounded-3xl p-6 flex flex-col shadow-glass-lg">
+          {/* Logo Section */}
+          <div className="flex items-center justify-center h-20 mb-8">
+            <div className="glassmorphism-subtle p-3 rounded-2xl">
+              <Image src="/images/logo.svg" alt="AI Surgical Evaluator" width={140} height={48} />
+            </div>
           </div>
+          
+          {/* Navigation */}
           <nav className="flex-grow">
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {navItems.map((item) => (
                 <li key={item.name}>
-                  <Link href={item.href} className={`flex items-center px-4 py-3 rounded-xl transition-all duration-200 text-base font-medium group ${
-                      router.pathname === item.href
-                        ? 'bg-brand-teal text-white shadow-glow'
-                        : 'text-text-secondary hover:bg-navy-600 hover:text-white'
-                    }`}
+                  <Link 
+                    href={item.href} 
+                    className={`
+                      nav-item
+                      ${router.pathname === item.href ? 'nav-item-active' : ''}
+                    `}
                   >
-                    <Image src={item.icon} alt={item.name} width={24} height={24} className="opacity-70 group-hover:opacity-100 transition-opacity" />
-                    <span className="ml-4">{item.name}</span>
+                    <div className="glassmorphism-subtle p-2 rounded-xl mr-3">
+                      <Image 
+                        src={item.icon} 
+                        alt={item.name} 
+                        width={20} 
+                        height={20} 
+                        className="opacity-80 group-hover:opacity-100 transition-opacity" 
+                      />
+                    </div>
+                    <span className="font-medium">{item.name}</span>
                   </Link>
                 </li>
               ))}
             </ul>
+            
+            {/* Additional Navigation Section */}
+            <div className="mt-8 pt-6 border-t border-glass-border">
+              <p className="text-text-quaternary text-xs font-medium uppercase tracking-wider mb-4">
+                Quick Actions
+              </p>
+              <div className="space-y-2">
+                <button className="nav-item w-full justify-start text-sm">
+                  <div className="glassmorphism-subtle p-1.5 rounded-lg mr-3">
+                    <Image src="/images/upload-icon.svg" alt="Upload" width={16} height={16} />
+                  </div>
+                  New Evaluation
+                </button>
+                <button className="nav-item w-full justify-start text-sm">
+                  <div className="glassmorphism-subtle p-1.5 rounded-lg mr-3">
+                    <Image src="/images/dashboard-icon.svg" alt="Reports" width={16} height={16} />
+                  </div>
+                  View Reports
+                </button>
+              </div>
+            </div>
           </nav>
-          <div className="text-center text-xs text-text-tertiary pb-2">
-            <p>AI Surgical Evaluator</p>
-            <p>v2.0</p>
+          
+          {/* Footer */}
+          <div className="glassmorphism-subtle rounded-2xl p-4 text-center">
+            <div className="text-xs font-medium text-text-tertiary space-y-1">
+              <p className="text-gradient font-semibold">AI Surgical Evaluator</p>
+              <p className="text-text-quaternary">Version 2.0</p>
+            </div>
           </div>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-grow rounded-2xl bg-navy-700/60 backdrop-blur-2xl border border-glass-border overflow-hidden">
-        <div className="w-full h-full overflow-y-auto p-6 md:p-8">
+      {/* Main Content Area */}
+      <main className="flex-grow glassmorphism rounded-3xl shadow-glass-lg overflow-hidden">
+        <div className="w-full h-full overflow-y-auto scrollbar-glass p-6 md:p-8">
           {children}
         </div>
       </main>

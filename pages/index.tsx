@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import SurgerySelector from '../components/SurgerySelector';
+import { GlassCard, GlassButton, GlassSelect, GlassTextarea } from '../components/ui';
 
 // --- Interfaces ---
 interface Resident { id: string; name: string; }
@@ -16,87 +17,202 @@ export default function Home() {
   const [additionalContext, setAdditionalContext] = useState('');
   const [pastEvaluations, setPastEvaluations] = useState<PastEvaluation[]>([]);
 
-  // Your existing handlers and useEffect would go here
+  // Mock data for demonstration
+  useEffect(() => {
+    setResidents([
+      { id: '1', name: 'Dr. Sarah Johnson' },
+      { id: '2', name: 'Dr. Michael Chen' },
+      { id: '3', name: 'Dr. Emily Rodriguez' }
+    ]);
+    
+    setPastEvaluations([
+      { id: '1', surgery: 'Laparoscopic Cholecystectomy', date: '2024-01-15', residentName: 'Dr. Sarah Johnson', withVideo: true },
+      { id: '2', surgery: 'Robotic Cholecystectomy', date: '2024-01-14', residentName: 'Dr. Michael Chen', withVideo: false },
+      { id: '3', surgery: 'Laparoscopic Appendicectomy', date: '2024-01-13', residentName: 'Dr. Emily Rodriguez', withVideo: true }
+    ]);
+  }, []);
 
-  const handleSubmit = () => console.log("Submit clicked");
+  const residentOptions = residents.map(resident => ({
+    value: resident.id,
+    label: resident.name
+  }));
+
+  const handleSubmit = () => {
+    console.log("Submit clicked");
+    setIsAnalyzing(true);
+    setTimeout(() => setIsAnalyzing(false), 3000); // Mock analysis
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0] || null;
+    setFile(selectedFile);
+  };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full">
-      {/* --- LEFT COLUMN: THE FORM --- */}
-      <div className="flex flex-col gap-6">
-        <div>
-          <h1 className="text-3xl font-bold text-text-primary tracking-tight">New Evaluation</h1>
-          <p className="text-text-secondary mt-1">Fill out the details below to begin.</p>
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 h-full">
+      {/* --- LEFT COLUMN: EVALUATION FORM --- */}
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="text-center xl:text-left">
+          <h1 className="heading-xl text-gradient mb-2">New Evaluation</h1>
+          <p className="text-text-tertiary text-lg">
+            Analyze surgical performance with AI-powered evaluation
+          </p>
         </div>
 
-        <SurgerySelector selected={selectedSurgery} setSelected={setSelectedSurgery} />
-        
-        <div>
-          <label className="block mb-2 text-sm font-medium text-text-secondary">Select Resident</label>
-          <select
-            value={selectedResidentId}
-            onChange={(e) => setSelectedResidentId(e.target.value)}
-            className="block appearance-none w-full bg-navy-800/50 border border-glass-border text-white py-3 px-4 pr-8 rounded-xl leading-tight focus:outline-none focus:ring-2 focus:ring-brand-teal"
-          >
-            <option value="">-- Choose a resident --</option>
-            {residents.map((resident) => (
-              <option key={resident.id} value={resident.id}>{resident.name}</option>
-            ))}
-          </select>
-        </div>
+        {/* Main Form Card */}
+        <GlassCard variant="strong" className="p-8 space-y-6">
+          {/* Surgery Selection */}
+          <SurgerySelector selected={selectedSurgery} setSelected={setSelectedSurgery} />
+          
+          {/* Resident Selection */}
+          <div>
+            <label className="block mb-3 text-sm font-medium text-text-secondary">
+              Select Resident
+            </label>
+            <GlassSelect
+              options={residentOptions}
+              value={selectedResidentId}
+              onChange={(e) => setSelectedResidentId(e.target.value)}
+              placeholder="— Choose a resident —"
+            />
+          </div>
 
-        <textarea
-            value={additionalContext}
-            onChange={(e) => setAdditionalContext(e.target.value)}
-            className="block w-full bg-navy-800/50 border border-glass-border text-white py-3 px-4 rounded-xl leading-tight focus:outline-none focus:ring-2 focus:ring-brand-teal placeholder:text-text-tertiary"
-            placeholder="Additional Context (e.g., simulation, patient issues)"
-            rows={4}
-        />
+          {/* Additional Context */}
+          <div>
+            <label className="block mb-3 text-sm font-medium text-text-secondary">
+              Additional Context
+            </label>
+            <GlassTextarea
+              value={additionalContext}
+              onChange={(e) => setAdditionalContext(e.target.value)}
+              placeholder="Enter any additional context, simulation details, or special circumstances..."
+              rows={4}
+            />
+          </div>
 
-        <div>
-            <label className="block mb-2 text-sm font-medium text-text-secondary">Upload Recording</label>
-            <div className="mt-1 flex justify-center rounded-xl border-2 border-dashed border-glass-border px-6 py-10 hover:border-brand-teal transition-colors">
-              <div className="text-center">
-                <Image src="/images/upload-icon.svg" alt="Upload" width={48} height={48} className="mx-auto" />
-                <div className="mt-4 flex text-sm text-text-secondary">
-                  <label htmlFor="file-upload" className="relative cursor-pointer rounded-md font-semibold text-brand-teal hover:text-opacity-80">
-                    <span>Upload a file</span>
-                    <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-                  </label>
-                  <p className="pl-1">or drag and drop</p>
+          {/* File Upload */}
+          <div>
+            <label className="block mb-3 text-sm font-medium text-text-secondary">
+              Upload Recording
+            </label>
+            <div className="glassmorphism-subtle border-2 border-dashed border-glass-border-strong rounded-3xl p-8 text-center hover:border-brand-primary/50 transition-all duration-300 group">
+              <div className="space-y-4">
+                <div className="glassmorphism p-4 rounded-2xl w-fit mx-auto">
+                  <Image 
+                    src="/images/upload-icon.svg" 
+                    alt="Upload" 
+                    width={48} 
+                    height={48} 
+                    className="opacity-60 group-hover:opacity-100 transition-opacity"
+                  />
                 </div>
-                <p className="text-xs text-text-tertiary mt-1">{file ? file.name : "MP3, MP4, MOV, etc."}</p>
+                
+                <div>
+                  <label htmlFor="file-upload" className="cursor-pointer">
+                    <span className="text-brand-primary font-semibold hover:text-brand-primary-hover transition-colors">
+                      Click to upload a file
+                    </span>
+                    <span className="text-text-tertiary"> or drag and drop</span>
+                    <input 
+                      id="file-upload" 
+                      name="file-upload" 
+                      type="file" 
+                      className="sr-only" 
+                      accept="audio/*,video/*"
+                      onChange={handleFileChange}
+                    />
+                  </label>
+                </div>
+                
+                <p className="text-xs text-text-quaternary">
+                  {file ? (
+                    <span className="text-brand-secondary font-medium">✓ {file.name}</span>
+                  ) : (
+                    "MP3, MP4, MOV up to 500MB"
+                  )}
+                </p>
               </div>
             </div>
-        </div>
+          </div>
 
-        <div className="mt-auto pt-4">
-          <button
-            onClick={handleSubmit}
-            disabled={isAnalyzing}
-            className="w-full bg-brand-teal text-white px-6 py-4 rounded-xl shadow-glow text-lg font-semibold transition-all hover:bg-brand-teal-hover disabled:bg-gray-500 disabled:shadow-none disabled:cursor-not-allowed"
-          >
-            {isAnalyzing ? 'Analyzing...' : 'Analyze Recording'}
-          </button>
-        </div>
+          {/* Submit Button */}
+          <div className="pt-4">
+            <GlassButton
+              variant="primary"
+              size="lg"
+              onClick={handleSubmit}
+              disabled={!selectedSurgery || !selectedResidentId || !file}
+              loading={isAnalyzing}
+              className="w-full"
+            >
+              {isAnalyzing ? 'Analyzing Recording...' : 'Start AI Analysis'}
+            </GlassButton>
+          </div>
+        </GlassCard>
       </div>
 
-      {/* --- RIGHT COLUMN: HISTORY --- */}
-      <div className="flex flex-col gap-6">
-        <div>
-          <h2 className="text-2xl font-bold text-text-primary tracking-tight">Past Evaluations</h2>
+      {/* --- RIGHT COLUMN: PAST EVALUATIONS --- */}
+      <div className="space-y-6">
+        <div className="text-center xl:text-left">
+          <h2 className="heading-lg mb-2">Recent Evaluations</h2>
+          <p className="text-text-tertiary">
+            View and analyze previous surgical assessments
+          </p>
         </div>
-        <div className="space-y-3 overflow-y-auto">
-          {pastEvaluations.map(evalItem => (
-            <div key={evalItem.id} className="flex items-center justify-between p-4 rounded-xl bg-navy-800/50 hover:bg-navy-600 transition-all cursor-pointer">
-              <div>
-                <p className="font-semibold text-text-primary">{evalItem.surgery}</p>
-                <p className="text-sm text-text-secondary">{evalItem.residentName || 'N/A'} - {evalItem.date}</p>
+
+        <GlassCard variant="default" className="p-6">
+          <div className="space-y-4 max-h-96 overflow-y-auto scrollbar-glass">
+            {pastEvaluations.map(evalItem => (
+              <GlassCard 
+                key={evalItem.id} 
+                variant="subtle" 
+                hover
+                className="p-4 cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-text-primary mb-1">
+                      {evalItem.surgery}
+                    </h4>
+                    <p className="text-sm text-text-tertiary">
+                      {evalItem.residentName || 'N/A'} • {evalItem.date}
+                    </p>
+                  </div>
+                  
+                  <div className="flex items-center space-x-3">
+                    <div className="glassmorphism-subtle p-2 rounded-xl">
+                      <Image 
+                        src={evalItem.withVideo ? '/images/videoSmall.svg' : '/images/audioSmall.svg'} 
+                        alt="Media type" 
+                        width={20} 
+                        height={20}
+                        className="opacity-70"
+                      />
+                    </div>
+                    <Image 
+                      src="/images/arrow-right-icon.svg" 
+                      alt="View" 
+                      width={16} 
+                      height={16}
+                      className="opacity-50"
+                    />
+                  </div>
+                </div>
+              </GlassCard>
+            ))}
+          </div>
+          
+          {pastEvaluations.length === 0 && (
+            <div className="text-center py-12">
+              <div className="glassmorphism-subtle p-6 rounded-2xl w-fit mx-auto mb-4">
+                <Image src="/images/dashboard-icon.svg" alt="No data" width={32} height={32} className="opacity-50" />
               </div>
-              <Image src={evalItem.withVideo ? '/images/videoSmall.svg' : '/images/audioSmall.svg'} alt="Media type" width={32} height={32} />
+              <p className="text-text-tertiary">No evaluations yet</p>
+              <p className="text-text-quaternary text-sm">Start your first evaluation to see results here</p>
             </div>
-          ))}
-        </div>
+          )}
+        </GlassCard>
       </div>
     </div>
   );

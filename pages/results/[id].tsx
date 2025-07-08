@@ -1,6 +1,7 @@
 import { useRouter } from 'next/router';
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
+import { GlassCard, GlassButton, GlassInput, GlassTextarea, GlassTabs, PillToggle } from '../../components/ui';
 
 interface EvaluationStep {
   score: number;
@@ -277,46 +278,112 @@ export default function ResultsPage() {
 
   if (!evaluation || !editedEvaluation) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center">
-         <div className="text-center">
-            <p className="text-xl text-gray-700 dark:text-gray-300">Loading evaluation results...</p>
-         </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <GlassCard variant="strong" className="p-8 text-center">
+          <div className="glassmorphism-subtle p-6 rounded-2xl w-fit mx-auto mb-4">
+            <Image src="/images/dashboard-icon.svg" alt="Loading" width={32} height={32} className="opacity-50 animate-pulse" />
+          </div>
+          <h2 className="heading-md mb-2">Loading Evaluation</h2>
+          <p className="text-text-tertiary">Please wait while we fetch the evaluation results...</p>
+        </GlassCard>
       </div>
     );
   }
 
   const descriptions = EVALUATION_CONFIGS[surgery as keyof typeof EVALUATION_CONFIGS]?.caseDifficultyDescriptions;
 
-  return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 py-10 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto bg-white dark:bg-slate-800 p-8 rounded-2xl shadow-xl">
-        
-        <div className="flex justify-between items-start mb-8">
-            <div className="w-[160px] flex-shrink-0"></div>
-            <div className="text-center flex-grow">
-                <h1 className="text-4xl font-extrabold text-gray-900 dark:text-white mb-2">
-                  {isFinalized ? 'Final Evaluation' : 'AI-Generated Evaluation Draft'}
-                </h1>
-                <p className="text-lg text-gray-500 dark:text-gray-300 mb-4">
-                  {surgery}
-                </p>
-                {residentName && <p className="text-lg font-semibold text-gray-600 dark:text-gray-400">Resident: {residentName}</p>}
-            </div>
-            <div className="w-[160px] flex-shrink-0 flex justify-end">
-                <Image 
-                    src={visualAnalysisPerformed ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg'}
-                    alt={visualAnalysisPerformed ? 'Visual Analysis' : 'Audio Analysis'}
-                    width={160}
-                    height={50}
-                />
-            </div>
-        </div>
+  const tabsData = [
+    { 
+      id: 'overview', 
+      label: 'Overview', 
+      content: <OverviewTab 
+        evaluation={evaluation}
+        editedEvaluation={editedEvaluation}
+        surgery={surgery}
+        residentName={residentName}
+        additionalContext={additionalContext}
+        isFinalized={isFinalized}
+        visualAnalysisPerformed={visualAnalysisPerformed}
+        mediaUrl={mediaUrl}
+        isOriginalFileVideo={isOriginalFileVideo}
+      />
+    },
+    { 
+      id: 'steps', 
+      label: 'Step Analysis', 
+      content: <StepsTab 
+        procedureSteps={procedureSteps}
+        evaluation={evaluation}
+        editedEvaluation={editedEvaluation}
+        isFinalized={isFinalized}
+        onEvaluationChange={handleEvaluationChange}
+      />
+    },
+    { 
+      id: 'transcription', 
+      label: 'Transcription', 
+      content: <TranscriptionTab 
+        transcription={evaluation.transcription as string}
+        showTranscription={showTranscription}
+        setShowTranscription={setShowTranscription}
+      />
+    },
+    { 
+      id: 'finalize', 
+      label: 'Finalize', 
+      content: <FinalizeTab 
+        editedEvaluation={editedEvaluation}
+        descriptions={descriptions}
+        isFinalized={isFinalized}
+        email={email}
+        setEmail={setEmail}
+        isSending={isSending}
+        emailMessage={emailMessage}
+        onOverallChange={handleOverallChange}
+        onFinalize={handleFinalize}
+        onSendEmail={handleSendEmail}
+      />
+    }
+  ];
 
-        {mediaUrl && (
-          <div className="mb-8 p-4 border rounded-lg dark:border-gray-700 bg-gray-50 dark:bg-slate-700/50">
-            <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">
-              {isOriginalFileVideo ? 'Review Recording' : 'Listen to Recording'}
-            </h3>
+  return (
+    <div className="space-y-8">
+      {/* Header Section */}
+      <div className="text-center">
+        <div className="flex items-center justify-center mb-4">
+          <div className="glassmorphism-subtle p-3 rounded-2xl mr-4">
+            <Image 
+              src={visualAnalysisPerformed ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg'}
+              alt={visualAnalysisPerformed ? 'Visual Analysis' : 'Audio Analysis'}
+              width={40}
+              height={40}
+              className="opacity-80"
+            />
+          </div>
+          <div>
+            <h1 className="heading-xl text-gradient">
+              {isFinalized ? 'Final Evaluation' : 'Evaluation Results'}
+            </h1>
+            {isFinalized && (
+              <div className="status-success mt-2">
+                ✓ Finalized
+              </div>
+            )}
+          </div>
+        </div>
+        
+        <div className="glassmorphism-subtle p-4 rounded-2xl inline-block">
+          <h2 className="heading-sm mb-1">{surgery}</h2>
+          {residentName && (
+            <p className="text-text-tertiary">Resident: <span className="text-text-secondary font-medium">{residentName}</span></p>
+          )}
+        </div>
+      </div>
+
+      {/* Main Content Tabs */}
+      <GlassTabs tabs={tabsData} defaultTab="overview" />
+    </div>
+  );
             {isOriginalFileVideo ? (
               <video
                 controls
@@ -535,4 +602,395 @@ const EvaluationSection = ({ step, aiData, editedData, isFinalized, onChange }: 
         </div>
       </div>
     );
+};
+
+// Tab Components for the modern UI
+const OverviewTab = ({ 
+  evaluation, 
+  surgery, 
+  residentName, 
+  additionalContext, 
+  isFinalized, 
+  visualAnalysisPerformed, 
+  mediaUrl, 
+  isOriginalFileVideo 
+}: any) => (
+  <div className="space-y-6">
+    {/* Summary Stats */}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <GlassCard variant="subtle" className="p-6 text-center">
+        <h4 className="text-text-tertiary text-sm font-medium mb-2">Analysis Type</h4>
+        <div className="glassmorphism-subtle p-3 rounded-xl w-fit mx-auto mb-2">
+          <Image 
+            src={visualAnalysisPerformed ? '/images/videoSmall.svg' : '/images/audioSmall.svg'}
+            alt="Analysis type" 
+            width={24} 
+            height={24}
+          />
+        </div>
+        <p className="text-text-primary font-semibold">
+          {visualAnalysisPerformed ? 'Video + Audio' : 'Audio Only'}
+        </p>
+      </GlassCard>
+      
+      <GlassCard variant="subtle" className="p-6 text-center">
+        <h4 className="text-text-tertiary text-sm font-medium mb-2">Case Difficulty</h4>
+        <p className="text-3xl font-bold text-brand-secondary">{evaluation.caseDifficulty || 'N/A'}</p>
+        <p className="text-text-quaternary text-xs mt-1">AI Assessment</p>
+      </GlassCard>
+      
+      <GlassCard variant="subtle" className="p-6 text-center">
+        <h4 className="text-text-tertiary text-sm font-medium mb-2">Status</h4>
+        {isFinalized ? (
+          <div className="status-success">✓ Finalized</div>
+        ) : (
+          <div className="status-warning">⚠ Draft</div>
+        )}
+      </GlassCard>
+    </div>
+
+    {/* Media Player */}
+    {mediaUrl && (
+      <GlassCard variant="strong" className="p-6">
+        <h3 className="heading-sm mb-4">
+          {isOriginalFileVideo ? 'Review Recording' : 'Listen to Recording'}
+        </h3>
+        <div className="glassmorphism-subtle rounded-2xl p-4">
+          {isOriginalFileVideo ? (
+            <video
+              controls
+              src={mediaUrl}
+              className="w-full rounded-xl"
+            >
+              Your browser does not support the video tag. You can{' '}
+              <a href={mediaUrl} className="text-brand-primary hover:underline">download the video</a>{' '}
+              instead.
+            </video>
+          ) : (
+            <audio
+              controls
+              src={mediaUrl}
+              className="w-full"
+            >
+              Your browser does not support the audio element. You can{' '}
+              <a href={mediaUrl} className="text-brand-primary hover:underline">download the audio</a>{' '}
+              instead.
+            </audio>
+          )}
+        </div>
+      </GlassCard>
+    )}
+
+    {/* Procedure Info */}
+    <GlassCard variant="strong" className="p-6">
+      <h3 className="heading-sm mb-4">Procedure Information</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label className="text-sm font-medium text-text-tertiary">Surgery Type</label>
+          <p className="text-text-primary font-medium mt-1">{surgery}</p>
+        </div>
+        {residentName && (
+          <div>
+            <label className="text-sm font-medium text-text-tertiary">Resident</label>
+            <p className="text-text-primary font-medium mt-1">{residentName}</p>
+          </div>
+        )}
+        {additionalContext && (
+          <div className="md:col-span-2">
+            <label className="text-sm font-medium text-text-tertiary">Additional Context</label>
+            <p className="text-text-secondary mt-1">{additionalContext}</p>
+          </div>
+        )}
+      </div>
+    </GlassCard>
+  </div>
+);
+
+const StepsTab = ({ 
+  procedureSteps, 
+  evaluation, 
+  editedEvaluation, 
+  isFinalized, 
+  onEvaluationChange 
+}: any) => (
+  <div className="space-y-6">
+    {procedureSteps.map((step: ProcedureStep) => (
+      <EnhancedEvaluationSection 
+        key={step.key}
+        step={step}
+        aiData={evaluation[step.key] as EvaluationStep}
+        editedData={editedEvaluation[step.key] as EvaluationStep}
+        isFinalized={isFinalized}
+        onChange={(field: string, value: string | number | undefined) => 
+          onEvaluationChange(step.key, field, value)
+        }
+      />
+    ))}
+  </div>
+);
+
+const TranscriptionTab = ({ 
+  transcription, 
+  showTranscription, 
+  setShowTranscription 
+}: any) => (
+  <div className="space-y-6">
+    <div className="flex items-center justify-between">
+      <h3 className="heading-sm">Audio Transcription</h3>
+      <PillToggle
+        options={[
+          { id: 'hidden', label: 'Hidden' },
+          { id: 'visible', label: 'Show Transcription' }
+        ]}
+        defaultSelected={showTranscription ? 'visible' : 'hidden'}
+        onChange={(selected) => setShowTranscription(selected === 'visible')}
+      />
+    </div>
+    
+    {showTranscription ? (
+      <GlassCard variant="strong" className="p-6">
+        <div className="glassmorphism-subtle rounded-2xl p-6 max-h-96 overflow-y-auto scrollbar-glass">
+          <p className="text-text-secondary leading-relaxed whitespace-pre-wrap">
+            {transcription || 'No transcription available.'}
+          </p>
+        </div>
+      </GlassCard>
+    ) : (
+      <GlassCard variant="subtle" className="p-8 text-center">
+        <div className="glassmorphism-subtle p-6 rounded-2xl w-fit mx-auto mb-4">
+          <Image src="/images/audioSmall.svg" alt="Audio" width={32} height={32} className="opacity-50" />
+        </div>
+        <p className="text-text-tertiary">Transcription is hidden</p>
+        <p className="text-text-quaternary text-sm">Toggle the switch above to view the audio transcription</p>
+      </GlassCard>
+    )}
+  </div>
+);
+
+const FinalizeTab = ({ 
+  editedEvaluation, 
+  descriptions, 
+  isFinalized, 
+  email, 
+  setEmail, 
+  isSending, 
+  emailMessage, 
+  onOverallChange, 
+  onFinalize, 
+  onSendEmail 
+}: any) => (
+  <div className="space-y-6">
+    <GlassCard variant="strong" className="p-6">
+      <h3 className="heading-sm mb-6">Overall Assessment</h3>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label className="block text-sm font-medium text-text-tertiary mb-2">
+            Attending Case Difficulty (1-3)
+          </label>
+          <GlassInput
+            type="number"
+            min={1}
+            max={3}
+            value={editedEvaluation.attendingCaseDifficulty ?? ''}
+            onChange={(e) => onOverallChange('attendingCaseDifficulty', e.target.value ? parseInt(e.target.value) : undefined)}
+            disabled={isFinalized}
+            placeholder={editedEvaluation.caseDifficulty?.toString() || ''}
+          />
+          {descriptions && editedEvaluation.attendingCaseDifficulty && (
+            <p className="text-xs text-text-quaternary mt-2">
+              {descriptions[editedEvaluation.attendingCaseDifficulty as keyof typeof descriptions]}
+            </p>
+          )}
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-text-tertiary mb-2">
+            Overall Performance Score
+          </label>
+          <div className="glassmorphism-subtle p-4 rounded-xl text-center">
+            <p className="text-2xl font-bold text-brand-secondary">
+              {editedEvaluation.attendingCaseDifficulty || 'Not Set'}
+            </p>
+            <p className="text-xs text-text-quaternary">Final Assessment</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6">
+        <label className="block text-sm font-medium text-text-tertiary mb-2">
+          Attending Final Remarks
+        </label>
+        <GlassTextarea
+          value={editedEvaluation.attendingAdditionalComments ?? ''}
+          onChange={(e) => onOverallChange('attendingAdditionalComments', e.target.value)}
+          disabled={isFinalized}
+          placeholder={editedEvaluation.additionalComments as string || 'Enter your final remarks and recommendations...'}
+          rows={4}
+        />
+      </div>
+    </GlassCard>
+
+    {/* Action Buttons */}
+    <div className="space-y-4">
+      {!isFinalized && (
+        <GlassButton
+          variant="primary"
+          onClick={onFinalize}
+          className="w-full"
+          size="lg"
+        >
+          Finalize Evaluation
+        </GlassButton>
+      )}
+
+      {isFinalized && (
+        <GlassCard variant="subtle" className="p-6">
+          <h4 className="heading-sm mb-4">Send Evaluation Report</h4>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <GlassInput
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter email address"
+              className="flex-1"
+            />
+            <GlassButton
+              variant="secondary"
+              onClick={onSendEmail}
+              disabled={isSending || !email}
+              loading={isSending}
+            >
+              Send Report
+            </GlassButton>
+          </div>
+          {emailMessage && (
+            <p className="text-sm mt-3 text-text-tertiary">{emailMessage}</p>
+          )}
+        </GlassCard>
+      )}
+    </div>
+  </div>
+);
+
+// Enhanced Evaluation Section Component
+const EnhancedEvaluationSection = ({ 
+  step, 
+  aiData, 
+  editedData, 
+  isFinalized, 
+  onChange 
+}: { 
+  step: ProcedureStep, 
+  aiData: EvaluationStep, 
+  editedData: EvaluationStep, 
+  isFinalized: boolean, 
+  onChange: (field: string, value: string | number | undefined) => void 
+}) => {
+  const [isManuallyOpened, setIsManuallyOpened] = useState(false);
+  const wasPerformed = aiData && aiData.score > 0;
+
+  if (!wasPerformed && !isManuallyOpened) {
+    return (
+      <GlassCard variant="subtle" className="p-6">
+        <h3 className="heading-sm mb-4">{step.name}</h3>
+        <div className="glassmorphism-subtle rounded-2xl p-4 mb-4">
+          <p className="text-text-tertiary italic">
+            {aiData?.comments || "This step was not performed or mentioned in the provided transcript."}
+          </p>
+        </div>
+        {!isFinalized && (
+          <GlassButton
+            variant="ghost"
+            onClick={() => setIsManuallyOpened(true)}
+            size="sm"
+          >
+            Manually Evaluate Step
+          </GlassButton>
+        )}
+      </GlassCard>
+    );
+  }
+  
+  return (
+    <GlassCard variant="strong" className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="heading-sm">{step.name}</h3>
+        <div className="glassmorphism-subtle px-3 py-1 rounded-xl">
+          <span className="text-xs text-text-tertiary">Goal: {step.goalTime}</span>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* AI Assessment */}
+        <div className="space-y-4">
+          <h4 className="text-sm font-medium text-text-tertiary">AI Assessment</h4>
+          
+          <div className="glassmorphism-subtle rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-text-tertiary">Performance Score</span>
+              <span className="text-lg font-bold text-brand-secondary">
+                {wasPerformed ? `${aiData.score}/5` : 'N/A'}
+              </span>
+            </div>
+            
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-text-tertiary">Time Taken</span>
+              <span className="text-sm font-medium text-text-primary">{aiData.time || 'N/A'}</span>
+            </div>
+            
+            <div>
+              <span className="text-sm text-text-tertiary">AI Comments</span>
+              <p className="text-sm text-text-secondary mt-1">
+                {wasPerformed ? aiData.comments : 'N/A'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Attending Assessment */}
+        <div className="space-y-4">
+          <h4 className="text-sm font-medium text-text-tertiary">Attending Assessment</h4>
+          
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs text-text-tertiary mb-1">Score (0-5)</label>
+              <GlassInput
+                type="number"
+                min={0}
+                max={5}
+                value={editedData.attendingScore ?? ''}
+                onChange={(e) => onChange('attendingScore', e.target.value ? parseInt(e.target.value) : undefined)}
+                disabled={isFinalized}
+                placeholder={aiData.score > 0 ? aiData.score.toString() : '0'}
+              />
+            </div>
+            
+            <div>
+              <label className="block text-xs text-text-tertiary mb-1">Time Taken</label>
+              <GlassInput
+                type="text"
+                value={editedData.attendingTime ?? ''}
+                onChange={(e) => onChange('attendingTime', e.target.value)}
+                disabled={isFinalized}
+                placeholder={aiData.time || 'Enter time'}
+              />
+            </div>
+            
+            <div>
+              <label className="block text-xs text-text-tertiary mb-1">Comments</label>
+              <GlassTextarea
+                value={editedData.attendingComments ?? ''}
+                onChange={(e) => onChange('attendingComments', e.target.value)}
+                disabled={isFinalized}
+                placeholder={aiData.comments || 'Enter your comments...'}
+                rows={3}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </GlassCard>
+  );
+};
 };  
