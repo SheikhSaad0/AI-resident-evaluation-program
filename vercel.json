@@ -1,6 +1,6 @@
 {
   "functions": {
-    "pages/api/cron/process-job.ts": {
+    "pages/api/submit.ts": {
       "maxDuration": 300
     }
   }

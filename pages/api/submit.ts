@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../lib/prisma';
+import { processJob } from '../../lib/process-job'; // Import the new function
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== 'POST') {
@@ -25,7 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const job = await prisma.job.create({
             data: {
-                status: 'pending', // The job is now queued
+                status: 'pending',
                 gcsUrl,
                 gcsObjectPath,
                 surgeryName,
@@ -36,9 +35,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             },
         });
 
-        // --- REMOVED ---
-        // The fetch call to process-job has been removed.
-        // The cron job will now handle picking up and processing this job.
+        // Immediately start processing the job in the background
+        processJob(job);
 
         // Immediately respond to the client with the new job ID
         res.status(202).json({ jobId: job.id });

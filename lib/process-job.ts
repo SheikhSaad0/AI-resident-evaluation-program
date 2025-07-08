@@ -1,14 +1,11 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
 import type { Job } from '@prisma/client';
 import { VertexAI, Part } from '@google-cloud/vertexai';
 import { createClient, DeepgramError } from '@deepgram/sdk';
 import path from 'path';
-import { generateV4ReadSignedUrl } from '../../../lib/gcs';
 import fs from 'fs';
 import os from 'os';
-
-const prisma = new PrismaClient();
+import { prisma } from './prisma';
+import { generateV4ReadSignedUrl } from './gcs';
 
 // --- Services Configuration ---
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY || '');
@@ -30,7 +27,6 @@ const vertex_ai = new VertexAI({
     location: 'us-central1',
 });
 
-// Using a more powerful model for better instruction following
 const generativeModel = vertex_ai.getGenerativeModel({
     model: 'gemini-2.5-flash',
 });
@@ -48,7 +44,6 @@ interface GeminiEvaluationResult {
     transcription?: string;
 }
 
-// --- Centralized difficulty descriptions ---
 const difficultyDescriptions = {
     standard: {
         1: 'Low Difficulty: Primary, straightforward case with normal anatomy and no prior abdominal or pelvic surgeries. Minimal dissection required; no significant adhesions or anatomical distortion.',
@@ -96,7 +91,6 @@ const EVALUATION_CONFIGS: EvaluationConfigs = {
     },
 };
 
-// --- AUDIO-ONLY ANALYSIS FUNCTIONS ---
 async function transcribeWithDeepgram(urlForTranscription: string): Promise<string> {
     console.log(`Starting audio transcription with Deepgram...`);
     const { result, error } = await deepgram.listen.prerecorded.transcribeUrl( { url: urlForTranscription }, { model: 'nova-2', diarize: true, punctuate: true, utterances: true } );
@@ -250,7 +244,8 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
     }
 }
 
-async function processJob(job: Job) {
+
+export async function processJob(job: Job) {
     console.log(`Processing job ${job.id} for surgery: ${job.surgeryName}`);
     const { id, gcsObjectPath, gcsUrl, surgeryName, residentName, additionalContext, withVideo, videoAnalysis } = job;
 
@@ -321,27 +316,4 @@ async function processJob(job: Job) {
             },
         });
     }
-}
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-    if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    // Find the oldest pending job
-    const jobToProcess = await prisma.job.findFirst({
-        where: { status: 'pending' },
-        orderBy: { createdAt: 'asc' },
-    });
-
-    if (!jobToProcess) {
-        return res.status(200).json({ message: 'No pending jobs to process.' });
-    }
-
-    console.log(`[Cron] Found pending job ${jobToProcess.id}. Starting processing now.`);
-    
-    // Process the job directly in this function
-    await processJob(jobToProcess);
-    
-    res.status(200).json({ message: `Successfully processed job ${jobToProcess.id}` });
 }
