@@ -13,12 +13,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
     } else if (req.method === 'POST') {
         try {
-            const { name, photoUrl } = req.body;
+            const { name, photoUrl, company, year, medicalSchool } = req.body;
             if (!name) {
                 return res.status(400).json({ message: 'Name is required.' });
             }
             const newResident = await prisma.resident.create({
-                data: { name, photoUrl },
+                data: { name, photoUrl, company, year, medicalSchool },
             });
             res.status(201).json(newResident);
         } catch (error) {

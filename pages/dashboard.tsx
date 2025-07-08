@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
-import { GlassCard, GlassButton, GlassInput, StatCard, PerformanceChart, ImageUpload } from '../components/ui';
+import { GlassCard, GlassButton, StatCard, PerformanceChart } from '../components/ui';
 
 interface Resident {
   id: string;
@@ -70,28 +70,6 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
-  const handleResidentAdded = (newResident: Resident) => {
-    setResidents(prev => [newResident, ...prev]);
-  };
-  
-  const handleResidentDeleted = async (deletedResidentId: string) => {
-    try {
-      const response = await fetch(`/api/residents/${deletedResidentId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete resident');
-      }
-
-      // Only update state if API call succeeded
-      setResidents(prev => prev.filter(r => r.id !== deletedResidentId));
-    } catch (error) {
-      console.error('Error deleting resident:', error);
-      alert('Failed to delete resident. Please try again.');
-    }
-  }
-
   return (
     <div className="space-y-8">
       {/* Header Section */}
@@ -146,8 +124,6 @@ export default function Dashboard() {
         <div className="xl:col-span-1">
           <ResidentsWidget 
             residents={residents} 
-            onResidentAdded={handleResidentAdded} 
-            onResidentDeleted={handleResidentDeleted}
           />
         </div>
       </div>
@@ -263,90 +239,23 @@ const ChartWidget = () => (
 // Enhanced Residents Widget
 const ResidentsWidget = ({ 
   residents, 
-  onResidentAdded, 
-  onResidentDeleted 
 }: { 
   residents: Resident[], 
-  onResidentAdded: (resident: Resident) => void, 
-  onResidentDeleted: (id: string) => void 
 }) => {
-  const [name, setName] = useState('');
-  const [photo, setPhoto] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
-  
-  const handleAddResident = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-
-    setIsAdding(true);
-    
-    try {
-      const response = await fetch('/api/residents', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: name.trim(),
-          photoUrl: photo.trim() || null
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to add resident');
-      }
-
-      const newResident = await response.json();
-      onResidentAdded(newResident);
-      setName('');
-      setPhoto('');
-    } catch (error) {
-      console.error('Error adding resident:', error);
-      alert('Failed to add resident. Please try again.');
-    } finally {
-      setIsAdding(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to remove this resident? This action cannot be undone.')) return;
-    onResidentDeleted(id);
-  };
-
+  const router = useRouter();
   return (
     <GlassCard variant="strong" className="p-6">
-      <h3 className="heading-md mb-6">Manage Residents</h3>
-      
-      {/* Add Resident Form */}
-      <form onSubmit={handleAddResident} className="space-y-4 mb-6">
-        <GlassInput
-          type="text"
-          placeholder="Resident Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
-        <div>
-          <label className="block mb-2 text-sm font-medium text-text-secondary">
-            Profile Photo
-          </label>
-          <ImageUpload
-            value={photo}
-            onChange={setPhoto}
-            placeholder="Upload profile photo"
-          />
-        </div>
-        <GlassButton
-          type="submit"
-          variant="primary"
-          disabled={!name.trim()}
-          loading={isAdding}
-          className="w-full"
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="heading-md">Residents</h3>
+        <GlassButton 
+          variant="primary" 
+          size="sm"
+          onClick={() => router.push('/residents')}
         >
-          Add Resident
+          Manage Residents
         </GlassButton>
-      </form>
-
+      </div>
+      
       {/* Residents List */}
       <div>
         <h4 className="text-sm font-medium text-text-tertiary mb-3">Current Residents ({residents.length})</h4>
@@ -369,15 +278,6 @@ const ResidentsWidget = ({
                   </div>
                   <span className="font-medium text-text-primary">{resident.name}</span>
                 </div>
-                
-                <GlassButton
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDelete(resident.id)}
-                  className="p-2 hover:bg-red-500/20 text-red-400"
-                >
-                  <Image src="/images/trashcanIcon.svg" alt="Delete" width={16} height={16} />
-                </GlassButton>
               </div>
             </GlassCard>
           ))}

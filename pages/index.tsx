@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import SurgerySelector from '../components/SurgerySelector';
-import { GlassCard, GlassButton, GlassSelect, GlassTextarea } from '../components/ui';
+import { GlassCard, GlassButton, GlassSelect, GlassTextarea, PillToggle } from '../components/ui';
 
 // --- Interfaces ---
 interface Resident { id: string; name: string; }
@@ -16,6 +16,7 @@ export default function Home() {
   const [selectedResidentId, setSelectedResidentId] = useState('');
   const [additionalContext, setAdditionalContext] = useState('');
   const [pastEvaluations, setPastEvaluations] = useState<PastEvaluation[]>([]);
+  const [analysisType, setAnalysisType] = useState('audio');
   const router = useRouter();
 
   // Mock data for demonstration
@@ -64,7 +65,8 @@ export default function Home() {
       surgery: selectedSurgery,
       resident: selectedResidentId,
       file: file?.name,
-      context: additionalContext
+      context: additionalContext,
+      analysisType: analysisType
     });
     
     setIsAnalyzing(true);
@@ -118,7 +120,7 @@ export default function Home() {
           residentId: selectedResidentId,
           additionalContext,
           withVideo: file.type.startsWith('video/'),
-          videoAnalysis: file.type.startsWith('video/')
+          videoAnalysis: analysisType === 'video' && file.type.startsWith('video/')
         }),
       });
 
@@ -185,6 +187,21 @@ export default function Home() {
               onChange={(e) => setAdditionalContext(e.target.value)}
               placeholder="Enter any additional context, simulation details, or special circumstances..."
               rows={4}
+            />
+          </div>
+          
+          {/* Analysis Type */}
+          <div>
+            <label className="block mb-3 text-sm font-medium text-text-secondary">
+              Analysis Type
+            </label>
+            <PillToggle
+              options={[
+                { id: 'audio', label: 'Audio Analysis' },
+                { id: 'video', label: 'Visual Analysis' },
+              ]}
+              defaultSelected={analysisType}
+              onChange={setAnalysisType}
             />
           </div>
 

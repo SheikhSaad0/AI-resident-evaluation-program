@@ -1,3 +1,5 @@
+// prisma/schema.prisma
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -11,7 +13,7 @@ model Job {
   id                String    @id @default(cuid())
   status            String
   gcsUrl            String
-  gcsObjectPath     String?   // This field is used by your code
+  gcsObjectPath     String?
   surgeryName       String
   additionalContext String?
   result            Json?
@@ -20,19 +22,18 @@ model Job {
   updatedAt         DateTime  @updatedAt
   withVideo         Boolean   @default(false)
   videoAnalysis     Boolean   @default(false)
-
-  // Link to the new Resident model
   residentId        String?
   resident          Resident? @relation(fields: [residentId], references: [id], onDelete: SetNull)
 }
 
 model Resident {
-  id        String   @id @default(cuid())
-  name      String
-  photoUrl  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // A resident can have many jobs
-  jobs      Job[]
+  id            String   @id @default(cuid())
+  name          String
+  photoUrl      String?
+  company       String?
+  year          String?
+  medicalSchool String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  jobs          Job[]
 }

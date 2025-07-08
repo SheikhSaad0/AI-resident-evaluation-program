@@ -22,12 +22,15 @@ export default function ImageUpload({
     setIsUploading(true);
     
     try {
+      // Construct the full, final path for the object in GCS.
+      const fullPath = `resident-photos/${Date.now()}-${file.name.replace(/\s/g, '_')}`;
+
       // Generate upload URL for Google Cloud Storage
       const uploadResponse = await fetch('/api/generate-upload-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fileName: `resident-photos/${Date.now()}-${file.name}`,
+          fileName: fullPath, // Send the full path to the backend
           fileType: file.type,
         }),
       });
@@ -38,7 +41,7 @@ export default function ImageUpload({
 
       const { uploadUrl, filePath } = await uploadResponse.json();
 
-      // Upload file to Google Cloud Storage
+      // Upload file to the signed URL
       const fileUploadResponse = await fetch(uploadUrl, {
         method: 'PUT',
         body: file,
@@ -48,19 +51,17 @@ export default function ImageUpload({
       });
 
       if (!fileUploadResponse.ok) {
-        throw new Error('Failed to upload file');
+        throw new Error('Failed to upload file to Google Cloud Storage');
       }
 
-      // Return the GCS URL
-      const publicUrl = `https://storage.googleapis.com/ai-surgical-evaluator/${filePath}`;
+      // Construct the public URL for viewing the image.
+      const publicUrl = `https://storage.googleapis.com/${process.env.NEXT_PUBLIC_GCS_BUCKET_NAME || 'ai-surgical-evaluator'}/${filePath}`;
       onChange(publicUrl);
       
-      console.log("File uploaded successfully to Google Cloud Storage:", publicUrl);
+      console.log("File uploaded successfully to:", publicUrl);
     } catch (error) {
       console.error("Upload failed:", error);
-      // Fallback to local object URL if GCS upload fails
-      const objectUrl = URL.createObjectURL(file);
-      onChange(objectUrl);
+      alert(`Image upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsUploading(false);
     }
@@ -131,6 +132,7 @@ export default function ImageUpload({
                 width={64}
                 height={64}
                 className="rounded-2xl object-cover"
+                onError={(e) => { e.currentTarget.src = '/images/default-avatar.svg'; }}
               />
             </div>
             <div>

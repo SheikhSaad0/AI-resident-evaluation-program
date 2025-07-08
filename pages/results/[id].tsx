@@ -174,12 +174,12 @@ export default function ResultsPage() {
                     setProcedureSteps(config.procedureSteps);
                 }
             } else if (jobData.status === 'pending' || jobData.status.startsWith('processing')) {
-                setEvaluationData(prev => ({
+                setEvaluation(prev => ({
                     ...prev,
                     surgery: 'Processing...',
                     residentName: 'Please wait',
                     transcription: 'Your evaluation is being processed. This page will automatically update when complete.'
-                }));
+                } as EvaluationData));
                 // Set up polling to check status again
                 setTimeout(() => {
                     if (id && typeof id === 'string') {
@@ -187,24 +187,24 @@ export default function ResultsPage() {
                     }
                 }, 5000); // Check again in 5 seconds
             } else if (jobData.status === 'failed') {
-                setEvaluationData(prev => ({
+                setEvaluation(prev => ({
                     ...prev,
                     surgery: 'Analysis Failed',
                     residentName: 'Error',
                     transcription: 'The evaluation analysis failed. Please try submitting again.'
-                }));
+                } as EvaluationData));
             } else {
                  throw new Error(jobData.error || 'Evaluation not found or has failed.');
             }
         } catch (error) {
             console.error("Failed to fetch evaluation data", error);
             // Instead of redirecting, show error state
-            setEvaluationData(prev => ({
+            setEvaluation(prev => ({
                 ...prev,
                 surgery: 'Error Loading Evaluation',
                 residentName: 'Unknown',
                 transcription: `Could not load the evaluation data. Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-            }));
+            } as EvaluationData));
         }
     };
 
@@ -781,7 +781,7 @@ const EnhancedEvaluationSection = ({
                 type="number"
                 min={0}
                 max={5}
-                value={editedData.attendingScore ?? ''}
+                value={editedData.attendingScore?.toString() ?? ''}
                 onChange={(e) => onChange('attendingScore', e.target.value ? parseInt(e.target.value) : undefined)}
                 disabled={isFinalized}
                 placeholder={aiData.score > 0 ? aiData.score.toString() : '0'}
@@ -814,4 +814,4 @@ const EnhancedEvaluationSection = ({
       </div>
     </GlassCard>
   );
-};  
+};

@@ -11,10 +11,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (!fileName || !fileType) {
             return res.status(400).json({ message: 'fileName and fileType are required.' });
         }
-        const destination = `uploads/${Date.now()}-${fileName.replace(/\s/g, '_')}`;
-        const signedUrl = await generateV4UploadSignedUrl(destination, fileType);
         
-        res.status(200).json({ signedUrl, destination });
+        // The client now provides the full desired destination path.
+        const destination = fileName;
+        const uploadUrl = await generateV4UploadSignedUrl(destination, fileType);
+        
+        // Return the uploadUrl and the final filePath for constructing the public URL on the client.
+        res.status(200).json({ uploadUrl, filePath: destination });
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
