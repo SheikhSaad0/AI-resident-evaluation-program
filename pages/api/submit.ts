@@ -1,6 +1,10 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../lib/prisma';
-import { processJob } from '../../lib/process-job'; // Import the new function
+import { Client } from "@upstash/qstash";
+
+const qstashClient = new Client({
+  token: process.env.QSTASH_TOKEN!,
+});
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== 'POST') {
@@ -18,10 +22,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             videoAnalysis
         } = req.body;
 
-        if (!gcsUrl || !surgeryName || !gcsObjectPath) {
-            return res.status(400).json({ message: 'gcsUrl, gcsObjectPath, and surgeryName are required.' });
-        }
-
         const job = await prisma.job.create({
             data: {
                 status: 'pending',
@@ -35,15 +35,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             },
         });
 
-        // Immediately start processing the job in the background
-        processJob(job);
+        // Determine the correct URL for the QStash destination
+        // Use the ngrok override for local development, otherwise use the Vercel URL
+        const baseUrl = process.env.QSTASH_URL_OVERRIDE || 
+                        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+        
+        const destinationUrl = `${baseUrl}/api/process`;
 
-        // Immediately respond to the client with the new job ID
+        await qstashClient.publishJSON({
+          url: destinationUrl,
+          body: { jobId: job.id },
+        });
+
+        console.log(`Job ${job.id} has been successfully queued with QStash to be sent to ${destinationUrl}`);
+
         res.status(202).json({ jobId: job.id });
 
     } catch (error) {
         console.error('Error submitting job:', error);
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-        res.status(500).json({ message: errorMessage });
+        // Ensure the error response is in JSON format
+        res.status(500).json({ message: `Error submitting job: ${errorMessage}` });
     }
 }
