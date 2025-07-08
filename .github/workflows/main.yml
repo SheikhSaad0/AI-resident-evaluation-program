@@ -34,7 +34,20 @@ jobs:
           node-version: "20"
           cache: "npm"
 
-      - name: Install dependencies
-        run: echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf > /dev/null
-            npm install
+      - name: Install dependencies and generate Prisma client
+        run: |
+            echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf > /dev/null
+            npm install || npm install
+
+
+      - name: Retryable install
+        run: |
+            echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf > /dev/null
+            n=0
+            until [ "$n" -ge 5 ]; do
+            npm install && break
+            n=$((n+1))
+            echo "Retrying npm install in 5 seconds..."
+            sleep 5
+            done
 
