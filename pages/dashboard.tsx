@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
-import { GlassCard, GlassButton, GlassInput, StatCard } from '../components/ui';
+import { GlassCard, GlassButton, GlassInput, StatCard, PerformanceChart } from '../components/ui';
 
 interface Resident {
   id: string;
@@ -15,6 +15,7 @@ interface Evaluation {
   date: string;
   residentName?: string;
   score?: number;
+  type?: 'video' | 'audio'; // Add type for analysis method
 }
 
 // Main Dashboard Component
@@ -33,9 +34,9 @@ export default function Dashboard() {
     ];
 
     const mockEvaluations = [
-      { id: '1', surgery: 'Laparoscopic Cholecystectomy', date: '2024-01-15', residentName: 'Dr. Sarah Johnson', score: 4.5 },
-      { id: '2', surgery: 'Robotic Cholecystectomy', date: '2024-01-14', residentName: 'Dr. Michael Chen', score: 4.2 },
-      { id: '3', surgery: 'Laparoscopic Appendicectomy', date: '2024-01-13', residentName: 'Dr. Emily Rodriguez', score: 4.8 }
+      { id: '1', surgery: 'Laparoscopic Cholecystectomy', date: '2024-01-15', residentName: 'Dr. Sarah Johnson', score: 4.5, type: 'video' as const },
+      { id: '2', surgery: 'Robotic Cholecystectomy', date: '2024-01-14', residentName: 'Dr. Michael Chen', score: 4.2, type: 'audio' as const },
+      { id: '3', surgery: 'Laparoscopic Appendicectomy', date: '2024-01-13', residentName: 'Dr. Emily Rodriguez', score: 4.8, type: 'video' as const }
     ];
 
     setResidents(mockResidents);
@@ -121,6 +122,10 @@ export default function Dashboard() {
 const RecentEvaluationsWidget = ({ evaluations }: { evaluations: Evaluation[] }) => {
   const router = useRouter();
   
+  const getTypeIcon = (type?: string) => {
+    return type === 'video' ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg';
+  };
+  
   return (
     <GlassCard variant="strong" className="p-6">
       <div className="flex items-center justify-between mb-6">
@@ -166,8 +171,21 @@ const RecentEvaluationsWidget = ({ evaluations }: { evaluations: Evaluation[] })
                 )}
               </div>
               
-              <div className="glassmorphism-subtle p-2 rounded-xl">
-                <Image src="/images/arrow-right-icon.svg" alt="View" width={16} height={16} />
+              <div className="flex items-center space-x-3">
+                {/* Type Indicator */}
+                <div className="glassmorphism-subtle p-2 rounded-2xl">
+                  <Image 
+                    src={getTypeIcon(evaluation.type)} 
+                    alt={evaluation.type || 'analysis'} 
+                    width={20} 
+                    height={20}
+                    className="opacity-70"
+                  />
+                </div>
+                
+                <div className="glassmorphism-subtle p-2 rounded-2xl">
+                  <Image src="/images/arrow-right-icon.svg" alt="View" width={16} height={16} />
+                </div>
               </div>
             </div>
           </GlassCard>
@@ -176,7 +194,7 @@ const RecentEvaluationsWidget = ({ evaluations }: { evaluations: Evaluation[] })
       
       {evaluations.length === 0 && (
         <div className="text-center py-12">
-          <div className="glassmorphism-subtle p-6 rounded-2xl w-fit mx-auto mb-4">
+          <div className="glassmorphism-subtle p-6 rounded-3xl w-fit mx-auto mb-4">
             <Image src="/images/eval-count-icon.svg" alt="No evaluations" width={32} height={32} className="opacity-50" />
           </div>
           <p className="text-text-tertiary">No evaluations yet</p>
@@ -199,14 +217,8 @@ const ChartWidget = () => (
       </div>
     </div>
     
-    <div className="h-64 glassmorphism-subtle rounded-2xl p-6 flex items-center justify-center">
-      <div className="text-center">
-        <div className="glassmorphism p-4 rounded-2xl w-fit mx-auto mb-4">
-          <Image src="/images/dashboard-icon.svg" alt="Chart" width={32} height={32} className="opacity-50" />
-        </div>
-        <p className="text-text-tertiary">Performance chart will be displayed here</p>
-        <p className="text-text-quaternary text-sm">Integrate with chart library like Recharts or Chart.js</p>
-      </div>
+    <div className="h-64">
+      <PerformanceChart height={240} />
     </div>
   </GlassCard>
 );
@@ -289,13 +301,13 @@ const ResidentsWidget = ({
             <GlassCard key={resident.id} variant="subtle" className="p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  <div className="glassmorphism-subtle p-2 rounded-xl">
+                  <div className="glassmorphism-subtle p-2 rounded-2xl">
                     <Image 
                       src={resident.photoUrl || '/images/default-avatar.svg'} 
                       alt={resident.name} 
                       width={32} 
                       height={32} 
-                      className="rounded-lg object-cover opacity-80"
+                      className="rounded-2xl object-cover opacity-80"
                     />
                   </div>
                   <span className="font-medium text-text-primary">{resident.name}</span>
@@ -316,7 +328,7 @@ const ResidentsWidget = ({
         
         {residents.length === 0 && (
           <div className="text-center py-8">
-            <div className="glassmorphism-subtle p-4 rounded-2xl w-fit mx-auto mb-3">
+            <div className="glassmorphism-subtle p-4 rounded-3xl w-fit mx-auto mb-3">
               <Image src="/images/default-avatar.svg" alt="No residents" width={24} height={24} className="opacity-50" />
             </div>
             <p className="text-text-tertiary text-sm">No residents added yet</p>

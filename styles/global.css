@@ -43,7 +43,7 @@
 
   /* Glass button styles */
   .glass-button {
-    @apply glassmorphism px-6 py-3 rounded-2xl font-medium transition-all duration-300 hover:shadow-glass-lg hover:scale-105 active:scale-95;
+    @apply glassmorphism px-6 py-3 rounded-3xl font-medium transition-all duration-300 hover:shadow-glass-lg hover:scale-105 active:scale-95;
   }
 
   .glass-button-primary {
@@ -56,7 +56,7 @@
 
   /* Input styles */
   .glass-input {
-    @apply glassmorphism-subtle px-4 py-3 rounded-xl w-full text-text-primary placeholder:text-text-quaternary;
+    @apply glassmorphism-subtle px-4 py-3 rounded-2xl w-full text-text-primary placeholder:text-text-quaternary;
     @apply focus:outline-none focus:ring-2 focus:ring-brand-primary/50 focus:border-brand-primary/50;
     @apply transition-all duration-300;
   }
@@ -70,7 +70,7 @@
 
   /* Navigation styles */
   .nav-item {
-    @apply flex items-center px-4 py-3 rounded-2xl transition-all duration-300 text-base font-medium;
+    @apply flex items-center px-4 py-3 rounded-3xl transition-all duration-300 text-base font-medium;
     @apply hover:bg-glass-200 hover:shadow-glass hover:scale-105;
   }
 
@@ -85,11 +85,11 @@
 
   /* Tab styles */
   .tab-container {
-    @apply glassmorphism-subtle p-1 rounded-2xl flex;
+    @apply glassmorphism-subtle p-1 rounded-3xl flex;
   }
 
   .tab {
-    @apply px-4 py-2 rounded-xl font-medium transition-all duration-300 flex-1 text-center;
+    @apply px-4 py-2 rounded-2xl font-medium transition-all duration-300 flex-1 text-center;
     @apply hover:bg-glass-100;
   }
 
@@ -139,7 +139,7 @@
 
   /* Status indicators */
   .status-indicator {
-    @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
+    @apply inline-flex items-center px-3 py-1 rounded-2xl text-sm font-medium;
   }
 
   .status-success {

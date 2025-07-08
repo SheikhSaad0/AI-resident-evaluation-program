@@ -26,7 +26,7 @@ export default function GlassCard({
 
   return (
     <div 
-      className={`${baseClasses[variant]} ${hoverClasses} ${clickableClasses} ${className}`}
+      className={`${baseClasses[variant]} rounded-3xl ${hoverClasses} ${clickableClasses} ${className}`}
       onClick={onClick}
     >
       {children}

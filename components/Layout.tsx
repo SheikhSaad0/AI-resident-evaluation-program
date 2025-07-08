@@ -10,14 +10,22 @@ const navItems = [
 export default function Layout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
+  const handleNewEvaluation = () => {
+    router.push('/');
+  };
+
+  const handleViewReports = () => {
+    router.push('/evaluations');
+  };
+
   return (
     <div className="flex min-h-screen w-full p-4 sm:p-6 gap-6">
       {/* Enhanced Glassmorphism Sidebar */}
       <aside className="w-72 flex-shrink-0">
-        <div className="h-full glassmorphism-strong rounded-3xl p-6 flex flex-col shadow-glass-lg">
+        <div className="h-full glassmorphism-strong rounded-4xl p-6 flex flex-col shadow-glass-lg">
           {/* Logo Section */}
           <div className="flex items-center justify-center h-20 mb-8">
-            <div className="glassmorphism-subtle p-3 rounded-2xl">
+            <div className="glassmorphism-subtle p-3 rounded-3xl">
               <Image src="/images/logo.svg" alt="AI Surgical Evaluator" width={140} height={48} />
             </div>
           </div>
@@ -34,7 +42,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       ${router.pathname === item.href ? 'nav-item-active' : ''}
                     `}
                   >
-                    <div className="glassmorphism-subtle p-2 rounded-xl mr-3">
+                    <div className="glassmorphism-subtle p-2 rounded-2xl mr-3">
                       <Image 
                         src={item.icon} 
                         alt={item.name} 
@@ -55,14 +63,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 Quick Actions
               </p>
               <div className="space-y-2">
-                <button className="nav-item w-full justify-start text-sm">
-                  <div className="glassmorphism-subtle p-1.5 rounded-lg mr-3">
+                <button 
+                  onClick={handleNewEvaluation}
+                  className="nav-item w-full justify-start text-sm hover:bg-glass-200"
+                >
+                  <div className="glassmorphism-subtle p-1.5 rounded-2xl mr-3">
                     <Image src="/images/upload-icon.svg" alt="Upload" width={16} height={16} />
                   </div>
                   New Evaluation
                 </button>
-                <button className="nav-item w-full justify-start text-sm">
-                  <div className="glassmorphism-subtle p-1.5 rounded-lg mr-3">
+                <button 
+                  onClick={handleViewReports}
+                  className="nav-item w-full justify-start text-sm hover:bg-glass-200"
+                >
+                  <div className="glassmorphism-subtle p-1.5 rounded-2xl mr-3">
                     <Image src="/images/dashboard-icon.svg" alt="Reports" width={16} height={16} />
                   </div>
                   View Reports
@@ -72,7 +86,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </nav>
           
           {/* Footer */}
-          <div className="glassmorphism-subtle rounded-2xl p-4 text-center">
+          <div className="glassmorphism-subtle rounded-3xl p-4 text-center">
             <div className="text-xs font-medium text-text-tertiary space-y-1">
               <p className="text-gradient font-semibold">AI Surgical Evaluator</p>
               <p className="text-text-quaternary">Version 2.0</p>
@@ -82,7 +96,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-grow glassmorphism rounded-3xl shadow-glass-lg overflow-hidden">
+      <main className="flex-grow glassmorphism rounded-4xl shadow-glass-lg overflow-hidden">
         <div className="w-full h-full overflow-y-auto scrollbar-glass p-6 md:p-8">
           {children}
         </div>

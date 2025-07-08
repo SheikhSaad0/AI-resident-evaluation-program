@@ -16,6 +16,7 @@ export default function Home() {
   const [selectedResidentId, setSelectedResidentId] = useState('');
   const [additionalContext, setAdditionalContext] = useState('');
   const [pastEvaluations, setPastEvaluations] = useState<PastEvaluation[]>([]);
+  const router = useRouter();
 
   // Mock data for demonstration
   useEffect(() => {
@@ -37,10 +38,40 @@ export default function Home() {
     label: resident.name
   }));
 
-  const handleSubmit = () => {
-    console.log("Submit clicked");
+  const handleSubmit = async () => {
+    console.log("Analysis started with:", {
+      surgery: selectedSurgery,
+      resident: selectedResidentId,
+      file: file?.name,
+      context: additionalContext
+    });
+    
     setIsAnalyzing(true);
-    setTimeout(() => setIsAnalyzing(false), 3000); // Mock analysis
+    
+    try {
+      // Simulate API call with realistic timing
+      console.log("Processing file upload...");
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      console.log("Analyzing surgical performance...");
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      console.log("Generating evaluation report...");
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Create a new evaluation ID and redirect to results
+      const evaluationId = `eval_${Date.now()}`;
+      console.log("Analysis complete! Redirecting to results...", evaluationId);
+      
+      // Redirect to results page
+      router.push(`/results/${evaluationId}`);
+      
+    } catch (error) {
+      console.error("Analysis failed:", error);
+      alert("Analysis failed. Please try again.");
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -96,9 +127,9 @@ export default function Home() {
             <label className="block mb-3 text-sm font-medium text-text-secondary">
               Upload Recording
             </label>
-            <div className="glassmorphism-subtle border-2 border-dashed border-glass-border-strong rounded-3xl p-8 text-center hover:border-brand-primary/50 transition-all duration-300 group">
+            <div className="glassmorphism-subtle border-2 border-dashed border-glass-border-strong rounded-4xl p-8 text-center hover:border-brand-primary/50 transition-all duration-300 group">
               <div className="space-y-4">
-                <div className="glassmorphism p-4 rounded-2xl w-fit mx-auto">
+                <div className="glassmorphism p-4 rounded-3xl w-fit mx-auto">
                   <Image 
                     src="/images/upload-icon.svg" 
                     alt="Upload" 
@@ -181,15 +212,14 @@ export default function Home() {
                   </div>
                   
                   <div className="flex items-center space-x-3">
-                    <div className="glassmorphism-subtle p-2 rounded-xl">
-                      <Image 
-                        src={evalItem.withVideo ? '/images/videoSmall.svg' : '/images/audioSmall.svg'} 
-                        alt="Media type" 
-                        width={20} 
-                        height={20}
-                        className="opacity-70"
-                      />
-                    </div>
+                    {/* Remove glassmorphism wrapper to show raw analysis images */}
+                    <Image 
+                      src={evalItem.withVideo ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg'} 
+                      alt="Media type" 
+                      width={28} 
+                      height={28}
+                      className="opacity-90"
+                    />
                     <Image 
                       src="/images/arrow-right-icon.svg" 
                       alt="View" 
@@ -205,7 +235,7 @@ export default function Home() {
           
           {pastEvaluations.length === 0 && (
             <div className="text-center py-12">
-              <div className="glassmorphism-subtle p-6 rounded-2xl w-fit mx-auto mb-4">
+              <div className="glassmorphism-subtle p-6 rounded-3xl w-fit mx-auto mb-4">
                 <Image src="/images/dashboard-icon.svg" alt="No data" width={32} height={32} className="opacity-50" />
               </div>
               <p className="text-text-tertiary">No evaluations yet</p>

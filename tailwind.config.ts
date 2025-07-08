@@ -56,11 +56,11 @@ const config: Config = {
         'glass-border': 'rgba(255, 255, 255, 0.08)',
         'glass-border-strong': 'rgba(255, 255, 255, 0.15)',
         
-        // Text colors optimized for dark glass
+        // Text colors optimized for dark glass with better contrast
         'text-primary': '#FFFFFF',
-        'text-secondary': '#E5E5E7',
-        'text-tertiary': '#A1A1AA',
-        'text-quaternary': '#71717A',
+        'text-secondary': '#F1F5F9',
+        'text-tertiary': '#CBD5E1',
+        'text-quaternary': '#94A3B8',
       },
       
       backgroundImage: {
@@ -92,9 +92,12 @@ const config: Config = {
       },
       
       borderRadius: {
-        '2xl': '1rem',
-        '3xl': '1.5rem',
-        '4xl': '2rem',
+        'lg': '1rem',
+        'xl': '1.25rem', 
+        '2xl': '1.5rem',
+        '3xl': '2rem',
+        '4xl': '2.5rem',
+        '5xl': '3rem',
       },
       
       animation: {
