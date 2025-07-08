@@ -238,8 +238,6 @@ export default function Home() {
               />
               <span className="ml-2 text-gray-700 dark:text-gray-300">Enable Visual Analysis</span>
               <span className="ml-3 text-gray-700 dark:text-red-500">Can take 1-3 minutes based on file size and video length</span>
-              <span className="ml-4 text-gray-700 dark:text-yellow-400">Have the AI model watch and analyze the surgery alongside audio</span>
-              <span className="ml-2 text-gray-700 dark:text-green-400">This is for more complex and accurate analysis</span>
             </label>
           </div>
         )}
