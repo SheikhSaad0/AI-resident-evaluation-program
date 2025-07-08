@@ -74,8 +74,22 @@ export default function Dashboard() {
     setResidents(prev => [newResident, ...prev]);
   };
   
-  const handleResidentDeleted = (deletedResidentId: string) => {
-    setResidents(prev => prev.filter(r => r.id !== deletedResidentId));
+  const handleResidentDeleted = async (deletedResidentId: string) => {
+    try {
+      const response = await fetch(`/api/residents/${deletedResidentId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete resident');
+      }
+
+      // Only update state if API call succeeded
+      setResidents(prev => prev.filter(r => r.id !== deletedResidentId));
+    } catch (error) {
+      console.error('Error deleting resident:', error);
+      alert('Failed to delete resident. Please try again.');
+    }
   }
 
   return (

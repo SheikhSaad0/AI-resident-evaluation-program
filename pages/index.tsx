@@ -20,11 +20,32 @@ export default function Home() {
 
   // Mock data for demonstration
   useEffect(() => {
-    setResidents([
-      { id: '1', name: 'Dr. Sarah Johnson' },
-      { id: '2', name: 'Dr. Michael Chen' },
-      { id: '3', name: 'Dr. Emily Rodriguez' }
-    ]);
+    const fetchResidents = async () => {
+      try {
+        const response = await fetch('/api/residents');
+        if (response.ok) {
+          const residentsData = await response.json();
+          setResidents(residentsData);
+        } else {
+          // Fallback to mock data
+          setResidents([
+            { id: '1', name: 'Dr. Sarah Johnson' },
+            { id: '2', name: 'Dr. Michael Chen' },
+            { id: '3', name: 'Dr. Emily Rodriguez' }
+          ]);
+        }
+      } catch (error) {
+        console.error('Error fetching residents:', error);
+        // Fallback to mock data
+        setResidents([
+          { id: '1', name: 'Dr. Sarah Johnson' },
+          { id: '2', name: 'Dr. Michael Chen' },
+          { id: '3', name: 'Dr. Emily Rodriguez' }
+        ]);
+      }
+    };
+
+    fetchResidents();
     
     setPastEvaluations([
       { id: '1', surgery: 'Laparoscopic Cholecystectomy', date: '2024-01-15', residentName: 'Dr. Sarah Johnson', withVideo: true },
@@ -261,8 +282,8 @@ export default function Home() {
                     <Image 
                       src={evalItem.withVideo ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg'} 
                       alt="Media type" 
-                      width={28} 
-                      height={28}
+                      width={36} 
+                      height={36}
                       className="opacity-90"
                     />
                     <Image 

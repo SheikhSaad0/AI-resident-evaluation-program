@@ -174,15 +174,37 @@ export default function ResultsPage() {
                     setProcedureSteps(config.procedureSteps);
                 }
             } else if (jobData.status === 'pending' || jobData.status.startsWith('processing')) {
-                alert('This evaluation is still being processed. Please wait a moment and refresh.');
-                router.push('/');
+                setEvaluationData(prev => ({
+                    ...prev,
+                    surgery: 'Processing...',
+                    residentName: 'Please wait',
+                    transcription: 'Your evaluation is being processed. This page will automatically update when complete.'
+                }));
+                // Set up polling to check status again
+                setTimeout(() => {
+                    if (id && typeof id === 'string') {
+                        fetchEvaluation(id);
+                    }
+                }, 5000); // Check again in 5 seconds
+            } else if (jobData.status === 'failed') {
+                setEvaluationData(prev => ({
+                    ...prev,
+                    surgery: 'Analysis Failed',
+                    residentName: 'Error',
+                    transcription: 'The evaluation analysis failed. Please try submitting again.'
+                }));
             } else {
                  throw new Error(jobData.error || 'Evaluation not found or has failed.');
             }
         } catch (error) {
             console.error("Failed to fetch evaluation data", error);
-            alert("Could not load the evaluation. Redirecting to the home page.");
-            router.push('/');
+            // Instead of redirecting, show error state
+            setEvaluationData(prev => ({
+                ...prev,
+                surgery: 'Error Loading Evaluation',
+                residentName: 'Unknown',
+                transcription: `Could not load the evaluation data. Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+            }));
         }
     };
 

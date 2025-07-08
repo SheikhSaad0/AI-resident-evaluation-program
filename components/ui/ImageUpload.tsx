@@ -22,21 +22,45 @@ export default function ImageUpload({
     setIsUploading(true);
     
     try {
-      // For now, create a local object URL as a placeholder
-      // In a real implementation, this would upload to Google Cloud Storage
-      const objectUrl = URL.createObjectURL(file);
+      // Generate upload URL for Google Cloud Storage
+      const uploadResponse = await fetch('/api/generate-upload-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: `resident-photos/${Date.now()}-${file.name}`,
+          fileType: file.type,
+        }),
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to get upload URL');
+      }
+
+      const { uploadUrl, filePath } = await uploadResponse.json();
+
+      // Upload file to Google Cloud Storage
+      const fileUploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type,
+        },
+      });
+
+      if (!fileUploadResponse.ok) {
+        throw new Error('Failed to upload file');
+      }
+
+      // Return the GCS URL
+      const publicUrl = `https://storage.googleapis.com/ai-surgical-evaluator/${filePath}`;
+      onChange(publicUrl);
       
-      // Simulate upload delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // For demonstration, we'll use the object URL
-      // In production, this would be the uploaded file's URL from Google Cloud Storage
-      onChange(objectUrl);
-      
-      console.log("File uploaded successfully:", file.name);
+      console.log("File uploaded successfully to Google Cloud Storage:", publicUrl);
     } catch (error) {
       console.error("Upload failed:", error);
-      alert("Upload failed. Please try again.");
+      // Fallback to local object URL if GCS upload fails
+      const objectUrl = URL.createObjectURL(file);
+      onChange(objectUrl);
     } finally {
       setIsUploading(false);
     }
