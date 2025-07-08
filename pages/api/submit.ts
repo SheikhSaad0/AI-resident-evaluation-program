@@ -35,9 +35,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             },
         });
 
-        // Determine the correct URL for the QStash destination
-        // Use the ngrok override for local development, otherwise use the Vercel URL
+        // Determine the correct base URL
+        // 1. Use ngrok for local development
+        // 2. Use the Vercel Production URL for production deployments
+        // 3. Fallback for other environments
         const baseUrl = process.env.QSTASH_URL_OVERRIDE || 
+                        `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` ||
                         (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
         
         const destinationUrl = `${baseUrl}/api/process`;
@@ -53,8 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     } catch (error) {
         console.error('Error submitting job:', error);
-        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-        // Ensure the error response is in JSON format
+        const errorMessage = error instanceof Error ? error.message : String(error);
         res.status(500).json({ message: `Error submitting job: ${errorMessage}` });
     }
 }
