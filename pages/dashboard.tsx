@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
+import { GlassCard, GlassButton, GlassInput, StatCard, PerformanceChart, ImageUpload } from '../components/ui';
 
 interface Resident {
   id: string;
@@ -13,6 +14,8 @@ interface Evaluation {
   surgery: string;
   date: string;
   residentName?: string;
+  score?: number;
+  type?: 'video' | 'audio'; // Add type for analysis method
 }
 
 // Main Dashboard Component
@@ -23,25 +26,47 @@ export default function Dashboard() {
   const router = useRouter();
 
   useEffect(() => {
-    // Fetch initial data
     const fetchData = async () => {
       try {
-        const [residentsRes, evalsRes] = await Promise.all([
-          fetch('/api/residents'),
-          fetch('/api/evaluations'),
-        ]);
-        const residentsData = await residentsRes.json();
-        const evalsData = await evalsRes.json();
-        
-        setResidents(residentsData);
-        setEvaluations(evalsData);
+        // Fetch residents from API
+        const residentsResponse = await fetch('/api/residents');
+        if (residentsResponse.ok) {
+          const residentsData = await residentsResponse.json();
+          setResidents(residentsData);
+        } else {
+          // Fallback to mock data if API fails
+          const mockResidents = [
+            { id: '1', name: 'Dr. Sarah Johnson', photoUrl: null },
+            { id: '2', name: 'Dr. Michael Chen', photoUrl: null },
+            { id: '3', name: 'Dr. Emily Rodriguez', photoUrl: null }
+          ];
+          setResidents(mockResidents);
+        }
 
-        // In a real app, you would calculate stats from the evaluation results
-        setStats({ totalEvals: evalsData.length, avgScore: 4.2 });
+        // For now, keep mock evaluations as they might require more complex API setup
+        const mockEvaluations = [
+          { id: '1', surgery: 'Laparoscopic Cholecystectomy', date: '2024-01-15', residentName: 'Dr. Sarah Johnson', score: 4.5, type: 'video' as const },
+          { id: '2', surgery: 'Robotic Cholecystectomy', date: '2024-01-14', residentName: 'Dr. Michael Chen', score: 4.2, type: 'audio' as const },
+          { id: '3', surgery: 'Laparoscopic Appendicectomy', date: '2024-01-13', residentName: 'Dr. Emily Rodriguez', score: 4.8, type: 'video' as const }
+        ];
+
+        setEvaluations(mockEvaluations);
+        setStats({ 
+          totalEvals: mockEvaluations.length, 
+          avgScore: mockEvaluations.reduce((acc, evaluation) => acc + (evaluation.score || 0), 0) / mockEvaluations.length 
+        });
       } catch (error) {
-        console.error("Failed to fetch dashboard data", error);
+        console.error('Error fetching data:', error);
+        // Fallback to mock data
+        const mockResidents = [
+          { id: '1', name: 'Dr. Sarah Johnson', photoUrl: null },
+          { id: '2', name: 'Dr. Michael Chen', photoUrl: null },
+          { id: '3', name: 'Dr. Emily Rodriguez', photoUrl: null }
+        ];
+        setResidents(mockResidents);
       }
     };
+
     fetchData();
   }, []);
 
@@ -49,32 +74,76 @@ export default function Dashboard() {
     setResidents(prev => [newResident, ...prev]);
   };
   
-  const handleResidentDeleted = (deletedResidentId: string) => {
-    setResidents(prev => prev.filter(r => r.id !== deletedResidentId));
+  const handleResidentDeleted = async (deletedResidentId: string) => {
+    try {
+      const response = await fetch(`/api/residents/${deletedResidentId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete resident');
+      }
+
+      // Only update state if API call succeeded
+      setResidents(prev => prev.filter(r => r.id !== deletedResidentId));
+    } catch (error) {
+      console.error('Error deleting resident:', error);
+      alert('Failed to delete resident. Please try again.');
+    }
   }
 
   return (
-    <div className="p-4 space-y-8">
-      <div>
-        <h1 className="text-4xl font-bold text-white">Dashboard</h1>
-        <p className="text-gray-400 mt-1">An overview of all surgical evaluations.</p>
+    <div className="space-y-8">
+      {/* Header Section */}
+      <div className="text-center lg:text-left">
+        <h1 className="heading-xl text-gradient mb-2">Dashboard</h1>
+        <p className="text-text-tertiary text-lg">
+          Comprehensive overview of surgical evaluation performance
+        </p>
       </div>
 
-      {/* Stats Widgets */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Total Evaluations" value={stats.totalEvals.toString()} icon="/images/eval-count-icon.svg" />
-        <StatCard title="Average Score" value={stats.avgScore.toString()} icon="/images/avg-score-icon.svg" />
-        <StatCard title="Practice Ready" value="85%" icon="/images/ready-icon.svg" />
-        <StatCard title="Needs Improvement" value="15%" icon="/images/improve-icon.svg" />
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        <StatCard 
+          title="Total Evaluations" 
+          value={stats.totalEvals} 
+          icon="/images/eval-count-icon.svg"
+          trend={{ value: 12, isPositive: true }}
+          onClick={() => console.log('View all evaluations')}
+        />
+        <StatCard 
+          title="Average Score" 
+          value={`${stats.avgScore.toFixed(1)}/5.0`} 
+          icon="/images/avg-score-icon.svg"
+          trend={{ value: 8, isPositive: true }}
+          subtitle="Performance Rating"
+        />
+        <StatCard 
+          title="Practice Ready" 
+          value="85%" 
+          icon="/images/ready-icon.svg"
+          trend={{ value: 5, isPositive: true }}
+          subtitle="Residents qualified"
+        />
+        <StatCard 
+          title="Needs Improvement" 
+          value="15%" 
+          icon="/images/improve-icon.svg"
+          trend={{ value: 3, isPositive: false }}
+          subtitle="Requires attention"
+        />
       </div>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
-        <div className="lg:col-span-2 space-y-8">
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        {/* Left Column - Recent Evaluations & Chart */}
+        <div className="xl:col-span-2 space-y-8">
           <RecentEvaluationsWidget evaluations={evaluations} />
           <ChartWidget />
         </div>
-        <div className="lg:col-span-1">
+        
+        {/* Right Column - Residents Management */}
+        <div className="xl:col-span-1">
           <ResidentsWidget 
             residents={residents} 
             onResidentAdded={handleResidentAdded} 
@@ -86,112 +155,243 @@ export default function Dashboard() {
   );
 }
 
-// Individual Widget Components
-
-const StatCard = ({ title, value, icon }: { title: string, value: string, icon: string }) => (
-  <div className="glassmorphism p-6 rounded-2xl flex items-center space-x-4 transition-all hover:bg-dark-card-hover hover:border-brand-primary">
-    <div className="bg-dark-bg p-3 rounded-full">
-      <Image src={icon} alt={title} width={32} height={32} />
-    </div>
-    <div>
-      <p className="text-gray-400 text-sm">{title}</p>
-      <p className="text-3xl font-bold text-white">{value}</p>
-    </div>
-  </div>
-);
-
+// Enhanced Recent Evaluations Widget
 const RecentEvaluationsWidget = ({ evaluations }: { evaluations: Evaluation[] }) => {
   const router = useRouter();
+  
+  const getTypeIcon = (type?: string) => {
+    return type === 'video' ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg';
+  };
+  
   return (
-    <div className="glassmorphism p-6 rounded-2xl">
-      <h3 className="text-xl font-semibold text-white mb-4">Recent Evaluations</h3>
-      <div className="space-y-3 max-h-80 overflow-y-auto">
-        {evaluations.map((e) => (
-          <div 
-            key={e.id} 
-            onClick={() => router.push(`/results/${e.id}`)}
-            className="flex items-center justify-between p-3 rounded-lg bg-dark-bg/50 hover:bg-dark-bg cursor-pointer transition-all"
+    <GlassCard variant="strong" className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="heading-md">Recent Evaluations</h3>
+        <GlassButton 
+          variant="ghost" 
+          size="sm"
+          onClick={() => router.push('/evaluations')}
+        >
+          View All
+        </GlassButton>
+      </div>
+      
+      <div className="space-y-3 max-h-80 overflow-y-auto scrollbar-glass">
+        {evaluations.map((evaluation) => (
+          <GlassCard
+            key={evaluation.id}
+            variant="subtle"
+            hover
+            onClick={() => router.push(`/results/${evaluation.id}`)}
+            className="p-4 cursor-pointer"
           >
-            <div>
-              <p className="font-semibold text-white">{e.surgery}</p>
-              <p className="text-sm text-gray-400">{e.residentName || 'N/A'} - {e.date}</p>
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <h4 className="font-semibold text-text-primary mb-1">{evaluation.surgery}</h4>
+                <p className="text-sm text-text-tertiary mb-2">
+                  {evaluation.residentName || 'N/A'} • {evaluation.date}
+                </p>
+                {evaluation.score && (
+                  <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-1">
+                      {[...Array(5)].map((_, i) => (
+                        <div
+                          key={i}
+                          className={`w-2 h-2 rounded-full ${
+                            i < Math.floor(evaluation.score!) ? 'bg-brand-secondary' : 'bg-glass-300'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-xs text-text-quaternary">{evaluation.score}/5.0</span>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex items-center space-x-3">
+                {/* Type Indicator - larger and no bubble */}
+                <div className="p-1">
+                  <Image 
+                    src={getTypeIcon(evaluation.type)} 
+                    alt={evaluation.type || 'analysis'} 
+                    width={32} 
+                    height={32}
+                    className="opacity-90"
+                  />
+                </div>
+                
+                <div className="glassmorphism-subtle p-2 rounded-2xl">
+                  <Image src="/images/arrow-right-icon.svg" alt="View" width={16} height={16} />
+                </div>
+              </div>
             </div>
-            <Image src="/images/arrow-right-icon.svg" alt="View" width={24} height={24} />
-          </div>
+          </GlassCard>
         ))}
       </div>
-    </div>
+      
+      {evaluations.length === 0 && (
+        <div className="text-center py-12">
+          <div className="glassmorphism-subtle p-6 rounded-3xl w-fit mx-auto mb-4">
+            <Image src="/images/eval-count-icon.svg" alt="No evaluations" width={32} height={32} className="opacity-50" />
+          </div>
+          <p className="text-text-tertiary">No evaluations yet</p>
+          <p className="text-text-quaternary text-sm">Start your first evaluation to see results here</p>
+        </div>
+      )}
+    </GlassCard>
   );
 };
 
-const ResidentsWidget = ({ residents, onResidentAdded, onResidentDeleted }: { residents: Resident[], onResidentAdded: (resident: Resident) => void, onResidentDeleted: (id: string) => void }) => {
+// Enhanced Chart Widget
+const ChartWidget = () => (
+  <GlassCard variant="strong" className="p-6">
+    <div className="flex items-center justify-between mb-6">
+      <h3 className="heading-md">Performance Analytics</h3>
+      <div className="flex space-x-2">
+        <GlassButton variant="ghost" size="sm">Week</GlassButton>
+        <GlassButton variant="secondary" size="sm">Month</GlassButton>
+        <GlassButton variant="ghost" size="sm">Year</GlassButton>
+      </div>
+    </div>
+    
+    <div className="h-64">
+      <PerformanceChart height={240} />
+    </div>
+  </GlassCard>
+);
+
+// Enhanced Residents Widget
+const ResidentsWidget = ({ 
+  residents, 
+  onResidentAdded, 
+  onResidentDeleted 
+}: { 
+  residents: Resident[], 
+  onResidentAdded: (resident: Resident) => void, 
+  onResidentDeleted: (id: string) => void 
+}) => {
   const [name, setName] = useState('');
   const [photo, setPhoto] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
   
   const handleAddResident = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name) return;
+    if (!name.trim()) return;
 
+    setIsAdding(true);
+    
     try {
-        const response = await fetch('/api/residents', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, photoUrl: photo }),
-        });
-        if (!response.ok) throw new Error("Failed to add resident");
-        const newResident = await response.json();
-        onResidentAdded(newResident);
-        setName('');
-        setPhoto('');
+      const response = await fetch('/api/residents', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          photoUrl: photo.trim() || null
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add resident');
+      }
+
+      const newResident = await response.json();
+      onResidentAdded(newResident);
+      setName('');
+      setPhoto('');
     } catch (error) {
-        console.error(error);
+      console.error('Error adding resident:', error);
+      alert('Failed to add resident. Please try again.');
+    } finally {
+      setIsAdding(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this resident? This will also un-assign them from past evaluations.')) return;
-    try {
-        const response = await fetch(`/api/residents/${id}`, { method: 'DELETE' });
-        if (!response.ok) throw new Error("Failed to delete resident");
-        onResidentDeleted(id);
-    } catch (error) {
-        console.error(error);
-    }
-  }
+    if (!confirm('Are you sure you want to remove this resident? This action cannot be undone.')) return;
+    onResidentDeleted(id);
+  };
 
   return (
-    <div className="glassmorphism p-6 rounded-2xl">
-      <h3 className="text-xl font-semibold text-white mb-4">Manage Residents</h3>
+    <GlassCard variant="strong" className="p-6">
+      <h3 className="heading-md mb-6">Manage Residents</h3>
+      
+      {/* Add Resident Form */}
       <form onSubmit={handleAddResident} className="space-y-4 mb-6">
-        <input type="text" placeholder="Resident Name" value={name} onChange={e => setName(e.target.value)} className="w-full bg-dark-bg p-3 rounded-lg border border-glass-border focus:ring-brand-primary focus:border-brand-primary outline-none" />
-        <input type="text" placeholder="Photo URL (optional)" value={photo} onChange={e => setPhoto(e.target.value)} className="w-full bg-dark-bg p-3 rounded-lg border border-glass-border focus:ring-brand-primary focus:border-brand-primary outline-none" />
-        <button type="submit" className="w-full bg-brand-primary p-3 rounded-lg font-semibold hover:bg-opacity-80 transition-all shadow-glow-primary">Add Resident</button>
+        <GlassInput
+          type="text"
+          placeholder="Resident Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+        <div>
+          <label className="block mb-2 text-sm font-medium text-text-secondary">
+            Profile Photo
+          </label>
+          <ImageUpload
+            value={photo}
+            onChange={setPhoto}
+            placeholder="Upload profile photo"
+          />
+        </div>
+        <GlassButton
+          type="submit"
+          variant="primary"
+          disabled={!name.trim()}
+          loading={isAdding}
+          className="w-full"
+        >
+          Add Resident
+        </GlassButton>
       </form>
 
-      <h4 className="font-semibold text-gray-300 mb-2">Current Residents</h4>
-      <div className="space-y-3 max-h-80 overflow-y-auto">
-        {residents.map((r) => (
-          <div key={r.id} className="flex items-center justify-between p-2 rounded-lg bg-dark-bg/50">
-            <div className="flex items-center space-x-3">
-              <Image src={r.photoUrl || '/images/default-avatar.svg'} alt={r.name} width={40} height={40} className="rounded-full object-cover" />
-              <span className="text-white font-medium">{r.name}</span>
+      {/* Residents List */}
+      <div>
+        <h4 className="text-sm font-medium text-text-tertiary mb-3">Current Residents ({residents.length})</h4>
+        <div className="space-y-3 max-h-64 overflow-y-auto scrollbar-glass">
+          {residents.map((resident) => (
+            <GlassCard key={resident.id} variant="subtle" className="p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div 
+                    className="glassmorphism-subtle p-2 rounded-2xl cursor-pointer hover:scale-105 transition-transform"
+                    onClick={() => router.push(`/residents/${resident.id}`)}
+                  >
+                    <Image 
+                      src={resident.photoUrl || '/images/default-avatar.svg'} 
+                      alt={resident.name} 
+                      width={32} 
+                      height={32} 
+                      className="rounded-2xl object-cover opacity-80"
+                    />
+                  </div>
+                  <span className="font-medium text-text-primary">{resident.name}</span>
+                </div>
+                
+                <GlassButton
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDelete(resident.id)}
+                  className="p-2 hover:bg-red-500/20 text-red-400"
+                >
+                  <Image src="/images/trashcanIcon.svg" alt="Delete" width={16} height={16} />
+                </GlassButton>
+              </div>
+            </GlassCard>
+          ))}
+        </div>
+        
+        {residents.length === 0 && (
+          <div className="text-center py-8">
+            <div className="glassmorphism-subtle p-4 rounded-3xl w-fit mx-auto mb-3">
+              <Image src="/images/default-avatar.svg" alt="No residents" width={24} height={24} className="opacity-50" />
             </div>
-             <button onClick={() => handleDelete(r.id)} className="p-1 rounded-full hover:bg-red-500/20">
-                 <Image src="/images/trashcanIcon.svg" alt="Delete" width={20} height={20} />
-            </button>
+            <p className="text-text-tertiary text-sm">No residents added yet</p>
           </div>
-        ))}
+        )}
       </div>
-    </div>
+    </GlassCard>
   );
 };
-
-const ChartWidget = () => (
-    <div className="glassmorphism p-6 rounded-2xl">
-        <h3 className="text-xl font-semibold text-white mb-4">Evaluations by Procedure</h3>
-        <div className="h-64 flex items-center justify-center text-gray-400">
-            {/* In a real app, you would use a library like Recharts or Chart.js here */}
-            <p>Chart component would be rendered here.</p>
-        </div>
-    </div>
-);

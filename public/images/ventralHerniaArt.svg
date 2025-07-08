@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <linearGradient id="ventralGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF9500;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#34C759;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <circle cx="60" cy="60" r="50" fill="rgba(255, 149, 0, 0.1)" stroke="url(#ventralGrad)" stroke-width="2"/>
+  <ellipse cx="60" cy="60" rx="25" ry="20" fill="url(#ventralGrad)" opacity="0.8"/>
+  <text x="60" y="100" text-anchor="middle" fill="url(#ventralGrad)" font-size="9" font-weight="bold">Ventral Hernia</text>
+</svg>
