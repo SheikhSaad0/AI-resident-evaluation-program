@@ -7,3 +7,4 @@ export { default as GlassTabs } from './GlassTabs';
 export { default as PillToggle } from './PillToggle';
 export { default as StatCard } from './StatCard';
 export { default as PerformanceChart } from './PerformanceChart';
+export { default as ImageUpload } from './ImageUpload';

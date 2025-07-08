@@ -292,6 +292,14 @@ export default function ResultsPage() {
 
   const descriptions = EVALUATION_CONFIGS[surgery as keyof typeof EVALUATION_CONFIGS]?.caseDifficultyDescriptions;
 
+  const getSurgeryIcon = (surgery: string) => {
+    if (surgery.toLowerCase().includes('cholecyst')) return '/images/galbladderArt.svg';
+    if (surgery.toLowerCase().includes('appendic')) return '/images/appendectomyArt.svg';
+    if (surgery.toLowerCase().includes('inguinal')) return '/images/inguinalHerniaArt.svg';
+    if (surgery.toLowerCase().includes('ventral')) return '/images/ventralHerniaArt.svg';
+    return '/images/default-avatar.svg';
+  };
+
   const tabsData = [
     { 
       id: 'overview', 
@@ -351,12 +359,21 @@ export default function ResultsPage() {
       {/* Header Section */}
       <div className="text-center">
         <div className="flex items-center justify-center mb-4">
-          <div className="glassmorphism-subtle p-3 rounded-2xl mr-4">
+          <div className="glassmorphism-subtle p-4 rounded-3xl mr-4">
+            <Image 
+              src={getSurgeryIcon(surgery)}
+              alt={surgery}
+              width={48}
+              height={48}
+              className="opacity-90"
+            />
+          </div>
+          <div className="glassmorphism-subtle p-3 rounded-3xl mr-4">
             <Image 
               src={visualAnalysisPerformed ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg'}
               alt={visualAnalysisPerformed ? 'Visual Analysis' : 'Audio Analysis'}
-              width={40}
-              height={40}
+              width={32}
+              height={32}
               className="opacity-80"
             />
           </div>
@@ -372,7 +389,7 @@ export default function ResultsPage() {
           </div>
         </div>
         
-        <div className="glassmorphism-subtle p-4 rounded-2xl inline-block">
+        <div className="glassmorphism-subtle p-4 rounded-3xl inline-block">
           <h2 className="heading-sm mb-1">{surgery}</h2>
           {residentName && (
             <p className="text-text-tertiary">Resident: <span className="text-text-secondary font-medium">{residentName}</span></p>

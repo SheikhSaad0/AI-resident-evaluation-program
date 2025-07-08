@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
-import { GlassCard, GlassButton, GlassInput, StatCard, PerformanceChart } from '../components/ui';
+import { GlassCard, GlassButton, GlassInput, StatCard, PerformanceChart, ImageUpload } from '../components/ui';
 
 interface Resident {
   id: string;
@@ -276,12 +276,16 @@ const ResidentsWidget = ({
           onChange={(e) => setName(e.target.value)}
           required
         />
-        <GlassInput
-          type="url"
-          placeholder="Photo URL (optional)"
-          value={photo}
-          onChange={(e) => setPhoto(e.target.value)}
-        />
+        <div>
+          <label className="block mb-2 text-sm font-medium text-text-secondary">
+            Profile Photo
+          </label>
+          <ImageUpload
+            value={photo}
+            onChange={setPhoto}
+            placeholder="Upload profile photo"
+          />
+        </div>
         <GlassButton
           type="submit"
           variant="primary"
@@ -301,7 +305,10 @@ const ResidentsWidget = ({
             <GlassCard key={resident.id} variant="subtle" className="p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  <div className="glassmorphism-subtle p-2 rounded-2xl">
+                  <div 
+                    className="glassmorphism-subtle p-2 rounded-2xl cursor-pointer hover:scale-105 transition-transform"
+                    onClick={() => router.push(`/residents/${resident.id}`)}
+                  >
                     <Image 
                       src={resident.photoUrl || '/images/default-avatar.svg'} 
                       alt={resident.name} 
