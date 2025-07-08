@@ -1,5 +1,4 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
 import type { Job } from '@prisma/client';
 import { VertexAI, Part } from '@google-cloud/vertexai';
 import { createClient, DeepgramError } from '@deepgram/sdk';
@@ -8,7 +7,14 @@ import { generateV4ReadSignedUrl } from '../../../lib/gcs';
 import fs from 'fs';
 import os from 'os';
 
-const prisma = new PrismaClient();
+// REMOVE THIS LINE:
+// import { PrismaClient } from '@prisma/client';
+// const prisma = new PrismaClient();
+
+// ADD THIS LINE INSTEAD:
+import { prisma } from '../../../lib/prisma';
+
+//const prisma = new PrismaClient();
 
 // --- Services Configuration ---
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY || '');
