@@ -2,8 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { GlassCard } from './ui';
 
-// A list of surgeries that the user can select from.
-// This could be fetched from a database in a real application.
 const surgeries = [
   {
     name: 'Laparoscopic Inguinal Hernia Repair with Mesh (TEP)',
@@ -12,12 +10,12 @@ const surgeries = [
   },
   {
     name: 'Laparoscopic Cholecystectomy',
-    icon: '/images/galbladderArt.svg',
+    icon: '/images/galbladderArt.png',
     shortName: 'Laparoscopic Cholecystectomy'
   },
   {
     name: 'Robotic Cholecystectomy',
-    icon: '/images/galbladderArt.svg',
+    icon: '/images/galbladderArt.png',
     shortName: 'Robotic Cholecystectomy'
   },
   {
@@ -32,7 +30,7 @@ const surgeries = [
   },
   {
     name: 'Laparoscopic Appendicectomy',
-    icon: '/images/appendectomyArt.svg',
+    icon: '/images/appendectomyArt.png',
     shortName: 'Laparoscopic Appendicectomy'
   }
 ];
@@ -66,7 +64,6 @@ const SurgerySelector: React.FC<Props> = ({ selected, setSelected }) => {
       </label>
       
       <div className="relative">
-        {/* Selected Display */}
         <GlassCard 
           variant="subtle" 
           className="p-4 cursor-pointer"
@@ -108,7 +105,6 @@ const SurgerySelector: React.FC<Props> = ({ selected, setSelected }) => {
           </div>
         </GlassCard>
 
-        {/* Dropdown */}
         {isExpanded && (
           <div className="absolute top-full left-0 right-0 z-10 mt-2">
             <GlassCard variant="strong" className="p-2 max-h-64 overflow-y-auto scrollbar-glass">
