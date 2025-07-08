@@ -126,7 +126,7 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
 
       **PRIMARY INSTRUCTIONS:**
       1.  **Analyze the Transcript:** Review the entire transcript and context. Identify the resident (learner) and the attending (teacher). Focus the evaluation on the resident's performance.
-      2.  **Evaluate Step-by-Step:** For each surgical step, provide a detailed evaluation.
+      2.  **Evaluate Step-by-Step:** For each surgical step, provide a detailed evaluation, include comments the attending may have given that can criique and improve the residents future performance
           - **Scoring Scale (1-5):**
             - **1:** Unsafe, attending took over.
             - **2:** Performed <50% of step, significant help needed.
@@ -137,8 +137,8 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
       3.  **Provide Overall Assessment:**
           - **\`caseDifficulty\`**: (Number 1-3) Rate the case difficulty based on the following procedure-specific scale:
           ${difficultyText}
-          - **\`additionalComments\`**: (String) Provide a concise summary of the resident's overall performance.
-      
+          - **\`additionalComments\`**: (String) Provide a concise summary of the resident's overall performance, include key details to their performance and ideas for improvement
+        Record the time taken, he format should be "X minutes and Y seconds", where one step might have taken 4 minutes and 22 seconds
       4.  **JSON OUTPUT FORMAT:** You MUST return ONLY a single, valid JSON object matching this exact structure. Do not include any other text or markdown formatting.
 
       \`\`\`json
@@ -195,8 +195,8 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
 
       **PRIMARY INSTRUCTIONS:**
       1.  **Transcribe the Audio:** First, provide a complete and accurate transcription of all spoken dialogue in the video.
-      2.  **Analyze the Procedure:** Review the entire video, transcription, and context. Identify the resident (learner) and the attending (teacher). Focus the evaluation on the resident's performance.
-      3.  **Evaluate Step-by-Step:** For each surgical step, provide a detailed evaluation.
+      2.  **Analyze the Procedure:** Review the entire video, transcription, and context. Identify the resident (learner) and the attending (teacher). Focus the evaluation on the resident's performance. Evaluate the residents movements and skills against the transcript and attendings comments, evaluate how well a job the resident is doing and if they are 'practice ready' (being able to do the surgery accurately).
+      3.  **Evaluate Step-by-Step:** For each surgical step, provide a detailed evaluation, include comments the attending may have given that can criique and improve the residents future performance
           - **Scoring Scale (1-5):**
             - **1:** Unsafe, attending took over.
             - **2:** Performed <50% of step, significant help needed.
@@ -207,8 +207,8 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
       4.  **Provide Overall Assessment:**
           - **\`caseDifficulty\`**: (Number 1-3) Rate the case difficulty based on the following procedure-specific scale:
           ${difficultyText}
-          - **\`additionalComments\`**: (String) Provide a concise summary of the resident's overall performance.
-
+          - **\`additionalComments\`**: (String) Provide a concise summary of the resident's overall performance, include key details to their performance and ideas for improvement
+       Record the time taken, he format should be "X minutes and Y seconds", where one step might have taken 4 minutes and 22 seconds, take into consideration the video provided may be a teaching example and not a full procedure from start to finish, so then estimate the time accurately.
       5.  **JSON OUTPUT FORMAT:** You MUST return ONLY a single, valid JSON object matching this exact structure. Do not include any other text or markdown formatting.
 
       \`\`\`json
