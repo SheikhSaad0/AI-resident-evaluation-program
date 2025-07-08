@@ -1,15 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-//import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { generateV4ReadSignedUrl } from '../../../lib/gcs'; // Corrected import path
 
-// REMOVE THIS LINE:
-// import { PrismaClient } from '@prisma/client';
-// const prisma = new PrismaClient();
-
-// ADD THIS LINE INSTEAD:
-import { prisma } from '../../../lib/prisma';
-
-//const prisma = new PrismaClient();
+const prisma = new PrismaClient();
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     const { jobId } = req.query;
