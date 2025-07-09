@@ -18,9 +18,16 @@ interface Evaluation {
   type: 'video' | 'audio';
   isFinalized?: boolean;
   status: string;
+  videoAnalysis?: boolean;
 }
 
 type TimeRange = 'week' | 'month' | '6M' | '1Y';
+
+// --- NEW: Function to calculate trends ---
+const calculateTrend = (current: number, previous: number) => {
+  if (previous === 0) return current > 0 ? 100 : 0;
+  return Math.round(((current - previous) / previous) * 100);
+};
 
 export default function Dashboard() {
   const [residents, setResidents] = useState<Resident[]>([]);
@@ -49,29 +56,39 @@ export default function Dashboard() {
         if (evalsResponse.ok) {
           const evalsData = await evalsResponse.json();
           setEvaluations(evalsData);
-          
+
+          // --- REFINED: More robust data processing and trend calculation ---
+          const now = new Date();
+          const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+
           const completedEvals = evalsData.filter((e: Evaluation) => e.score !== undefined && e.score !== null);
-          const totalEvals = evalsData.length;
-          const avgScore = completedEvals.length > 0
-            ? completedEvals.reduce((acc: number, e: Evaluation) => acc + (e.score || 0), 0) / completedEvals.length
-            : 0;
-
-          const practiceReadyCount = completedEvals.filter((e: Evaluation) => e.score && e.score >= 4).length;
-          const needsImprovementCount = completedEvals.filter((e: Evaluation) => e.score && e.score < 3).length;
+          const currentMonthEvals = completedEvals.filter((e: Evaluation) => new Date(e.date) >= oneMonthAgo);
+          const previousMonthEvals = completedEvals.filter((e: Evaluation) => new Date(e.date) < oneMonthAgo);
           
-          const practiceReady = completedEvals.length > 0 ? (practiceReadyCount / completedEvals.length) * 100 : 0;
-          const needsImprovement = completedEvals.length > 0 ? (needsImprovementCount / completedEvals.length) * 100 : 0;
+          const totalEvals = evalsData.length;
 
-          // Mocked trend data for now - replace with actual trend calculation logic
+          const calculateMetrics = (evals: Evaluation[]) => {
+            if (evals.length === 0) return { avgScore: 0, practiceReady: 0, needsImprovement: 0 };
+            const avgScore = evals.reduce((acc: number, e: Evaluation) => acc + (e.score || 0), 0) / evals.length;
+            const practiceReadyCount = evals.filter((e: Evaluation) => e.score && e.score >= 4).length;
+            const needsImprovementCount = evals.filter((e: Evaluation) => e.score && e.score < 3).length;
+            const practiceReady = (practiceReadyCount / evals.length) * 100;
+            const needsImprovement = (needsImprovementCount / evals.length) * 100;
+            return { avgScore, practiceReady, needsImprovement };
+          };
+
+          const currentMetrics = calculateMetrics(currentMonthEvals);
+          const previousMetrics = calculateMetrics(previousMonthEvals);
+
           setStats({
             totalEvals,
-            avgScore,
-            practiceReady,
-            needsImprovement,
-            totalEvalsTrend: 12,
-            avgScoreTrend: 8,
-            practiceReadyTrend: 5,
-            needsImprovementTrend: -3,
+            avgScore: currentMetrics.avgScore,
+            practiceReady: currentMetrics.practiceReady,
+            needsImprovement: currentMetrics.needsImprovement,
+            totalEvalsTrend: calculateTrend(currentMonthEvals.length, previousMonthEvals.length),
+            avgScoreTrend: calculateTrend(currentMetrics.avgScore, previousMetrics.avgScore),
+            practiceReadyTrend: calculateTrend(currentMetrics.practiceReady, previousMetrics.practiceReady),
+            needsImprovementTrend: calculateTrend(currentMetrics.needsImprovement, previousMetrics.needsImprovement),
           });
         }
       } catch (error) {
@@ -89,10 +106,11 @@ export default function Dashboard() {
         <p className="text-text-tertiary text-lg">Comprehensive overview of surgical evaluation performance</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <StatCard title="Total Evaluations" value={stats.totalEvals} icon="/images/eval-count-icon.svg" trend={{ value: stats.totalEvalsTrend, isPositive: true }} onClick={() => router.push('/evaluations')} />
-        <StatCard title="Average Score" value={`${stats.avgScore.toFixed(1)}/5.0`} icon="/images/avg-score-icon.svg" trend={{ value: stats.avgScoreTrend, isPositive: true }} subtitle="Performance Rating" />
-        <StatCard title="Practice Ready" value={`${stats.practiceReady.toFixed(0)}%`} icon="/images/ready-icon.svg" trend={{ value: stats.practiceReadyTrend, isPositive: true }} subtitle="Residents qualified" />
-        <StatCard title="Needs Improvement" value={`${stats.needsImprovement.toFixed(0)}%`} icon="/images/improve-icon.svg" trend={{ value: stats.needsImprovementTrend, isPositive: false }} subtitle="Requires attention" />
+        {/* --- REFINED: StatCards now use the calculated trends --- */}
+        <StatCard title="Total Evaluations" value={stats.totalEvals} icon="/images/eval-count-icon.svg" trend={{ value: stats.totalEvalsTrend, isPositive: stats.totalEvalsTrend >= 0 }} onClick={() => router.push('/evaluations')} />
+        <StatCard title="Average Score" value={`${stats.avgScore.toFixed(1)}/5.0`} icon="/images/avg-score-icon.svg" trend={{ value: stats.avgScoreTrend, isPositive: stats.avgScoreTrend >= 0 }} subtitle="Performance Rating" />
+        <StatCard title="Practice Ready" value={`${stats.practiceReady.toFixed(0)}%`} icon="/images/ready-icon.svg" trend={{ value: stats.practiceReadyTrend, isPositive: stats.practiceReadyTrend >= 0 }} subtitle="Residents qualified" />
+        <StatCard title="Needs Improvement" value={`${stats.needsImprovement.toFixed(0)}%`} icon="/images/improve-icon.svg" trend={{ value: stats.needsImprovementTrend, isPositive: stats.needsImprovementTrend <= 0 }} subtitle="Requires attention" />
       </div>
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-2 space-y-8">
@@ -110,47 +128,15 @@ export default function Dashboard() {
 const RecentEvaluationsWidget = ({ evaluations }: { evaluations: Evaluation[] }) => {
   const router = useRouter();
 
-  const getStatusBadge = (evaluation: Evaluation) => {
-
-    console.log(evaluation.id)
-    console.log(evaluation.residentName)
-    console.log(evaluation.surgery)
-    console.log(evaluation.isFinalized)
-    console.log(evaluation.status)
-
-    if (evaluation.isFinalized) {
-      return 'status-success';
-    }
-    if (evaluation.status.startsWith('processing') || evaluation.status === 'in-progress' || evaluation.status === 'pending') {
-        return 'status-warning';
-    }
-    if (evaluation.status === 'failed') {
-        return 'status-error';
-    }
-    if (evaluation.status === 'complete' || evaluation.status === 'completed') {
-        return 'status-info';
-    }
-    return 'status-info';
+  // --- REFINED: Simplified status logic ---
+  const getStatusInfo = (evaluation: Evaluation) => {
+    if (evaluation.isFinalized) return { text: 'Finalized', badge: 'status-success' };
+    if (evaluation.status.startsWith('processing') || evaluation.status === 'in-progress' || evaluation.status === 'pending') return { text: 'In Progress', badge: 'status-warning' };
+    if (evaluation.status === 'failed') return { text: 'Failed', badge: 'status-error' };
+    if (evaluation.status === 'complete' || evaluation.status === 'completed') return { text: 'Draft', badge: 'status-info' };
+    return { text: 'Unknown', badge: 'status-info' };
   };
-  
-const getStatusText = (evaluation: Evaluation) => {
-  // If the evaluation is finalized, that's always the highest status
-  if (evaluation.isFinalized) return 'Finalized';
-  // In Progress: pending or processing
-  if (
-    evaluation.status === 'pending' ||
-    (evaluation.status && evaluation.status.toLowerCase().startsWith('processing'))
-  ) return 'In Progress';
-  // Failed
-  if (evaluation.status === 'failed') return 'Failed';
-  // Draft: completed (not finalized)
-  if (
-    evaluation.status === 'complete' ||
-    evaluation.status === 'completed'
-  ) return 'Draft';
-  return 'Unknown';
-};
-  
+
   return (
     <GlassCard variant="strong" className="p-6">
       <div className="flex items-center justify-between mb-6">
@@ -158,28 +144,32 @@ const getStatusText = (evaluation: Evaluation) => {
         <GlassButton variant="ghost" size="sm" onClick={() => router.push('/evaluations')}>View All</GlassButton>
       </div>
       <div className="space-y-3 max-h-80 overflow-y-auto scrollbar-glass">
-        {evaluations.slice(0, 5).map((evaluation) => (
-          <GlassCard key={evaluation.id} variant="subtle" hover onClick={() => router.push(`/results/${evaluation.id}`)} className="p-4 cursor-pointer">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <h4 className="font-semibold text-text-primary mb-1">{evaluation.surgery}</h4>
-                <p className="text-sm text-text-tertiary mb-2">{evaluation.residentName || 'N/A'} • {evaluation.date} • <span className={`${getStatusBadge(evaluation)} text-xs`}>{getStatusText(evaluation)}</span></p>
-                {evaluation.score && (
-                  <div className="flex items-center space-x-2">
-                    <div className="flex items-center space-x-1">
-                      {[...Array(5)].map((_, i) => (<div key={i} className={`w-2 h-2 rounded-full ${i < Math.floor(evaluation.score!) ? 'bg-brand-secondary' : 'bg-glass-300'}`} />))}
+        {evaluations.slice(0, 5).map((evaluation) => {
+          const status = getStatusInfo(evaluation);
+          const analysisTypeText = evaluation.videoAnalysis ? 'Visual Analysis' : 'Audio Analysis';
+          return (
+            <GlassCard key={evaluation.id} variant="subtle" hover onClick={() => router.push(`/results/${evaluation.id}`)} className="p-4 cursor-pointer">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <h4 className="font-semibold text-text-primary mb-1">{evaluation.surgery}</h4>
+                  <p className="text-sm text-text-tertiary mb-2">{evaluation.residentName || 'N/A'} • {evaluation.date} • <span className={`${status.badge} text-xs`}>{status.text}</span> • <span className="text-xs">{analysisTypeText}</span></p>
+                  {evaluation.score && (
+                    <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-1">
+                        {[...Array(5)].map((_, i) => (<div key={i} className={`w-2 h-2 rounded-full ${i < Math.floor(evaluation.score!) ? 'bg-brand-secondary' : 'bg-glass-300'}`} />))}
+                      </div>
+                      <span className="text-xs text-text-quaternary">{evaluation.score.toFixed(1)}/5.0</span>
                     </div>
-                    <span className="text-xs text-text-quaternary">{evaluation.score.toFixed(1)}/5.0</span>
-                  </div>
-                )}
+                  )}
+                </div>
+                <div className="flex items-center space-x-3">
+                  <Image src={evaluation.type === 'video' ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg'} alt={evaluation.type} width={150} height={150} className="opacity-90" />
+                  <div className="glassmorphism-subtle p-2 rounded-2xl"><Image src="/images/arrow-right-icon.svg" alt="View" width={16} height={16} /></div>
+                </div>
               </div>
-              <div className="flex items-center space-x-3">
-                <Image src={evaluation.type === 'video' ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg'} alt={evaluation.type} width={150} height={150} className="opacity-90" />
-                <div className="glassmorphism-subtle p-2 rounded-2xl"><Image src="/images/arrow-right-icon.svg" alt="View" width={16} height={16} /></div>
-              </div>
-            </div>
-          </GlassCard>
-        ))}
+            </GlassCard>
+          )
+        })}
       </div>
       {evaluations.length === 0 && (
         <div className="text-center py-12">
