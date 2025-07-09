@@ -67,12 +67,12 @@ const aggregateData = (evaluations: Evaluation[], timeRange: 'week' | 'month' | 
 };
 
 
-export default function PerformanceChart({
+export default function PerformanceChart({ 
   evaluations,
   timeRange = 'month',
   procedureFilter = 'all',
-  height = 300,
-  className = ''
+  height = 300, 
+  className = '' 
 }: PerformanceChartProps) {
   const data = aggregateData(evaluations, timeRange, procedureFilter);
 
@@ -98,15 +98,15 @@ export default function PerformanceChart({
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 20, right: 20, left: 20, bottom: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-          <XAxis
-            dataKey="date"
+          <XAxis 
+            dataKey="date" 
             stroke="rgba(255,255,255,0.6)"
             fontSize={12}
             tickLine={false}
             axisLine={false}
           />
-          <YAxis
-            domain={[1, 5]}
+          <YAxis 
+            domain={[1, 5]} 
             stroke="rgba(255,255,255,0.6)"
             fontSize={12}
             tickLine={false}
@@ -114,10 +114,10 @@ export default function PerformanceChart({
             tickFormatter={(value) => `${value}.0`}
           />
           <Tooltip content={<CustomTooltip />} />
-          <Line
-            type="monotone"
-            dataKey="score"
-            stroke="url(#chartGradient)"
+          <Line 
+            type="monotone" 
+            dataKey="score" 
+            stroke="url(#chartGradient)" 
             strokeWidth={3}
             dot={{ fill: '#007AFF', strokeWidth: 2, r: 6 }}
             activeDot={{ r: 8, fill: '#30D0C4' }}
