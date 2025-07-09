@@ -81,7 +81,7 @@ const ResidentSelector: React.FC<Props> = ({ residents, selected, setSelected })
         </GlassCard>
 
         {isExpanded && (
-          <div className="absolute top-full left-0 right-0 z-30 mt-2">
+          <div className="absolute top-full left-0 right-0 z-[9999] mt-2">
             <GlassCard variant="strong" className="p-2 max-h-64 overflow-y-auto scrollbar-glass dropdown-background">
               <div className="space-y-1">
                 {sortedResidents.map((resident) => (

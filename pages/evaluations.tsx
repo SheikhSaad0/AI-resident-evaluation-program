@@ -142,19 +142,20 @@ export default function Evaluations() {
             <label className="block mb-2 text-sm font-medium text-text-secondary">Search Evaluations</label>
             <GlassInput type="text" placeholder="Search by surgery or resident..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
-          <div className="relative z-20">
+          <div className="relative z-40">
             <ResidentSelector residents={residents} selected={selectedResident} setSelected={setSelectedResident} />
           </div>
-          <div>
+          <div className="relative z-30">
             <label className="block mb-2 text-sm font-medium text-text-secondary">Filter by Type</label>
             <GlassSelect value={filterType} onChange={(e) => setFilterType(e.target.value)} options={[{ value: 'all', label: 'All Types' }, { value: 'video', label: 'Video Analysis' }, { value: 'audio', label: 'Audio Analysis' }]} />
           </div>
-          <div>
-          <label className="block mb-2 text-sm font-medium text-text-secondary">Filter by Status</label>
+          <div className="relative z-20">
+            <label className="block mb-2 text-sm font-medium text-text-secondary">Filter by Status</label>
             <GlassSelect value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} options={[{ value: 'all', label: 'All Statuses' }, { value: 'finalized', label: 'Finalized' }, { value: 'draft', label: 'Draft' }, { value: 'in-progress', label: 'In Progress' }, { value: 'failed', label: 'Failed' }]} />
           </div>
         </div>
       </GlassCard>
+
       <GlassCard variant="strong" className="p-6">
         <div className="flex items-center justify-between mb-6">
           <h3 className="heading-md">Evaluations ({filteredEvaluations.length})</h3>
