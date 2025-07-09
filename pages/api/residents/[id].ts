@@ -23,10 +23,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
     } else if (req.method === 'PUT') {
         try {
-            const { name, company, year, medicalSchool, photoUrl } = req.body;
+            const { name, company, year, medicalSchool, photoUrl, email } = req.body;
             const updatedResident = await prisma.resident.update({
                 where: { id },
-                data: { name, company, year, medicalSchool, photoUrl },
+                data: { name, company, year, medicalSchool, photoUrl, email },
             });
             res.status(200).json(updatedResident);
         } catch (error) {

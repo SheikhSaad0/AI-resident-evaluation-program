@@ -10,6 +10,7 @@ interface Resident {
   company?: string;
   year?: string;
   medicalSchool?: string;
+  email?: string;
 }
 
 export default function ResidentsPage() {
@@ -19,7 +20,8 @@ export default function ResidentsPage() {
     photoUrl: '',
     company: '',
     year: '',
-    medicalSchool: ''
+    medicalSchool: '',
+    email: ''
   });
   const [isAdding, setIsAdding] = useState(false);
   const router = useRouter();
@@ -56,7 +58,7 @@ export default function ResidentsPage() {
       if (response.ok) {
         const addedResident = await response.json();
         setResidents(prev => [addedResident, ...prev]);
-        setNewResident({ name: '', photoUrl: '', company: '', year: '', medicalSchool: '' });
+        setNewResident({ name: '', photoUrl: '', company: '', year: '', medicalSchool: '', email: '' });
       } else {
         throw new Error('Failed to add resident');
       }
@@ -111,6 +113,13 @@ export default function ResidentsPage() {
                 value={newResident.name}
                 onChange={handleInputChange}
                 required
+              />
+               <GlassInput
+                name="email"
+                type="email"
+                placeholder="Email Address"
+                value={newResident.email}
+                onChange={handleInputChange}
               />
               <GlassInput
                 name="company"

@@ -1,12 +1,13 @@
-// prisma/schema.prisma
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-}
-
-generator client {
-  provider = "prisma-client-js"
 }
 
 model Job {
@@ -23,17 +24,19 @@ model Job {
   withVideo         Boolean   @default(false)
   videoAnalysis     Boolean   @default(false)
   residentId        String?
-  resident          Resident? @relation(fields: [residentId], references: [id], onDelete: SetNull)
+  resident          Resident? @relation(fields: [residentId], references: [id])
 }
 
+// This is a comment to trigger a change
 model Resident {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   name          String
+  email         String?
   photoUrl      String?
   company       String?
   year          String?
   medicalSchool String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   jobs          Job[]
 }

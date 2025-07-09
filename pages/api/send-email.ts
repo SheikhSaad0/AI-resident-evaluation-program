@@ -182,7 +182,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { to, surgery, evaluation, residentName, additionalContext } = req.body;
+  const { to, surgery, evaluation, residentName, additionalContext, residentEmail } = req.body;
+  const emailToSendTo = to || residentEmail;
+  if (!emailToSendTo) {
+      return res.status(400).json({message: "No email address provided."})
+  }
+
   const subject = `Final Evaluation Results for ${residentName || 'Resident'} - ${surgery}`;
   const html = createEmailHtml(surgery, evaluation, residentName, additionalContext);
   
@@ -199,7 +204,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     await transporter.sendMail({
       from: `"Surgical AI Evaluator" <${process.env.EMAIL_FROM}>`,
-      to,
+      to: emailToSendTo,
       subject,
       html,
     });

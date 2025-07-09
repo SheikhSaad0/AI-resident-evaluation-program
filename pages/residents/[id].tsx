@@ -6,6 +6,7 @@ import { GlassCard, GlassButton, PerformanceChart, StatCard, GlassInput, ImageUp
 interface Resident {
   id: string;
   name: string;
+  email?: string | null;
   photoUrl?: string | null;
   company: string | null;
   year: string | null;
@@ -55,6 +56,7 @@ const EditResidentModal = ({ resident, onClose, onSave }: EditResidentModalProps
                 <div className="space-y-4">
                     <ImageUpload value={editedResident.photoUrl || undefined} onChange={handlePhotoChange} />
                     <GlassInput name="name" value={editedResident.name} onChange={handleChange} placeholder="Name" />
+                    <GlassInput name="email" value={editedResident.email || ''} onChange={handleChange} placeholder="Email" />
                     <GlassInput name="company" value={editedResident.company || ''} onChange={handleChange} placeholder="Institution" />
                     <GlassInput name="year" value={editedResident.year || ''} onChange={handleChange} placeholder="Training Year" />
                     <GlassInput name="medicalSchool" value={editedResident.medicalSchool || ''} onChange={handleChange} placeholder="Medical School" />
@@ -219,6 +221,7 @@ export default function ResidentProfile() {
               <div><p className="text-sm text-text-quaternary mb-1">Institution</p><p className="font-medium">{resident.company || 'N/A'}</p></div>
               <div><p className="text-sm text-text-quaternary mb-1">Training Year</p><p className="font-medium">{resident.year || 'N/A'}</p></div>
               <div><p className="text-sm text-text-quaternary mb-1">Medical School</p><p className="font-medium">{resident.medicalSchool || 'N/A'}</p></div>
+              <div><p className="text-sm text-text-quaternary mb-1">Email</p><p className="font-medium">{resident.email || 'N/A'}</p></div>
               <div><p className="text-sm text-text-quaternary mb-1">Start Date</p><p className="font-medium">{new Date(resident.createdAt).toLocaleDateString()}</p></div>
             </div>
           </div>

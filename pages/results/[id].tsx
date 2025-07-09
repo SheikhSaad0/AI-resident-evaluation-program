@@ -28,6 +28,7 @@ interface EvaluationData {
   transcription: string;
   surgery: string;
   residentName?: string;
+  residentEmail?: string;
   additionalContext?: string;
   isFinalized?: boolean;
   finalScore?: number;
@@ -129,6 +130,7 @@ export default function ResultsPage() {
   const [evaluation, setEvaluation] = useState<EvaluationData | null>(null);
   const [editedEvaluation, setEditedEvaluation] = useState<EvaluationData | null>(null);
   const [isFinalized, setIsFinalized] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [surgery, setSurgery] = useState('');
   const [residentName, setResidentName] = useState('');
   const [additionalContext, setAdditionalContext] = useState('');
@@ -187,6 +189,7 @@ export default function ResultsPage() {
       const response = await fetch(`/api/evaluations/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ updatedEvaluation: finalEvaluation }) });
       if (!response.ok) throw new Error((await response.json()).message || 'Failed to finalize evaluation.');
       setIsFinalized(true);
+      setIsEditing(false);
       setEditedEvaluation(finalEvaluation);
       alert('Evaluation has been finalized!');
     } catch (error) {
@@ -209,11 +212,11 @@ export default function ResultsPage() {
   };
   
   const handleSendEmail = async () => {
-    if (!email || !editedEvaluation) return;
+    if ((!email && !editedEvaluation?.residentEmail) || !editedEvaluation) return;
     setIsSending(true);
     setEmailMessage('');
     try {
-      const response = await fetch('/api/send-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: email, surgery, evaluation: editedEvaluation, residentName, additionalContext }) });
+      const response = await fetch('/api/send-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: email, surgery, evaluation: editedEvaluation, residentName, additionalContext, residentEmail: editedEvaluation.residentEmail }) });
       if (!response.ok) throw new Error((await response.json()).message || 'Failed to send email.');
       setEmailMessage(`Email sent!`);
       setEmail('');
@@ -257,9 +260,9 @@ export default function ResultsPage() {
 
   const tabsData = [
     { id: 'overview', label: 'Overview', content: <OverviewTab evaluation={evaluation} surgery={surgery} residentName={residentName} additionalContext={additionalContext} isFinalized={isFinalized} visualAnalysisPerformed={visualAnalysisPerformed} mediaUrl={mediaUrl} isOriginalFileVideo={isOriginalFileVideo} /> },
-    { id: 'steps', label: 'Step Analysis', content: <StepsTab procedureSteps={procedureSteps} evaluation={evaluation} editedEvaluation={editedEvaluation} isFinalized={isFinalized} onEvaluationChange={handleEvaluationChange} /> },
+    { id: 'steps', label: 'Step Analysis', content: <StepsTab procedureSteps={procedureSteps} evaluation={evaluation} editedEvaluation={editedEvaluation} isFinalized={isFinalized && !isEditing} onEvaluationChange={handleEvaluationChange} /> },
     { id: 'transcription', label: 'Transcription', content: <TranscriptionTab transcription={evaluation.transcription as string} showTranscription={showTranscription} setShowTranscription={setShowTranscription} /> },
-    { id: 'finalize', label: 'Finalize', content: <FinalizeTab editedEvaluation={editedEvaluation} descriptions={EVALUATION_CONFIGS[surgery as keyof typeof EVALUATION_CONFIGS]?.caseDifficultyDescriptions} isFinalized={isFinalized} email={email} setEmail={setEmail} isSending={isSending} emailMessage={emailMessage} onOverallChange={handleOverallChange} onFinalize={handleFinalize} onSendEmail={handleSendEmail} onDelete={handleDelete} /> }
+    { id: 'finalize', label: 'Finalize', content: <FinalizeTab editedEvaluation={editedEvaluation} descriptions={EVALUATION_CONFIGS[surgery as keyof typeof EVALUATION_CONFIGS]?.caseDifficultyDescriptions} isFinalized={isFinalized} isEditing={isEditing} email={email} setEmail={setEmail} isSending={isSending} emailMessage={emailMessage} onOverallChange={handleOverallChange} onFinalize={handleFinalize} onSendEmail={handleSendEmail} onDelete={handleDelete} onEdit={() => setIsEditing(true)} /> }
   ];
 
   return (
@@ -353,36 +356,37 @@ const TranscriptionTab = ({ transcription, showTranscription, setShowTranscripti
     </div>
 );
 
-const FinalizeTab = ({ editedEvaluation, descriptions, isFinalized, email, setEmail, isSending, emailMessage, onOverallChange, onFinalize, onSendEmail, onDelete }: any) => (
+const FinalizeTab = ({ editedEvaluation, descriptions, isFinalized, isEditing, email, setEmail, isSending, emailMessage, onOverallChange, onFinalize, onSendEmail, onDelete, onEdit }: any) => (
   <div className="space-y-6">
     <GlassCard variant="strong" className="p-6">
       <h3 className="heading-sm mb-6">Overall Assessment</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium text-text-tertiary mb-2">Attending Case Difficulty (1-3)</label>
-          <GlassInput type="number" min={1} max={3} value={editedEvaluation.attendingCaseDifficulty ?? ''} onChange={(e) => onOverallChange('attendingCaseDifficulty', e.target.value ? parseInt(e.target.value) : undefined)} disabled={isFinalized} placeholder={editedEvaluation.caseDifficulty?.toString() || ''} />
+          <GlassInput type="number" min={1} max={3} value={editedEvaluation.attendingCaseDifficulty ?? ''} onChange={(e) => onOverallChange('attendingCaseDifficulty', e.target.value ? parseInt(e.target.value) : undefined)} disabled={isFinalized && !isEditing} placeholder={editedEvaluation.caseDifficulty?.toString() || ''} />
           {descriptions && editedEvaluation.attendingCaseDifficulty && (
             <p className="text-xs text-text-quaternary mt-2">{descriptions[editedEvaluation.attendingCaseDifficulty as keyof typeof descriptions]}</p>
           )}
         </div>
         <div>
           <label className="block text-sm font-medium text-text-tertiary mb-2">Overall Performance Score</label>
-          <GlassInput type="number" min={1} max={5} step="0.1" value={editedEvaluation.finalScore ?? ''} onChange={(e) => onOverallChange('finalScore', e.target.value ? parseFloat(e.target.value) : undefined)} disabled={isFinalized} placeholder="Enter final score" />
+          <GlassInput type="number" min={1} max={5} step="0.1" value={editedEvaluation.finalScore ?? ''} onChange={(e) => onOverallChange('finalScore', e.target.value ? parseFloat(e.target.value) : undefined)} disabled={isFinalized && !isEditing} placeholder="Enter final score" />
         </div>
       </div>
       <div className="mt-6">
         <label className="block text-sm font-medium text-text-tertiary mb-2">Attending Final Remarks</label>
-        <GlassTextarea value={editedEvaluation.attendingAdditionalComments ?? ''} onChange={(e) => onOverallChange('attendingAdditionalComments', e.target.value)} disabled={isFinalized} placeholder={editedEvaluation.additionalComments as string || 'Enter your final remarks and recommendations...'} rows={4} />
+        <GlassTextarea value={editedEvaluation.attendingAdditionalComments ?? ''} onChange={(e) => onOverallChange('attendingAdditionalComments', e.target.value)} disabled={isFinalized && !isEditing} placeholder={editedEvaluation.additionalComments as string || 'Enter your final remarks and recommendations...'} rows={4} />
       </div>
     </GlassCard>
     <div className="space-y-4">
-      {!isFinalized && (<GlassButton variant="primary" onClick={onFinalize} className="w-full" size="lg">Finalize Evaluation</GlassButton>)}
+      {(!isFinalized || isEditing) && (<GlassButton variant="primary" onClick={onFinalize} className="w-full" size="lg">Finalize Evaluation</GlassButton>)}
+      {isFinalized && !isEditing && (<GlassButton variant="secondary" onClick={onEdit} className="w-full" size="lg">Edit Finalized Evaluation</GlassButton>)}
       {isFinalized && (
         <GlassCard variant="subtle" className="p-6">
           <h4 className="heading-sm mb-4">Send Evaluation Report</h4>
           <div className="flex flex-col sm:flex-row gap-3">
-            <GlassInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter email address" className="flex-1" />
-            <GlassButton variant="secondary" onClick={onSendEmail} disabled={isSending || !email} loading={isSending}>Send Report</GlassButton>
+            <GlassInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={editedEvaluation.residentEmail || "Enter email address"} className="flex-1" />
+            <GlassButton variant="secondary" onClick={onSendEmail} disabled={isSending || (!email && !editedEvaluation.residentEmail)} loading={isSending}>Send Report</GlassButton>
           </div>
           {emailMessage && (<p className="text-sm mt-3 text-text-tertiary">{emailMessage}</p>)}
         </GlassCard>
