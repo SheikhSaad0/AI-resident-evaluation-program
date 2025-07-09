@@ -35,7 +35,7 @@ const ResidentSelector: React.FC<Props> = ({ residents, selected, setSelected })
   return (
     <div ref={containerRef} className="relative">
       <label className="block mb-3 text-sm font-medium text-text-secondary">
-        Filter by Resident
+        Select Resident
       </label>
       
       <div className="relative">

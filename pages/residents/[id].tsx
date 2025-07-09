@@ -57,7 +57,7 @@ export default function ResidentProfile() {
               totalEvaluations: evalsData.length,
               avgScore: avgScore,
               completedEvaluations: completed.length,
-              improvement: 12 // Mock improvement percentage for now
+              improvement: 0 // Mock improvement percentage for now
             });
 
         } catch (error) {
