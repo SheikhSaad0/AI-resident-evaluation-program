@@ -156,7 +156,7 @@ export default function Home() {
                 <div className="flex items-center justify-between">
                   <div className="flex-1"><h4 className="font-semibold text-text-primary mb-1">{evalItem.surgery}</h4><p className="text-sm text-text-tertiary">{evalItem.residentName || 'N/A'} • {evalItem.date}</p></div>
                   <div className="flex items-center space-x-3">
-                    <Image src={evalItem.type === 'video' ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg'} alt="Media type" width={40} height={40} className="opacity-90" />
+                    <Image src={evalItem.type === 'video' ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg'} alt="Media type" width={150} height={150} className="opacity-90" />
                     <Image src="/images/arrow-right-icon.svg" alt="View" width={16} height={16} className="opacity-50" />
                   </div>
                 </div>
