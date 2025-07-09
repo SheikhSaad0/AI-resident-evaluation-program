@@ -5,7 +5,7 @@ import { GlassCard } from './ui';
 interface Resident {
   id: string;
   name: string;
-  photoUrl?: string;
+  photoUrl?: string | null;
   year?: string;
 }
 

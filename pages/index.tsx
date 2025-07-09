@@ -8,7 +8,7 @@ import { GlassCard, GlassButton, GlassTextarea, PillToggle } from '../components
 interface Resident {
   id: string;
   name: string;
-  photoUrl?: string;
+  photoUrl?: string | null;
   year?: string;
 }
 interface PastEvaluation { id: string; surgery: string; date: string; residentName?: string; withVideo?: boolean; type: 'video' | 'audio'; }

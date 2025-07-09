@@ -21,7 +21,7 @@ interface Evaluation {
 interface Resident {
   id: string;
   name: string;
-  photoUrl?: string;
+  photoUrl?: string | null;
   year?: string;
 }
 
@@ -164,29 +164,50 @@ export default function Evaluations() {
           {loading ? (
             <div className="text-center py-16"><div className="w-8 h-8 border-2 border-brand-primary border-t-transparent rounded-full animate-spin mx-auto" /></div>
           ) : filteredEvaluations.length > 0 ? (
-            filteredEvaluations.map((evaluation) => (
-              <GlassCard key={evaluation.id} variant="subtle" hover onClick={() => router.push(`/results/${evaluation.id}`)} className="p-6 cursor-pointer">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <Image src={getTypeIcon(!!evaluation.videoAnalysis)} alt={evaluation.videoAnalysis ? 'Visual Analysis' : 'Audio Analysis'} width={48} height={48} />
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-text-primary mb-1 text-lg">{evaluation.surgery} - <span className="text-brand-primary text-base font-medium">{evaluation.videoAnalysis ? 'Visual Analysis' : 'Audio Analysis'}</span></h4>
-                      <div className="flex items-center space-x-4 text-sm text-text-tertiary">
-                        <span>{evaluation.residentName || 'N/A'}</span><span>•</span><span>{evaluation.date}</span><span>•</span>
-                        <span className={`${getStatusBadge(evaluation)} text-xs`}>{getStatusText(evaluation)}</span>
-                      </div>
-                      {evaluation.score && (
-                        <div className="flex items-center space-x-2 mt-2">
-                          <div className="flex items-center space-x-1">{[...Array(5)].map((_, i) => (<div key={i} className={`w-2.5 h-2.5 rounded-full ${i < Math.floor(evaluation.score!) ? 'bg-brand-secondary' : 'bg-glass-300'}`} />))}</div>
-                          <span className="text-sm text-text-quaternary font-medium">{evaluation.score.toFixed(1)}/5.0</span>
+            filteredEvaluations.map((evaluation) => {
+              const resident = residents.find(r => r.id === evaluation.residentId);
+              return (
+                <GlassCard key={evaluation.id} variant="subtle" hover onClick={() => router.push(`/results/${evaluation.id}`)} className="p-6 cursor-pointer">
+                  <div className="flex items-center justify-between space-x-4">
+                    {/* Left Part */}
+                    <div className="flex items-center space-x-4 flex-1 min-w-0">
+                      <Image
+                        src={resident?.photoUrl || '/images/default-avatar.svg'}
+                        alt={evaluation.residentName || 'Resident'}
+                        width={48}
+                        height={48}
+                        className="w-12 h-12 rounded-full object-cover flex-shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <h4 className="font-semibold text-text-primary mb-1 text-lg truncate">{evaluation.surgery}</h4>
+                        <div className="flex items-center space-x-2 text-sm text-text-tertiary truncate">
+                          <span>{evaluation.residentName || 'N/A'}</span>
+                          <span className="text-text-quaternary"> • </span>
+                          <span>{evaluation.date}</span>
                         </div>
-                      )}
+                        {evaluation.score && (
+                          <div className="flex items-center space-x-2 mt-2">
+                            <div className="flex items-center space-x-1">{[...Array(5)].map((_, i) => (<div key={i} className={`w-2.5 h-2.5 rounded-full ${i < Math.floor(evaluation.score!) ? 'bg-brand-secondary' : 'bg-glass-300'}`} />))}</div>
+                            <span className="text-sm text-text-quaternary font-medium">{evaluation.score.toFixed(1)}/5.0</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Center Part */}
+                    <div className="flex-shrink-0">
+                      <Image src={getTypeIcon(!!evaluation.videoAnalysis)} alt={evaluation.videoAnalysis ? 'Visual Analysis' : 'Audio Analysis'} width={160} height={160} />
+                    </div>
+
+                    {/* Right Part */}
+                    <div className="flex items-center space-x-4 flex-shrink-0">
+                      <span className={`${getStatusBadge(evaluation)} text-xs`}>{getStatusText(evaluation)}</span>
+                      <div className="glassmorphism-subtle p-3 rounded-2xl"><Image src="/images/arrow-right-icon.svg" alt="View" width={16} height={16} /></div>
                     </div>
                   </div>
-                  <div className="glassmorphism-subtle p-3 rounded-2xl"><Image src="/images/arrow-right-icon.svg" alt="View" width={16} height={16} /></div>
-                </div>
-              </GlassCard>
-            ))
+                </GlassCard>
+              )
+            })
           ) : (
             <div className="text-center py-16">
               <div className="glassmorphism-subtle p-8 rounded-3xl w-fit mx-auto mb-6"><Image src="/images/dashboard-icon.svg" alt="No evaluations" width={48} height={48} className="opacity-50" /></div>

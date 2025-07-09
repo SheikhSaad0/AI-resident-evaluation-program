@@ -14,6 +14,7 @@ interface Evaluation {
   surgery: string;
   date: string;
   residentName?: string;
+  residentId?: string;
   score?: number;
   type: 'video' | 'audio';
   isFinalized?: boolean;
@@ -178,7 +179,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-2">
-          <RecentEvaluationsWidget evaluations={evaluations} />
+          <RecentEvaluationsWidget evaluations={evaluations} residents={residents} />
         </div>
         <div className="xl:col-span-1">
           <ResidentsWidget residents={residents} />
@@ -188,7 +189,7 @@ export default function Dashboard() {
   );
 }
 
-const RecentEvaluationsWidget = ({ evaluations }: { evaluations: Evaluation[] }) => {
+const RecentEvaluationsWidget = ({ evaluations, residents }: { evaluations: Evaluation[], residents: Resident[] }) => {
   const router = useRouter();
 
   const getStatusInfo = (evaluation: Evaluation) => {
@@ -208,24 +209,33 @@ const RecentEvaluationsWidget = ({ evaluations }: { evaluations: Evaluation[] })
       <div className="space-y-3 max-h-80 overflow-y-auto scrollbar-glass">
         {evaluations.slice(0, 5).map((evaluation) => {
           const status = getStatusInfo(evaluation);
-          const analysisTypeText = evaluation.videoAnalysis ? 'Visual Analysis' : 'Audio Analysis';
+          const resident = residents.find(r => r.id === evaluation.residentId);
           return (
             <GlassCard key={evaluation.id} variant="subtle" hover onClick={() => router.push(`/results/${evaluation.id}`)} className="p-4 cursor-pointer">
               <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <h4 className="font-semibold text-text-primary mb-1">{evaluation.surgery}</h4>
-                  <p className="text-sm text-text-tertiary mb-2">{evaluation.residentName || 'N/A'} • {new Date(evaluation.date).toLocaleString()} • <span className={`${status.badge} text-xs`}>{status.text}</span> • <span className="text-xs">{analysisTypeText}</span></p>
-                  {evaluation.score && (
-                    <div className="flex items-center space-x-2">
-                      <div className="flex items-center space-x-1">
-                        {[...Array(5)].map((_, i) => (<div key={i} className={`w-2 h-2 rounded-full ${i < Math.floor(evaluation.score!) ? 'bg-brand-secondary' : 'bg-glass-300'}`} />))}
+                <div className="flex items-center space-x-4">
+                  <Image
+                    src={resident?.photoUrl || '/images/default-avatar.svg'}
+                    alt={evaluation.residentName || 'Resident'}
+                    width={40}
+                    height={40}
+                    className="rounded-full object-cover w-10 h-10"
+                  />
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-text-primary mb-1">{evaluation.surgery}</h4>
+                    <p className="text-sm text-text-tertiary mb-2">{evaluation.residentName || 'N/A'} • {new Date(evaluation.date).toLocaleString()} • <span className={`${status.badge} text-xs`}>{status.text}</span></p>
+                    {evaluation.score && (
+                      <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-1">
+                          {[...Array(5)].map((_, i) => (<div key={i} className={`w-2 h-2 rounded-full ${i < Math.floor(evaluation.score!) ? 'bg-brand-secondary' : 'bg-glass-300'}`} />))}
+                        </div>
+                        <span className="text-xs text-text-quaternary">{evaluation.score.toFixed(1)}/5.0</span>
                       </div>
-                      <span className="text-xs text-text-quaternary">{evaluation.score.toFixed(1)}/5.0</span>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <Image src={evaluation.videoAnalysis ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg'} alt={analysisTypeText} width={150} height={150} className="opacity-90" />
+                  <Image src={evaluation.videoAnalysis ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg'} alt={evaluation.videoAnalysis ? 'Visual Analysis' : 'Audio Analysis'} width={150} height={150} className="opacity-90" />
                   <div className="glassmorphism-subtle p-2 rounded-2xl"><Image src="/images/arrow-right-icon.svg" alt="View" width={16} height={16} /></div>
                 </div>
               </div>
