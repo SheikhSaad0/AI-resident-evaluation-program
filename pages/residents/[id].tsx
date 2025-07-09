@@ -193,7 +193,7 @@ export default function ResidentProfile() {
       </div>
       <GlassCard variant="strong" className="p-8 relative">
         <GlassButton variant="ghost" onClick={() => setIsEditModalOpen(true)} className="absolute top-4 right-4 !p-2">
-            <Image src="/images/public/editBtn.svg" alt="Edit" width={24} height={24} />
+            <Image src="/images/editBtn.svg" alt="Edit" width={24} height={24} />
         </GlassButton>
         <div className="flex flex-col sm:flex-row items-start space-y-4 sm:space-y-0 sm:space-x-6">
         
