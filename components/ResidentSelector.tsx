@@ -33,14 +33,14 @@ const ResidentSelector: React.FC<Props> = ({ residents, selected, setSelected })
   }, []);
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative z-20">
       <label className="block mb-3 text-sm font-medium text-text-secondary">
-        Select Resident
+        Filter by Resident
       </label>
-      
+
       <div className="relative">
-        <GlassCard 
-          variant="subtle" 
+        <GlassCard
+          variant="subtle"
           className="p-4 cursor-pointer"
           onClick={() => setIsExpanded(!isExpanded)}
         >
@@ -48,10 +48,10 @@ const ResidentSelector: React.FC<Props> = ({ residents, selected, setSelected })
             <div className="flex items-center space-x-3">
               {selected ? (
                 <>
-                  <Image 
-                    src={selected.photoUrl || '/images/default-avatar.svg'} 
-                    alt={selected.name} 
-                    width={32} 
+                  <Image
+                    src={selected.photoUrl || '/images/default-avatar.svg'}
+                    alt={selected.name}
+                    width={32}
                     height={32}
                     className="rounded-full object-cover w-8 h-8"
                   />
@@ -69,11 +69,11 @@ const ResidentSelector: React.FC<Props> = ({ residents, selected, setSelected })
                 </>
               )}
             </div>
-            
-            <Image 
-              src="/images/arrow-right-icon.svg" 
-              alt="Expand" 
-              width={16} 
+
+            <Image
+              src="/images/arrow-right-icon.svg"
+              alt="Expand"
+              width={16}
               height={16}
               className={`transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
             />
@@ -94,10 +94,10 @@ const ResidentSelector: React.FC<Props> = ({ residents, selected, setSelected })
                     }}
                   >
                     <div className="flex items-center space-x-3">
-                      <Image 
-                        src={resident.photoUrl || '/images/default-avatar.svg'} 
-                        alt={resident.name} 
-                        width={32} 
+                      <Image
+                        src={resident.photoUrl || '/images/default-avatar.svg'}
+                        alt={resident.name}
+                        width={32}
                         height={32}
                         className="rounded-full object-cover w-8 h-8"
                       />

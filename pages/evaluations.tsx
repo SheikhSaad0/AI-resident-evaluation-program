@@ -14,6 +14,7 @@ interface Evaluation {
   type: 'video' | 'audio';
   status: string;
   isFinalized?: boolean;
+  videoAnalysis?: boolean;
 }
 
 interface Resident {
@@ -33,7 +34,7 @@ export default function Evaluations() {
   const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  
+
   useEffect(() => {
     const fetchEvaluations = async () => {
       setLoading(true);
@@ -68,13 +69,17 @@ export default function Evaluations() {
   useEffect(() => {
     let filtered = evaluations;
     if (searchTerm) {
-      filtered = filtered.filter(e => 
+      filtered = filtered.filter(e =>
         e.surgery.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (e.residentName && e.residentName.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
     if (filterType !== 'all') {
-      filtered = filtered.filter(e => e.type === filterType);
+      if (filterType === 'video') {
+        filtered = filtered.filter(e => e.videoAnalysis);
+      } else {
+        filtered = filtered.filter(e => !e.videoAnalysis);
+      }
     }
     if (filterStatus !== 'all') {
       filtered = filtered.filter(e => {
@@ -90,7 +95,7 @@ export default function Evaluations() {
     setFilteredEvaluations(filtered);
   }, [evaluations, searchTerm, filterType, filterStatus, selectedResident]);
 
-  const getTypeIcon = (type: string) => (type === 'video' ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg');
+  const getTypeIcon = (videoAnalysis: boolean) => (videoAnalysis ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg');
   const getStatusBadge = (evaluation: Evaluation) => {
     if (evaluation.isFinalized) {
       return 'status-success';
@@ -106,7 +111,7 @@ export default function Evaluations() {
     }
     return 'status-info';
   };
-  
+
   const getStatusText = (evaluation: Evaluation) => {
     if (evaluation.isFinalized) return 'Finalized';
     if (evaluation.status === 'complete' || evaluation.status === 'completed') return 'Draft';
@@ -153,9 +158,9 @@ export default function Evaluations() {
               <GlassCard key={evaluation.id} variant="subtle" hover onClick={() => router.push(`/results/${evaluation.id}`)} className="p-6 cursor-pointer">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
-                    <Image src={getTypeIcon(evaluation.type)} alt={evaluation.type} width={150} height={150} className="opacity-90" />
+                    <Image src={getTypeIcon(!!evaluation.videoAnalysis)} alt={evaluation.type} width={150} height={150} className="opacity-90" />
                     <div className="flex-1">
-                      <h4 className="font-semibold text-text-primary mb-1 text-lg">{evaluation.surgery}</h4>
+                      <h4 className="font-semibold text-text-primary mb-1 text-lg">{evaluation.surgery} - <span className="text-brand-primary text-base font-medium">{evaluation.videoAnalysis ? 'Visual Analysis' : 'Audio Analysis'}</span></h4>
                       <div className="flex items-center space-x-4 text-sm text-text-tertiary">
                         <span>{evaluation.residentName || 'N/A'}</span><span>•</span><span>{evaluation.date}</span><span>•</span>
                         <span className={`${getStatusBadge(evaluation)} text-xs`}>{getStatusText(evaluation)}</span>

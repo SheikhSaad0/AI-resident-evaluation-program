@@ -14,7 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
                 let score = undefined;
                 let isFinalized = false;
-                
+
                 // Check if job.result is a string and parse it, otherwise use it as is.
                 let resultData: any;
                 if (job.result && typeof job.result === 'string') {
@@ -48,6 +48,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     status: latestStatus || job.status,
                     type: job.withVideo ? 'video' : 'audio',
                     isFinalized: isFinalized,
+                    videoAnalysis: job.videoAnalysis,
                 };
             }));
 
