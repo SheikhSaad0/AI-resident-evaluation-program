@@ -77,7 +77,7 @@ export default function Home() {
           residentId: selectedResident.id,
           additionalContext,
           withVideo: file.type.startsWith('video/'),
-          videoAnalysis: analysisType === 'video' && file.type.startsWith('video/')
+          videoAnalysis: file.type.startsWith('video/') && analysisType === 'video'
         }),
       });
 

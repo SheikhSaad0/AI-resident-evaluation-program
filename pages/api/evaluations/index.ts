@@ -5,25 +5,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method === 'GET') {
         try {
             const jobs = await prisma.job.findMany({
-                where: { status: 'complete' },
                 orderBy: { createdAt: 'desc' },
                 include: { resident: true }, // Include resident data
             });
 
             const evaluations = jobs.map(job => {
                 let score = undefined;
+                let isFinalized = false;
                 if (job.result && typeof job.result === 'object' && !Array.isArray(job.result)) {
-                    // Safely parse score from the result JSON
+                    // Safely parse score and isFinalized from the result JSON
                     const resultData = job.result as any;
-                    const totalScore = Object.values(resultData).reduce((acc: number, step: any) => {
-                        if (step && typeof step.score === 'number' && step.score > 0) {
-                            return acc + step.score;
-                        }
-                        return acc;
-                    }, 0);
-                    const stepCount = Object.values(resultData).filter((step: any) => step && typeof step.score === 'number' && step.score > 0).length;
-                    if (stepCount > 0) {
-                        score = totalScore / stepCount;
+                    isFinalized = resultData.isFinalized || false;
+                    const stepScores = Object.values(resultData)
+                        .map((step: any) => step?.score)
+                        .filter(s => typeof s === 'number' && s > 0);
+                    
+                    if (stepScores.length > 0) {
+                        score = stepScores.reduce((a, b) => a + b, 0) / stepScores.length;
                     }
                 }
 
@@ -31,12 +29,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     id: job.id,
                     surgery: job.surgeryName,
                     date: new Date(job.createdAt).toLocaleDateString(),
+                    residentId: job.residentId,
                     residentName: job.resident?.name,
                     withVideo: job.withVideo,
                     videoAnalysis: job.videoAnalysis,
                     score: score,
                     status: job.status,
                     type: job.withVideo ? 'video' : 'audio',
+                    isFinalized: isFinalized
                 };
             });
 

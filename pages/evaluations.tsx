@@ -12,7 +12,8 @@ interface Evaluation {
   residentName?: string;
   score?: number;
   type: 'video' | 'audio';
-  status: 'completed' | 'in-progress' | 'failed';
+  status: 'completed' | 'in-progress' | 'failed' | 'pending';
+  isFinalized?: boolean;
 }
 
 interface Resident {
@@ -76,7 +77,11 @@ export default function Evaluations() {
       filtered = filtered.filter(e => e.type === filterType);
     }
     if (filterStatus !== 'all') {
-      filtered = filtered.filter(e => e.status === filterStatus);
+      filtered = filtered.filter(e => {
+        if (filterStatus === 'finalized') return e.isFinalized;
+        if (filterStatus === 'draft') return e.status === 'completed' && !e.isFinalized;
+        return e.status === filterStatus;
+      });
     }
     if (selectedResident) {
       filtered = filtered.filter(e => e.residentId === selectedResident.id);
@@ -85,13 +90,25 @@ export default function Evaluations() {
   }, [evaluations, searchTerm, filterType, filterStatus, selectedResident]);
 
   const getTypeIcon = (type: string) => (type === 'video' ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg');
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed': return 'status-success';
-      case 'in-progress': return 'status-warning';
-      case 'failed': return 'status-error';
-      default: return 'status-info';
+  const getStatusBadge = (evaluation: Evaluation) => {
+    if (evaluation.isFinalized) {
+      return 'status-success';
     }
+    if (evaluation.status === 'in-progress' || evaluation.status === 'pending') {
+        return 'status-warning';
+    }
+    if (evaluation.status === 'failed') {
+        return 'status-error';
+    }
+    return 'status-info';
+  };
+  
+  const getStatusText = (evaluation: Evaluation) => {
+    if (evaluation.isFinalized) return 'Finalized';
+    if (evaluation.status === 'completed') return 'Draft';
+    if (evaluation.status === 'in-progress') return 'In Progress';
+    if (evaluation.status === 'failed') return 'Failed';
+    return 'Unknown';
   };
 
   return (
@@ -106,7 +123,7 @@ export default function Evaluations() {
             <label className="block mb-2 text-sm font-medium text-text-secondary">Search Evaluations</label>
             <GlassInput type="text" placeholder="Search by surgery or resident..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
-          <div>
+          <div className="relative z-20">
             <ResidentSelector residents={residents} selected={selectedResident} setSelected={setSelectedResident} />
           </div>
           <div>
@@ -114,8 +131,8 @@ export default function Evaluations() {
             <GlassSelect value={filterType} onChange={(e) => setFilterType(e.target.value)} options={[{ value: 'all', label: 'All Types' }, { value: 'video', label: 'Video Analysis' }, { value: 'audio', label: 'Audio Analysis' }]} />
           </div>
           <div>
-            <label className="block mb-2 text-sm font-medium text-text-secondary">Filter by Status</label>
-            <GlassSelect value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} options={[{ value: 'all', label: 'All Status' }, { value: 'completed', label: 'Completed' }, { value: 'in-progress', label: 'In Progress' }, { value: 'failed', label: 'Failed' }]} />
+          <label className="block mb-2 text-sm font-medium text-text-secondary">Filter by Status</label>
+            <GlassSelect value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} options={[{ value: 'all', label: 'All Statuses' }, { value: 'finalized', label: 'Finalized' }, { value: 'draft', label: 'Draft' }, { value: 'in-progress', label: 'In Progress' }, { value: 'failed', label: 'Failed' }]} />
           </div>
         </div>
       </GlassCard>
@@ -137,7 +154,7 @@ export default function Evaluations() {
                       <h4 className="font-semibold text-text-primary mb-1 text-lg">{evaluation.surgery}</h4>
                       <div className="flex items-center space-x-4 text-sm text-text-tertiary">
                         <span>{evaluation.residentName || 'N/A'}</span><span>•</span><span>{evaluation.date}</span><span>•</span>
-                        <span className={`${getStatusBadge(evaluation.status)} text-xs`}>{evaluation.status.charAt(0).toUpperCase() + evaluation.status.slice(1).replace('-', ' ')}</span>
+                        <span className={`${getStatusBadge(evaluation)} text-xs`}>{getStatusText(evaluation)}</span>
                       </div>
                       {evaluation.score && (
                         <div className="flex items-center space-x-2 mt-2">

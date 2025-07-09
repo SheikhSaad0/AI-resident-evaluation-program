@@ -16,6 +16,8 @@ interface Evaluation {
   residentName?: string;
   score?: number;
   type: 'video' | 'audio';
+  isFinalized?: boolean;
+  status: 'completed' | 'in-progress' | 'failed' | 'pending';
 }
 
 type TimeRange = 'week' | 'month' | '6M' | '1Y';
@@ -48,7 +50,7 @@ export default function Dashboard() {
           const evalsData = await evalsResponse.json();
           setEvaluations(evalsData);
           
-          const completedEvals = evalsData.filter((e: Evaluation) => e.score !== undefined);
+          const completedEvals = evalsData.filter((e: Evaluation) => e.score !== undefined && e.score !== null);
           const totalEvals = evalsData.length;
           const avgScore = completedEvals.length > 0
             ? completedEvals.reduce((acc: number, e: Evaluation) => acc + (e.score || 0), 0) / completedEvals.length
@@ -57,8 +59,8 @@ export default function Dashboard() {
           const practiceReadyCount = completedEvals.filter((e: Evaluation) => e.score && e.score >= 4).length;
           const needsImprovementCount = completedEvals.filter((e: Evaluation) => e.score && e.score < 3).length;
           
-          const practiceReady = totalEvals > 0 ? (practiceReadyCount / totalEvals) * 100 : 0;
-          const needsImprovement = totalEvals > 0 ? (needsImprovementCount / totalEvals) * 100 : 0;
+          const practiceReady = completedEvals.length > 0 ? (practiceReadyCount / completedEvals.length) * 100 : 0;
+          const needsImprovement = completedEvals.length > 0 ? (needsImprovementCount / completedEvals.length) * 100 : 0;
 
           // Mocked trend data for now - replace with actual trend calculation logic
           setStats({
@@ -107,6 +109,27 @@ export default function Dashboard() {
 
 const RecentEvaluationsWidget = ({ evaluations }: { evaluations: Evaluation[] }) => {
   const router = useRouter();
+
+  const getStatusBadge = (evaluation: Evaluation) => {
+    if (evaluation.isFinalized) {
+      return 'status-success';
+    }
+    if (evaluation.status === 'in-progress' || evaluation.status === 'pending') {
+        return 'status-warning';
+    }
+    if (evaluation.status === 'failed') {
+        return 'status-error';
+    }
+    return 'status-info';
+  };
+  
+  const getStatusText = (evaluation: Evaluation) => {
+    if (evaluation.isFinalized) return 'Finalized';
+    if (evaluation.status === 'completed') return 'Draft';
+    if (evaluation.status === 'in-progress') return 'In Progress';
+    if (evaluation.status === 'failed') return 'Failed';
+    return 'Unknown';
+  };
   
   return (
     <GlassCard variant="strong" className="p-6">
@@ -120,7 +143,7 @@ const RecentEvaluationsWidget = ({ evaluations }: { evaluations: Evaluation[] })
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <h4 className="font-semibold text-text-primary mb-1">{evaluation.surgery}</h4>
-                <p className="text-sm text-text-tertiary mb-2">{evaluation.residentName || 'N/A'} • {evaluation.date}</p>
+                <p className="text-sm text-text-tertiary mb-2">{evaluation.residentName || 'N/A'} • {evaluation.date} • <span className={`${getStatusBadge(evaluation)} text-xs`}>{getStatusText(evaluation)}</span></p>
                 {evaluation.score && (
                   <div className="flex items-center space-x-2">
                     <div className="flex items-center space-x-1">

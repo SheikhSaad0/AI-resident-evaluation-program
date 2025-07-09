@@ -13,7 +13,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const jobs = await prisma.job.findMany({
             where: {
                 residentId: id,
-                status: 'complete',
             },
             orderBy: {
                 createdAt: 'desc',
@@ -25,8 +24,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const evaluations = jobs.map(job => {
              let score = undefined;
+             let isFinalized = false;
                 if (job.result && typeof job.result === 'object' && !Array.isArray(job.result)) {
                     const resultData = job.result as any;
+                    isFinalized = resultData.isFinalized || false;
                     const stepScores = Object.values(resultData)
                         .map((step: any) => step?.score)
                         .filter(s => typeof s === 'number' && s > 0);
@@ -45,6 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 score: score,
                 status: job.status,
                 type: job.withVideo ? 'video' : 'audio',
+                isFinalized: isFinalized
             };
         });
 

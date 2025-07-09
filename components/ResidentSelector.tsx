@@ -19,6 +19,8 @@ const ResidentSelector: React.FC<Props> = ({ residents, selected, setSelected })
   const [isExpanded, setIsExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const sortedResidents = [...residents].sort((a, b) => a.name.localeCompare(b.name));
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -31,7 +33,7 @@ const ResidentSelector: React.FC<Props> = ({ residents, selected, setSelected })
   }, []);
 
   return (
-    <div ref={containerRef}>
+    <div ref={containerRef} className="relative">
       <label className="block mb-3 text-sm font-medium text-text-secondary">
         Filter by Resident
       </label>
@@ -79,10 +81,10 @@ const ResidentSelector: React.FC<Props> = ({ residents, selected, setSelected })
         </GlassCard>
 
         {isExpanded && (
-          <div className="absolute top-full left-0 right-0 z-10 mt-2">
+          <div className="absolute top-full left-0 right-0 z-30 mt-2">
             <GlassCard variant="strong" className="p-2 max-h-64 overflow-y-auto scrollbar-glass dropdown-background">
               <div className="space-y-1">
-                {residents.map((resident) => (
+                {sortedResidents.map((resident) => (
                   <div
                     key={resident.id}
                     className="p-3 rounded-2xl cursor-pointer transition-all duration-200 hover:bg-glass-200"
