@@ -6,17 +6,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         try {
             const jobs = await prisma.job.findMany({
                 orderBy: { createdAt: 'desc' },
-                include: { resident: true }, // Include resident data
+                include: { resident: true },
             });
 
             const evaluations = await Promise.all(jobs.map(async (job) => {
-                const latestStatus = job.status;
-
                 let score = undefined;
                 let isFinalized = false;
+                let resultData: any = null;
 
-                // Check if job.result is a string and parse it, otherwise use it as is.
-                let resultData: any;
                 if (job.result && typeof job.result === 'string') {
                     try {
                         resultData = JSON.parse(job.result);
@@ -49,10 +46,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     residentName: job.resident?.name,
                     residentId: job.residentId,
                     score: score,
-                    status: latestStatus || job.status,
+                    status: job.status,
                     type: job.withVideo ? 'video' : 'audio',
                     isFinalized: isFinalized,
                     videoAnalysis: job.videoAnalysis,
+                    result: resultData, // <-- FIX: Add result data to the response
                 };
             }));
 
