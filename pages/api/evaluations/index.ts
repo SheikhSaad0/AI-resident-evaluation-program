@@ -10,33 +10,45 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             });
 
             const evaluations = await Promise.all(jobs.map(async (job) => {
-            // Fetch latest job status (simulate by calling your logic or table)
-            // If you have a function getJobStatus(job.id) that returns the latest status:
-            const latestStatus = job.status;
+                const latestStatus = job.status;
 
-            let score = undefined;
-            let isFinalized = false;    
-            if (job.result && typeof job.result === 'object' && !Array.isArray(job.result)) {
-                const resultData = job.result as any;
-                isFinalized = resultData.isFinalized || false;
-                const stepScores = Object.values(resultData)
-                .map((step: any) => step?.score)
-                .filter(s => typeof s === 'number' && s > 0);
-                if (stepScores.length > 0) {
-                score = stepScores.reduce((a, b) => a + b, 0) / stepScores.length;
+                let score = undefined;
+                let isFinalized = false;
+                
+                // Check if job.result is a string and parse it, otherwise use it as is.
+                let resultData: any;
+                if (job.result && typeof job.result === 'string') {
+                    try {
+                        resultData = JSON.parse(job.result);
+                    } catch (e) {
+                        console.error("Failed to parse job result JSON:", e);
+                        resultData = {};
+                    }
+                } else if (job.result && typeof job.result === 'object') {
+                    resultData = job.result;
                 }
-            }
 
-            return {
-                id: job.id,
-                surgery: job.surgeryName,
-                date: new Date(job.createdAt).toLocaleDateString(),
-                residentName: job.resident?.name,
-                score: score,
-                status: latestStatus || job.status, // use the most up-to-date status
-                type: job.withVideo ? 'video' : 'audio',
-                isFinalized: isFinalized,
-            };
+                if (resultData) {
+                    isFinalized = resultData.isFinalized || false;
+                    const stepScores = Object.values(resultData)
+                        .map((step: any) => step?.score)
+                        .filter(s => typeof s === 'number' && s > 0);
+                    if (stepScores.length > 0) {
+                        score = stepScores.reduce((a, b) => a + b, 0) / stepScores.length;
+                    }
+                }
+
+                return {
+                    id: job.id,
+                    surgery: job.surgeryName,
+                    date: new Date(job.createdAt).toLocaleDateString(),
+                    residentName: job.resident?.name,
+                    residentId: job.residentId,
+                    score: score,
+                    status: latestStatus || job.status,
+                    type: job.withVideo ? 'video' : 'audio',
+                    isFinalized: isFinalized,
+                };
             }));
 
             res.status(200).json(evaluations);

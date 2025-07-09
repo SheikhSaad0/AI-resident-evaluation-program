@@ -23,19 +23,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
 
         const evaluations = jobs.map(job => {
-             let score = undefined;
-             let isFinalized = false;
-                if (job.result && typeof job.result === 'object' && !Array.isArray(job.result)) {
-                    const resultData = job.result as any;
-                    isFinalized = resultData.isFinalized || false;
-                    const stepScores = Object.values(resultData)
-                        .map((step: any) => step?.score)
-                        .filter(s => typeof s === 'number' && s > 0);
-                    
-                    if (stepScores.length > 0) {
-                        score = stepScores.reduce((a, b) => a + b, 0) / stepScores.length;
-                    }
+            let score = undefined;
+            let isFinalized = false;
+
+            // Check if job.result is a string and parse it, otherwise use it as is.
+            let resultData: any;
+            if (job.result && typeof job.result === 'string') {
+                try {
+                    resultData = JSON.parse(job.result);
+                } catch (e) {
+                    console.error("Failed to parse job result JSON:", e);
+                    resultData = {};
                 }
+            } else if (job.result && typeof job.result === 'object') {
+                resultData = job.result;
+            }
+
+            if (resultData) {
+                isFinalized = resultData.isFinalized || false;
+                const stepScores = Object.values(resultData)
+                    .map((step: any) => step?.score)
+                    .filter(s => typeof s === 'number' && s > 0);
+
+                if (stepScores.length > 0) {
+                    score = stepScores.reduce((a, b) => a + b, 0) / stepScores.length;
+                }
+            }
             return {
                 id: job.id,
                 surgery: job.surgeryName,
