@@ -17,7 +17,7 @@ interface Evaluation {
   score?: number;
   type: 'video' | 'audio';
   isFinalized?: boolean;
-  status: 'completed' | 'in-progress' | 'failed' | 'pending';
+  status: string;
 }
 
 type TimeRange = 'week' | 'month' | '6M' | '1Y';
@@ -114,22 +114,26 @@ const RecentEvaluationsWidget = ({ evaluations }: { evaluations: Evaluation[] })
     if (evaluation.isFinalized) {
       return 'status-success';
     }
-    if (evaluation.status === 'in-progress' || evaluation.status === 'pending') {
+    if (evaluation.status.startsWith('processing') || evaluation.status === 'in-progress' || evaluation.status === 'pending') {
         return 'status-warning';
     }
     if (evaluation.status === 'failed') {
         return 'status-error';
     }
+    if (evaluation.status === 'complete' || evaluation.status === 'completed') {
+        return 'status-info';
+    }
     return 'status-info';
   };
   
-  const getStatusText = (evaluation: Evaluation) => {
-    if (evaluation.isFinalized) return 'Finalized';
-    if (evaluation.status === 'completed') return 'Draft';
-    if (evaluation.status === 'in-progress') return 'In Progress';
-    if (evaluation.status === 'failed') return 'Failed';
-    return 'Unknown';
-  };
+const getStatusText = (evaluation: Evaluation) => {
+  if (evaluation.isFinalized) return 'Finalized';
+  if (evaluation.status === 'completed') return 'Completed';
+  if (evaluation.status === 'in-progress') return 'In Progress';
+  if (evaluation.status === 'pending') return 'Pending';
+  if (evaluation.status === 'failed') return 'Failed';
+  return 'Unknown';
+};
   
   return (
     <GlassCard variant="strong" className="p-6">
@@ -213,7 +217,7 @@ const ResidentsWidget = ({ residents }: { residents: Resident[] }) => {
             <GlassCard key={resident.id} variant="subtle" className="p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3 cursor-pointer" onClick={() => router.push(`/residents/${resident.id}`)}>
-                  <Image src={resident.photoUrl || '/images/default-avatar.svg'} alt={resident.name} width={32} height={32} className="rounded-2xl object-cover w-8 h-8" />
+                  <Image src={resident.photoUrl || '/images/default-avatar.svg'} alt={resident.name} width={32} height={32} className="rounded-full object-cover w-8 h-8" />
                   <span className="font-medium text-text-primary">{resident.name}</span>
                 </div>
               </div>

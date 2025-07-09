@@ -12,7 +12,7 @@ interface Evaluation {
   residentName?: string;
   score?: number;
   type: 'video' | 'audio';
-  status: 'completed' | 'in-progress' | 'failed' | 'pending';
+  status: string;
   isFinalized?: boolean;
 }
 
@@ -79,7 +79,8 @@ export default function Evaluations() {
     if (filterStatus !== 'all') {
       filtered = filtered.filter(e => {
         if (filterStatus === 'finalized') return e.isFinalized;
-        if (filterStatus === 'draft') return e.status === 'completed' && !e.isFinalized;
+        if (filterStatus === 'draft') return (e.status === 'completed' || e.status === 'complete') && !e.isFinalized;
+        if (filterStatus === 'in-progress') return e.status.startsWith('processing') || e.status === 'in-progress' || e.status === 'pending';
         return e.status === filterStatus;
       });
     }
@@ -94,19 +95,22 @@ export default function Evaluations() {
     if (evaluation.isFinalized) {
       return 'status-success';
     }
-    if (evaluation.status === 'in-progress' || evaluation.status === 'pending') {
+    if (evaluation.status.startsWith('processing') || evaluation.status === 'in-progress' || evaluation.status === 'pending') {
         return 'status-warning';
     }
     if (evaluation.status === 'failed') {
         return 'status-error';
+    }
+    if (evaluation.status === 'complete' || evaluation.status === 'completed') {
+        return 'status-info';
     }
     return 'status-info';
   };
   
   const getStatusText = (evaluation: Evaluation) => {
     if (evaluation.isFinalized) return 'Finalized';
-    if (evaluation.status === 'completed') return 'Draft';
-    if (evaluation.status === 'in-progress') return 'In Progress';
+    if (evaluation.status === 'complete' || evaluation.status === 'completed') return 'Draft';
+    if (evaluation.status.startsWith('processing') || evaluation.status === 'in-progress' || evaluation.status === 'pending') return 'In Progress';
     if (evaluation.status === 'failed') return 'Failed';
     return 'Unknown';
   };

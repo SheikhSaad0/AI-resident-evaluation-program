@@ -19,7 +19,7 @@ interface Evaluation {
   date: string;
   score?: number;
   type: 'video' | 'audio';
-  status: 'completed' | 'in-progress' | 'failed' | 'pending';
+  status: string;
   isFinalized?: boolean;
 }
 
@@ -50,7 +50,7 @@ export default function ResidentProfile() {
             const evalsData = await evalsRes.json();
             setEvaluations(evalsData);
 
-            const completed = evalsData.filter((e: Evaluation) => e.status === 'completed' && e.score !== undefined);
+            const completed = evalsData.filter((e: Evaluation) => (e.status === 'completed' || e.status === 'complete') && e.score !== undefined);
             const avgScore = completed.length > 0 ? completed.reduce((acc: number, e: Evaluation) => acc + (e.score || 0), 0) / completed.length : 0;
             
             setStats({
@@ -84,19 +84,22 @@ export default function ResidentProfile() {
     if (evaluation.isFinalized) {
       return 'status-success';
     }
-    if (evaluation.status === 'in-progress' || evaluation.status === 'pending') {
+    if (evaluation.status.startsWith('processing') || evaluation.status === 'in-progress' || evaluation.status === 'pending') {
         return 'status-warning';
     }
     if (evaluation.status === 'failed') {
         return 'status-error';
+    }
+    if (evaluation.status === 'complete' || evaluation.status === 'completed') {
+        return 'status-info';
     }
     return 'status-info';
   };
   
   const getStatusText = (evaluation: Evaluation) => {
     if (evaluation.isFinalized) return 'Finalized';
-    if (evaluation.status === 'completed') return 'Draft';
-    if (evaluation.status === 'in-progress') return 'In Progress';
+    if (evaluation.status === 'complete' || evaluation.status === 'completed') return 'Draft';
+    if (evaluation.status.startsWith('processing') || evaluation.status === 'in-progress' || evaluation.status === 'pending') return 'In Progress';
     if (evaluation.status === 'failed') return 'Failed';
     return 'Unknown';
   };
@@ -127,7 +130,23 @@ export default function ResidentProfile() {
       </div>
       <GlassCard variant="strong" className="p-8">
         <div className="flex flex-col sm:flex-row items-start space-y-4 sm:space-y-0 sm:space-x-6">
-          <div className="glassmorphism-subtle p-2 rounded-full"><Image src={resident.photoUrl || '/images/default-avatar.svg'} alt={resident.name} width={120} height={120} className="rounded-full object-cover" onError={(e) => { e.currentTarget.src = '/images/default-avatar.svg'; }} /></div>
+        
+        <div className="glassmorphism-subtle p-2 rounded-full">
+          <div className="w-[120px] h-[120px] rounded-full overflow-hidden">
+            <Image
+              src={resident.photoUrl || '/images/default-avatar.svg'}
+              alt={resident.name}
+              width={120}
+              height={120}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.src = '/images/default-avatar.svg';
+              }}
+            />
+          </div>
+       </div>
+
+          
           <div className="flex-1">
             <h1 className="heading-xl text-gradient mb-2">{resident.name}</h1>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-text-secondary">
