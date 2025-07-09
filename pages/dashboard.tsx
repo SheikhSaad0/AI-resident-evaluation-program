@@ -111,6 +111,13 @@ const RecentEvaluationsWidget = ({ evaluations }: { evaluations: Evaluation[] })
   const router = useRouter();
 
   const getStatusBadge = (evaluation: Evaluation) => {
+
+    console.log(evaluation.id)
+    console.log(evaluation.residentName)
+    console.log(evaluation.surgery)
+    console.log(evaluation.isFinalized)
+    console.log(evaluation.status)
+
     if (evaluation.isFinalized) {
       return 'status-success';
     }
@@ -127,11 +134,20 @@ const RecentEvaluationsWidget = ({ evaluations }: { evaluations: Evaluation[] })
   };
   
 const getStatusText = (evaluation: Evaluation) => {
+  // If the evaluation is finalized, that's always the highest status
   if (evaluation.isFinalized) return 'Finalized';
-  if (evaluation.status === 'completed') return 'Completed';
-  if (evaluation.status === 'in-progress') return 'In Progress';
-  if (evaluation.status === 'pending') return 'Pending';
+  // In Progress: pending or processing
+  if (
+    evaluation.status === 'pending' ||
+    (evaluation.status && evaluation.status.toLowerCase().startsWith('processing'))
+  ) return 'In Progress';
+  // Failed
   if (evaluation.status === 'failed') return 'Failed';
+  // Draft: completed (not finalized)
+  if (
+    evaluation.status === 'complete' ||
+    evaluation.status === 'completed'
+  ) return 'Draft';
   return 'Unknown';
 };
   
