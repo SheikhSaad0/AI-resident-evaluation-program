@@ -72,9 +72,10 @@ export default function Dashboard() {
         const evalsResponse = await fetch('/api/evaluations');
         if (evalsResponse.ok) {
           const evalsData: Evaluation[] = await evalsResponse.json();
-          setEvaluations(evalsData);
+          const filteredEvalsData = evalsData.filter(e => !['cmcv3j0zk0001onk7im7zzcvf', 'cmcv3b0x70003on8x81k8nbr4', 'cmculodur0001on12vsinf5gu'].includes(e.id));
+          setEvaluations(filteredEvalsData);
 
-          const finalizedEvals = evalsData.filter((e) => e.isFinalized && e.score !== undefined && e.score !== null);
+          const finalizedEvals = filteredEvalsData.filter((e) => e.isFinalized && e.score !== undefined && e.score !== null);
           
           if (finalizedEvals.length > 0) {
             const procedureScores: { [key: string]: { scores: number[], count: number } } = {};
@@ -96,8 +97,8 @@ export default function Dashboard() {
             }
           }
 
-          const totalEvals = evalsData.length;
-          const draftsCount = evalsData.filter((e) => !e.isFinalized).length;
+          const totalEvals = filteredEvalsData.length;
+          const draftsCount = filteredEvalsData.filter((e) => !e.isFinalized).length;
 
           const calculateMetrics = (evals: Evaluation[]) => {
             if (evals.length === 0) return { avgScore: 0, practiceReady: 0, needsImprovement: 0, avgDifficulty: 0 };
@@ -150,7 +151,7 @@ export default function Dashboard() {
       {/* --- Stat Cards Rows --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard title="Total Evaluations" value={stats.totalEvals} icon="/images/eval-count-icon.svg" trend={{ value: stats.totalEvalsTrend, isPositive: stats.totalEvalsTrend >= 0 }} onClick={() => router.push('/evaluations')} />
-          <StatCard title="Drafts" value={stats.drafts} icon="/images/draft-icon.svg" subtitle="In Progress" />
+          <StatCard title="Drafts" value={stats.drafts} icon="/images/draft-icon.svg" subtitle="In Progress" onClick={() => router.push('/evaluations?status=draft')} />
           <StatCard title="Average Score" value={`${stats.avgScore.toFixed(1)}/5.0`} icon="/images/avg-score-icon.svg" trend={{ value: stats.avgScoreTrend, isPositive: stats.avgScoreTrend >= 0 }} subtitle="Finalized Evals" />
           <StatCard title="Practice Ready" value={`${stats.practiceReady.toFixed(0)}%`} icon="/images/ready-icon.svg" trend={{ value: stats.practiceReadyTrend, isPositive: stats.practiceReadyTrend >= 0 }} subtitle="Residents qualified" />
       </div>

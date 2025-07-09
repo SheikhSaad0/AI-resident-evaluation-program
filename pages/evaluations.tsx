@@ -31,10 +31,18 @@ export default function Evaluations() {
   const [filteredEvaluations, setFilteredEvaluations] = useState<Evaluation[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
+  const router = useRouter();
+  const { status: statusFromQuery } = router.query;
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
+
+  useEffect(() => {
+    if (statusFromQuery) {
+      setFilterStatus(statusFromQuery as string);
+    }
+  }, [statusFromQuery]);
+
 
   useEffect(() => {
     const fetchEvaluations = async () => {
@@ -47,8 +55,9 @@ export default function Evaluations() {
 
         if (evalsRes.ok) {
           const data = await evalsRes.json();
-          setEvaluations(data);
-          setFilteredEvaluations(data);
+          const filteredData = data.filter((e: { id: string; }) => !['cmcv3j0zk0001onk7im7zzcvf', 'cmcv3b0x70003on8x81k8nbr4', 'cmculodur0001on12vsinf5gu'].includes(e.id));
+          setEvaluations(filteredData);
+          setFilteredEvaluations(filteredData);
         } else {
           console.error("Failed to fetch evaluations");
           setEvaluations([]);
