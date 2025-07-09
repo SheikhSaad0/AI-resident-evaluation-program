@@ -9,34 +9,47 @@ interface Evaluation {
 
 interface PerformanceChartProps {
   evaluations: Evaluation[];
-  timeRange?: 'week' | 'month' | '6M' | '1Y';
+  timeRange?: 'all' | 'week' | 'month' | '6M' | '1Y';
   procedureFilter?: string;
   height?: number;
   className?: string;
 }
 
-const aggregateData = (evaluations: Evaluation[], timeRange: 'week' | 'month' | '6M' | '1Y' = 'month', procedureFilter: string = 'all') => {
+const aggregateData = (
+  evaluations: Evaluation[],
+  timeRange: 'all' | 'week' | 'month' | '6M' | '1Y' = 'all',
+  procedureFilter: string = 'all'
+) => {
   const filteredEvals = evaluations.filter(e => e.score !== undefined && (procedureFilter === 'all' || e.surgery === procedureFilter));
 
   const now = new Date();
-  let startDate = new Date();
+  let startDate = new Date(0); // Default to beginning of time for 'all'
 
-  switch (timeRange) {
-    case 'week':
-      startDate.setDate(now.getDate() - 7);
-      break;
-    case 'month':
-      startDate.setMonth(now.getMonth() - 1);
-      break;
-    case '6M':
-      startDate.setMonth(now.getMonth() - 6);
-      break;
-    case '1Y':
-      startDate.setFullYear(now.getFullYear() - 1);
-      break;
+  if (timeRange !== 'all') {
+    startDate = new Date();
+    switch (timeRange) {
+      case 'week':
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case 'month':
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+      case '6M':
+        startDate.setMonth(now.getMonth() - 6);
+        break;
+      case '1Y':
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+    }
   }
 
+
   const relevantEvals = filteredEvals.filter(e => new Date(e.date) >= startDate);
+  if (relevantEvals.length === 0) return [];
+
+  const firstDate = new Date(relevantEvals[0].date);
+  const dateDifference = now.getTime() - firstDate.getTime();
+  const daysDifference = dateDifference / (1000 * 3600 * 24);
 
   const groupedData: { [key: string]: { scores: number[], count: number } } = {};
 
@@ -44,10 +57,17 @@ const aggregateData = (evaluations: Evaluation[], timeRange: 'week' | 'month' | 
     const date = new Date(e.date);
     let key = '';
 
-    if (timeRange === 'week' || timeRange === 'month') {
+    if (timeRange === 'all' && daysDifference <= 2) {
+      // Group by hour if the range is 2 days or less
+      key = `${date.toLocaleDateString()} ${date.getHours()}:00`;
+    } else if (timeRange === 'all' && daysDifference > 90) {
+        // Group by month if the range is over 90 days
+        key = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+    }
+    else if (timeRange === 'week' || timeRange === 'month' || (timeRange === 'all' && daysDifference <= 90)) {
       key = date.toLocaleDateString();
     } else { // 6M or 1Y
-      key = `${date.getFullYear()}-${date.getMonth() + 1}`;
+      key = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
     }
 
     if (!groupedData[key]) {
@@ -67,12 +87,12 @@ const aggregateData = (evaluations: Evaluation[], timeRange: 'week' | 'month' | 
 };
 
 
-export default function PerformanceChart({ 
+export default function PerformanceChart({
   evaluations,
-  timeRange = 'month',
+  timeRange = 'all',
   procedureFilter = 'all',
-  height = 300, 
-  className = '' 
+  height = 300,
+  className = ''
 }: PerformanceChartProps) {
   const data = aggregateData(evaluations, timeRange, procedureFilter);
 
@@ -98,15 +118,15 @@ export default function PerformanceChart({
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 20, right: 20, left: 20, bottom: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-          <XAxis 
-            dataKey="date" 
+          <XAxis
+            dataKey="date"
             stroke="rgba(255,255,255,0.6)"
             fontSize={12}
             tickLine={false}
             axisLine={false}
           />
-          <YAxis 
-            domain={[1, 5]} 
+          <YAxis
+            domain={[1, 5]}
             stroke="rgba(255,255,255,0.6)"
             fontSize={12}
             tickLine={false}
@@ -114,10 +134,10 @@ export default function PerformanceChart({
             tickFormatter={(value) => `${value}.0`}
           />
           <Tooltip content={<CustomTooltip />} />
-          <Line 
-            type="monotone" 
-            dataKey="score" 
-            stroke="url(#chartGradient)" 
+          <Line
+            type="monotone"
+            dataKey="score"
+            stroke="url(#chartGradient)"
             strokeWidth={3}
             dot={{ fill: '#007AFF', strokeWidth: 2, r: 6 }}
             activeDot={{ r: 8, fill: '#30D0C4' }}

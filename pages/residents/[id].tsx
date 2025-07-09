@@ -23,7 +23,7 @@ interface Evaluation {
   isFinalized?: boolean;
 }
 
-type TimeRange = 'week' | 'month' | '6M' | '1Y';
+type TimeRange = 'all' |'week' | 'month' | '6M' | '1Y';
 
 export default function ResidentProfile() {
   const router = useRouter();
@@ -32,7 +32,7 @@ export default function ResidentProfile() {
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ totalEvaluations: 0, avgScore: 0, completedEvaluations: 0, improvement: 0 });
-  const [timeRange, setTimeRange] = useState<TimeRange>('month');
+  const [timeRange, setTimeRange] = useState<TimeRange>('all');
 
   useEffect(() => {
     if (!id || typeof id !== 'string') return;
@@ -170,6 +170,7 @@ export default function ResidentProfile() {
             <div className="flex items-center justify-between mb-6">
               <h3 className="heading-md">Performance Over Time</h3>
               <div className="flex space-x-2">
+                <GlassButton variant={timeRange === 'all' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTimeRange('all')}>All</GlassButton>
                 <GlassButton variant={timeRange === 'week' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTimeRange('week')}>Week</GlassButton>
                 <GlassButton variant={timeRange === 'month' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTimeRange('month')}>Month</GlassButton>
                 <GlassButton variant={timeRange === '6M' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTimeRange('6M')}>6M</GlassButton>

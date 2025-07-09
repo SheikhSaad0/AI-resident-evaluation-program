@@ -22,7 +22,7 @@ interface Evaluation {
   videoAnalysis?: boolean;
 }
 
-type TimeRange = 'week' | 'month' | '6M' | '1Y';
+type TimeRange = 'all' | 'week' | 'month' | '6M' | '1Y';
 
 // --- NEW: Function to calculate trends ---
 const calculateTrend = (current: number, previous: number) => {
@@ -183,7 +183,7 @@ const RecentEvaluationsWidget = ({ evaluations }: { evaluations: Evaluation[] })
 };
 
 const ChartWidget = ({ evaluations }: { evaluations: Evaluation[] }) => {
-  const [timeRange, setTimeRange] = useState<TimeRange>('month');
+  const [timeRange, setTimeRange] = useState<TimeRange>('all');
   const [procedureFilter, setProcedureFilter] = useState('all');
 
   return (
@@ -191,6 +191,7 @@ const ChartWidget = ({ evaluations }: { evaluations: Evaluation[] }) => {
       <div className="flex items-center justify-between mb-6">
         <h3 className="heading-md">Performance Analytics</h3>
         <div className="flex space-x-2">
+          <GlassButton variant={timeRange === 'all' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTimeRange('all')}>All</GlassButton>
           <GlassButton variant={timeRange === 'week' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTimeRange('week')}>Week</GlassButton>
           <GlassButton variant={timeRange === 'month' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTimeRange('month')}>Month</GlassButton>
           <GlassButton variant={timeRange === '6M' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTimeRange('6M')}>6M</GlassButton>

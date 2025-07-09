@@ -41,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 return {
                     id: job.id,
                     surgery: job.surgeryName,
-                    date: new Date(job.createdAt).toLocaleDateString(),
+                    date: new Date(job.createdAt).toLocaleString(),
                     residentName: job.resident?.name,
                     residentId: job.residentId,
                     score: score,
