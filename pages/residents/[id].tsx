@@ -22,6 +22,8 @@ interface Evaluation {
   status: 'completed' | 'in-progress' | 'failed';
 }
 
+type TimeRange = 'week' | 'month' | '6M' | '1Y';
+
 export default function ResidentProfile() {
   const router = useRouter();
   const { id } = router.query;
@@ -29,6 +31,7 @@ export default function ResidentProfile() {
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ totalEvaluations: 0, avgScore: 0, completedEvaluations: 0, improvement: 0 });
+  const [timeRange, setTimeRange] = useState<TimeRange>('month');
 
   useEffect(() => {
     if (!id || typeof id !== 'string') return;
@@ -103,7 +106,12 @@ export default function ResidentProfile() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between"><GlassButton variant="ghost" onClick={() => router.back()}>← Back</GlassButton></div>
+      <div className="flex items-center justify-between">
+        <GlassButton variant="ghost" onClick={() => router.back()}>← Back</GlassButton>
+        <a href={`/evaluations?resident=${resident.id}`} target="_blank" rel="noopener noreferrer">
+          <GlassButton variant="secondary">View All Evaluations</GlassButton>
+        </a>
+      </div>
       <GlassCard variant="strong" className="p-8">
         <div className="flex flex-col sm:flex-row items-start space-y-4 sm:space-y-0 sm:space-x-6">
           <div className="glassmorphism-subtle p-4 rounded-3xl"><Image src={resident.photoUrl || '/images/default-avatar.svg'} alt={resident.name} width={120} height={120} className="rounded-3xl object-cover" onError={(e) => { e.currentTarget.src = '/images/default-avatar.svg'; }} /></div>
@@ -125,7 +133,22 @@ export default function ResidentProfile() {
         <StatCard title="Improvement" value={`+${stats.improvement}%`} icon="/images/improve-icon.svg" />
       </div>
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-        <div className="xl:col-span-2"><GlassCard variant="strong" className="p-6"><div className="flex items-center justify-between mb-6"><h3 className="heading-md">Performance Over Time</h3><div className="flex space-x-2"><GlassButton variant="ghost" size="sm">3M</GlassButton><GlassButton variant="secondary" size="sm">6M</GlassButton><GlassButton variant="ghost" size="sm">1Y</GlassButton></div></div><div className="h-64"><PerformanceChart residentName={resident.name} height={240} /></div></GlassCard></div>
+        <div className="xl:col-span-2">
+          <GlassCard variant="strong" className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="heading-md">Performance Over Time</h3>
+              <div className="flex space-x-2">
+                <GlassButton variant={timeRange === 'week' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTimeRange('week')}>Week</GlassButton>
+                <GlassButton variant={timeRange === 'month' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTimeRange('month')}>Month</GlassButton>
+                <GlassButton variant={timeRange === '6M' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTimeRange('6M')}>6M</GlassButton>
+                <GlassButton variant={timeRange === '1Y' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTimeRange('1Y')}>1Y</GlassButton>
+              </div>
+            </div>
+            <div className="h-64">
+              <PerformanceChart evaluations={evaluations} timeRange={timeRange} height={240} />
+            </div>
+          </GlassCard>
+        </div>
         <div className="xl:col-span-1"><GlassCard variant="strong" className="p-6"><div className="flex items-center justify-between mb-6"><h3 className="heading-md">Recent Evaluations</h3><GlassButton variant="primary" size="sm" onClick={() => router.push('/')}>New Evaluation</GlassButton></div>
             <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-glass">
               {evaluations.length > 0 ? evaluations.map((evaluation) => (

@@ -2,33 +2,48 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { GlassCard, GlassButton, GlassInput, GlassSelect } from '../components/ui';
+import ResidentSelector from '../components/ResidentSelector';
 
 interface Evaluation {
   id: string;
   surgery: string;
   date: string;
+  residentId?: string;
   residentName?: string;
   score?: number;
   type: 'video' | 'audio';
   status: 'completed' | 'in-progress' | 'failed';
 }
 
+interface Resident {
+  id: string;
+  name: string;
+  photoUrl?: string;
+  year?: string;
+}
+
 export default function Evaluations() {
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
+  const [residents, setResidents] = useState<Resident[]>([]);
   const [filteredEvaluations, setFilteredEvaluations] = useState<Evaluation[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-
+  
   useEffect(() => {
     const fetchEvaluations = async () => {
       setLoading(true);
       try {
-        const response = await fetch('/api/evaluations');
-        if (response.ok) {
-          const data = await response.json();
+        const [evalsRes, residentsRes] = await Promise.all([
+          fetch('/api/evaluations'),
+          fetch('/api/residents'),
+        ]);
+
+        if (evalsRes.ok) {
+          const data = await evalsRes.json();
           setEvaluations(data);
           setFilteredEvaluations(data);
         } else {
@@ -36,8 +51,12 @@ export default function Evaluations() {
           setEvaluations([]);
           setFilteredEvaluations([]);
         }
+
+        if (residentsRes.ok) {
+          setResidents(await residentsRes.json());
+        }
       } catch (error) {
-        console.error("Error fetching evaluations:", error);
+        console.error("Error fetching data:", error);
       } finally {
         setLoading(false);
       }
@@ -59,8 +78,11 @@ export default function Evaluations() {
     if (filterStatus !== 'all') {
       filtered = filtered.filter(e => e.status === filterStatus);
     }
+    if (selectedResident) {
+      filtered = filtered.filter(e => e.residentId === selectedResident.id);
+    }
     setFilteredEvaluations(filtered);
-  }, [evaluations, searchTerm, filterType, filterStatus]);
+  }, [evaluations, searchTerm, filterType, filterStatus, selectedResident]);
 
   const getTypeIcon = (type: string) => (type === 'video' ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg');
   const getStatusBadge = (status: string) => {
@@ -79,10 +101,14 @@ export default function Evaluations() {
         <p className="text-text-tertiary text-lg">Comprehensive view of all surgical assessments and their progress</p>
       </div>
       <GlassCard variant="strong" className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block mb-2 text-sm font-medium text-text-secondary">Search Evaluations</label>
             <GlassInput type="text" placeholder="Search by surgery or resident..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          </div>
+          <div>
+            <label className="block mb-2 text-sm font-medium text-text-secondary">Filter by Resident</label>
+            <ResidentSelector residents={residents} selected={selectedResident} setSelected={setSelectedResident} />
           </div>
           <div>
             <label className="block mb-2 text-sm font-medium text-text-secondary">Filter by Type</label>
@@ -107,7 +133,7 @@ export default function Evaluations() {
               <GlassCard key={evaluation.id} variant="subtle" hover onClick={() => router.push(`/results/${evaluation.id}`)} className="p-6 cursor-pointer">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
-                    <Image src={getTypeIcon(evaluation.type)} alt={evaluation.type} width={36} height={36} className="opacity-90" />
+                    <Image src={getTypeIcon(evaluation.type)} alt={evaluation.type} width={150} height={150} className="opacity-90" />
                     <div className="flex-1">
                       <h4 className="font-semibold text-text-primary mb-1 text-lg">{evaluation.surgery}</h4>
                       <div className="flex items-center space-x-4 text-sm text-text-tertiary">

@@ -5,18 +5,12 @@ import Image from 'next/image';
 const navItems = [
   { name: 'Evaluate', href: '/', icon: '/images/evaluate-icon.svg' },
   { name: 'Dashboard', href: '/dashboard', icon: '/images/dashboard-icon.svg' },
+  { name: 'View Reports', href: '/evaluations', icon: '/images/dashboard-icon.svg' },
+  { name: 'Resident Management', href: '/residents', icon: '/images/default-avatar.svg' },
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-
-  const handleNewEvaluation = () => {
-    router.push('/');
-  };
-
-  const handleViewReports = () => {
-    router.push('/evaluations');
-  };
 
   return (
     <div className="flex min-h-screen w-full p-4 sm:p-6 gap-6">
@@ -56,33 +50,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </li>
               ))}
             </ul>
-            
-            {/* Additional Navigation Section */}
-            <div className="mt-8 pt-6 border-t border-glass-border">
-              <p className="text-text-quaternary text-xs font-medium uppercase tracking-wider mb-4">
-                Quick Actions
-              </p>
-              <div className="space-y-2">
-                <button 
-                  onClick={handleNewEvaluation}
-                  className="nav-item w-full justify-start text-sm hover:bg-glass-200"
-                >
-                  <div className="glassmorphism-subtle p-1.5 rounded-2xl mr-3">
-                    <Image src="/images/upload-icon.svg" alt="Upload" width={16} height={16} />
-                  </div>
-                  New Evaluation
-                </button>
-                <button 
-                  onClick={handleViewReports}
-                  className="nav-item w-full justify-start text-sm hover:bg-glass-200"
-                >
-                  <div className="glassmorphism-subtle p-1.5 rounded-2xl mr-3">
-                    <Image src="/images/dashboard-icon.svg" alt="Reports" width={16} height={16} />
-                  </div>
-                  View Reports
-                </button>
-              </div>
-            </div>
           </nav>
           
           {/* Footer */}

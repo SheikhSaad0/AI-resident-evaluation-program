@@ -18,10 +18,21 @@ interface Evaluation {
   type: 'video' | 'audio';
 }
 
+type TimeRange = 'week' | 'month' | '6M' | '1Y';
+
 export default function Dashboard() {
   const [residents, setResidents] = useState<Resident[]>([]);
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
-  const [stats, setStats] = useState({ totalEvals: 0, avgScore: 0 });
+  const [stats, setStats] = useState({
+    totalEvals: 0,
+    avgScore: 0,
+    practiceReady: 0,
+    needsImprovement: 0,
+    totalEvalsTrend: 0,
+    avgScoreTrend: 0,
+    practiceReadyTrend: 0,
+    needsImprovementTrend: 0,
+  });
   const router = useRouter();
 
   useEffect(() => {
@@ -36,11 +47,30 @@ export default function Dashboard() {
         if (evalsResponse.ok) {
           const evalsData = await evalsResponse.json();
           setEvaluations(evalsData);
+          
           const completedEvals = evalsData.filter((e: Evaluation) => e.score !== undefined);
+          const totalEvals = evalsData.length;
           const avgScore = completedEvals.length > 0
             ? completedEvals.reduce((acc: number, e: Evaluation) => acc + (e.score || 0), 0) / completedEvals.length
             : 0;
-          setStats({ totalEvals: evalsData.length, avgScore });
+
+          const practiceReadyCount = completedEvals.filter((e: Evaluation) => e.score && e.score >= 4).length;
+          const needsImprovementCount = completedEvals.filter((e: Evaluation) => e.score && e.score < 3).length;
+          
+          const practiceReady = totalEvals > 0 ? (practiceReadyCount / totalEvals) * 100 : 0;
+          const needsImprovement = totalEvals > 0 ? (needsImprovementCount / totalEvals) * 100 : 0;
+
+          // Mocked trend data for now - replace with actual trend calculation logic
+          setStats({
+            totalEvals,
+            avgScore,
+            practiceReady,
+            needsImprovement,
+            totalEvalsTrend: 12,
+            avgScoreTrend: 8,
+            practiceReadyTrend: 5,
+            needsImprovementTrend: -3,
+          });
         }
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -57,15 +87,15 @@ export default function Dashboard() {
         <p className="text-text-tertiary text-lg">Comprehensive overview of surgical evaluation performance</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <StatCard title="Total Evaluations" value={stats.totalEvals} icon="/images/eval-count-icon.svg" trend={{ value: 12, isPositive: true }} onClick={() => router.push('/evaluations')} />
-        <StatCard title="Average Score" value={`${stats.avgScore.toFixed(1)}/5.0`} icon="/images/avg-score-icon.svg" trend={{ value: 8, isPositive: true }} subtitle="Performance Rating" />
-        <StatCard title="Practice Ready" value="85%" icon="/images/ready-icon.svg" trend={{ value: 5, isPositive: true }} subtitle="Residents qualified" />
-        <StatCard title="Needs Improvement" value="15%" icon="/images/improve-icon.svg" trend={{ value: 3, isPositive: false }} subtitle="Requires attention" />
+        <StatCard title="Total Evaluations" value={stats.totalEvals} icon="/images/eval-count-icon.svg" trend={{ value: stats.totalEvalsTrend, isPositive: true }} onClick={() => router.push('/evaluations')} />
+        <StatCard title="Average Score" value={`${stats.avgScore.toFixed(1)}/5.0`} icon="/images/avg-score-icon.svg" trend={{ value: stats.avgScoreTrend, isPositive: true }} subtitle="Performance Rating" />
+        <StatCard title="Practice Ready" value={`${stats.practiceReady.toFixed(0)}%`} icon="/images/ready-icon.svg" trend={{ value: stats.practiceReadyTrend, isPositive: true }} subtitle="Residents qualified" />
+        <StatCard title="Needs Improvement" value={`${stats.needsImprovement.toFixed(0)}%`} icon="/images/improve-icon.svg" trend={{ value: stats.needsImprovementTrend, isPositive: false }} subtitle="Requires attention" />
       </div>
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-2 space-y-8">
           <RecentEvaluationsWidget evaluations={evaluations} />
-          <ChartWidget />
+          <ChartWidget evaluations={evaluations} />
         </div>
         <div className="xl:col-span-1">
           <ResidentsWidget residents={residents} />
@@ -77,7 +107,6 @@ export default function Dashboard() {
 
 const RecentEvaluationsWidget = ({ evaluations }: { evaluations: Evaluation[] }) => {
   const router = useRouter();
-  const getTypeIcon = (type: string) => (type === 'video' ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg');
   
   return (
     <GlassCard variant="strong" className="p-6">
@@ -102,7 +131,7 @@ const RecentEvaluationsWidget = ({ evaluations }: { evaluations: Evaluation[] })
                 )}
               </div>
               <div className="flex items-center space-x-3">
-                <Image src={getTypeIcon(evaluation.type)} alt={evaluation.type} width={32} height={32} className="opacity-90" />
+                <Image src={evaluation.type === 'video' ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg'} alt={evaluation.type} width={150} height={150} className="opacity-90" />
                 <div className="glassmorphism-subtle p-2 rounded-2xl"><Image src="/images/arrow-right-icon.svg" alt="View" width={16} height={16} /></div>
               </div>
             </div>
@@ -119,19 +148,32 @@ const RecentEvaluationsWidget = ({ evaluations }: { evaluations: Evaluation[] })
   );
 };
 
-const ChartWidget = () => (
-  <GlassCard variant="strong" className="p-6">
-    <div className="flex items-center justify-between mb-6">
-      <h3 className="heading-md">Performance Analytics</h3>
-      <div className="flex space-x-2">
-        <GlassButton variant="ghost" size="sm">Week</GlassButton>
-        <GlassButton variant="secondary" size="sm">Month</GlassButton>
-        <GlassButton variant="ghost" size="sm">Year</GlassButton>
+const ChartWidget = ({ evaluations }: { evaluations: Evaluation[] }) => {
+  const [timeRange, setTimeRange] = useState<TimeRange>('month');
+  const [procedureFilter, setProcedureFilter] = useState('all');
+
+  return (
+    <GlassCard variant="strong" className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="heading-md">Performance Analytics</h3>
+        <div className="flex space-x-2">
+          <GlassButton variant={timeRange === 'week' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTimeRange('week')}>Week</GlassButton>
+          <GlassButton variant={timeRange === 'month' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTimeRange('month')}>Month</GlassButton>
+          <GlassButton variant={timeRange === '6M' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTimeRange('6M')}>6M</GlassButton>
+          <GlassButton variant={timeRange === '1Y' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTimeRange('1Y')}>1Y</GlassButton>
+        </div>
       </div>
-    </div>
-    <div className="h-64"><PerformanceChart height={240} /></div>
-  </GlassCard>
-);
+      <div className="h-64">
+        <PerformanceChart
+          evaluations={evaluations}
+          timeRange={timeRange}
+          procedureFilter={procedureFilter}
+          height={240}
+        />
+      </div>
+    </GlassCard>
+  );
+};
 
 const ResidentsWidget = ({ residents }: { residents: Resident[] }) => {
   const router = useRouter();

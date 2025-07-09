@@ -2,9 +2,15 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import SurgerySelector from '../components/SurgerySelector';
-import { GlassCard, GlassButton, GlassSelect, GlassTextarea, PillToggle } from '../components/ui';
+import ResidentSelector from '../components/ResidentSelector';
+import { GlassCard, GlassButton, GlassTextarea, PillToggle } from '../components/ui';
 
-interface Resident { id: string; name: string; }
+interface Resident {
+  id: string;
+  name: string;
+  photoUrl?: string;
+  year?: string;
+}
 interface PastEvaluation { id: string; surgery: string; date: string; residentName?: string; withVideo?: boolean; type: 'video' | 'audio'; }
 
 export default function Home() {
@@ -12,7 +18,7 @@ export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [residents, setResidents] = useState<Resident[]>([]);
-  const [selectedResidentId, setSelectedResidentId] = useState('');
+  const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
   const [additionalContext, setAdditionalContext] = useState('');
   const [pastEvaluations, setPastEvaluations] = useState<PastEvaluation[]>([]);
   const [analysisType, setAnalysisType] = useState('audio');
@@ -33,11 +39,13 @@ export default function Home() {
     fetchData();
   }, []);
 
-  const residentOptions = residents.map(resident => ({ value: resident.id, label: resident.name }));
-
   const handleSubmit = async () => {
     if (!file) {
       alert('Please select a file to upload.');
+      return;
+    }
+    if (!selectedResident) {
+      alert('Please select a resident.');
       return;
     }
     setIsAnalyzing(true);
@@ -66,7 +74,7 @@ export default function Home() {
           gcsUrl: `gs://${process.env.NEXT_PUBLIC_GCS_BUCKET_NAME || 'ai-surgical-evaluator'}/${filePath}`,
           gcsObjectPath: filePath,
           surgeryName: selectedSurgery,
-          residentId: selectedResidentId,
+          residentId: selectedResident.id,
           additionalContext,
           withVideo: file.type.startsWith('video/'),
           videoAnalysis: analysisType === 'video' && file.type.startsWith('video/')
@@ -85,7 +93,13 @@ export default function Home() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFile(e.target.files?.[0] || null);
+    const selectedFile = e.target.files?.[0] || null;
+    setFile(selectedFile);
+    if (selectedFile && selectedFile.type.startsWith('video/')) {
+      setAnalysisType('video');
+    } else {
+      setAnalysisType('audio');
+    }
   };
 
   return (
@@ -97,10 +111,7 @@ export default function Home() {
         </div>
         <GlassCard variant="strong" className="p-8 space-y-6">
           <SurgerySelector selected={selectedSurgery} setSelected={setSelectedSurgery} />
-          <div>
-            <label className="block mb-3 text-sm font-medium text-text-secondary">Select Resident</label>
-            <GlassSelect options={residentOptions} value={selectedResidentId} onChange={(e) => setSelectedResidentId(e.target.value)} placeholder="— Choose a resident —" />
-          </div>
+          <ResidentSelector residents={residents} selected={selectedResident} setSelected={setSelectedResident} />
           <div>
             <label className="block mb-3 text-sm font-medium text-text-secondary">Additional Context</label>
             <GlassTextarea value={additionalContext} onChange={(e) => setAdditionalContext(e.target.value)} placeholder="Enter any additional context, simulation details, or special circumstances..." rows={4} />
@@ -126,7 +137,7 @@ export default function Home() {
             </div>
           </div>
           <div className="pt-4">
-            <GlassButton variant="primary" size="lg" onClick={handleSubmit} disabled={!selectedSurgery || !selectedResidentId || !file} loading={isAnalyzing} className="w-full">
+            <GlassButton variant="primary" size="lg" onClick={handleSubmit} disabled={!selectedSurgery || !selectedResident || !file} loading={isAnalyzing} className="w-full">
               {isAnalyzing ? 'Analyzing Recording...' : 'Start AI Analysis'}
             </GlassButton>
           </div>
@@ -141,7 +152,7 @@ export default function Home() {
                 <div className="flex items-center justify-between">
                   <div className="flex-1"><h4 className="font-semibold text-text-primary mb-1">{evalItem.surgery}</h4><p className="text-sm text-text-tertiary">{evalItem.residentName || 'N/A'} • {evalItem.date}</p></div>
                   <div className="flex items-center space-x-3">
-                    <Image src={evalItem.withVideo ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg'} alt="Media type" width={150} height={150} className="opacity-90" />
+                    <Image src={evalItem.type === 'video' ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg'} alt="Media type" width={150} height={150} className="opacity-90" />
                     <Image src="/images/arrow-right-icon.svg" alt="View" width={16} height={16} className="opacity-50" />
                   </div>
                 </div>
