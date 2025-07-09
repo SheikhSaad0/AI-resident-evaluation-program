@@ -74,8 +74,8 @@ export default function ResidentProfile() {
   const getSurgeryIcon = (surgery: string) => {
     if (surgery.toLowerCase().includes('cholecyst')) return '/images/galbladderArt.png';
     if (surgery.toLowerCase().includes('appendic')) return '/images/appendectomyArt.png';
-    if (surgery.toLowerCase().includes('inguinal')) return '/images/inguinalHerniaArt.svg';
-    if (surgery.toLowerCase().includes('ventral')) return '/images/ventralHerniaArt.svg';
+    if (surgery.toLowerCase().includes('inguinal')) return '/images/herniaArt.png';
+    if (surgery.toLowerCase().includes('ventral')) return '/images/herniaArt.png';
     return '/images/default-avatar.svg';
   };
 

@@ -1,3 +1,4 @@
+// pages/evaluations.tsx
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
@@ -158,7 +159,7 @@ export default function Evaluations() {
               <GlassCard key={evaluation.id} variant="subtle" hover onClick={() => router.push(`/results/${evaluation.id}`)} className="p-6 cursor-pointer">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
-                    <Image src={getTypeIcon(!!evaluation.videoAnalysis)} alt={evaluation.type} width={150} height={150} className="opacity-90" />
+                    <Image src={getTypeIcon(!!evaluation.videoAnalysis)} alt={evaluation.videoAnalysis ? 'Visual Analysis' : 'Audio Analysis'} width={150} height={150} className="opacity-90" />
                     <div className="flex-1">
                       <h4 className="font-semibold text-text-primary mb-1 text-lg">{evaluation.surgery} - <span className="text-brand-primary text-base font-medium">{evaluation.videoAnalysis ? 'Visual Analysis' : 'Audio Analysis'}</span></h4>
                       <div className="flex items-center space-x-4 text-sm text-text-tertiary">

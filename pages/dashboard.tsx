@@ -1,3 +1,4 @@
+// pages/dashboard.tsx
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
@@ -163,7 +164,7 @@ const RecentEvaluationsWidget = ({ evaluations }: { evaluations: Evaluation[] })
                   )}
                 </div>
                 <div className="flex items-center space-x-3">
-                  <Image src={evaluation.type === 'video' ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg'} alt={evaluation.type} width={150} height={150} className="opacity-90" />
+                  <Image src={evaluation.videoAnalysis ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg'} alt={analysisTypeText} width={150} height={150} className="opacity-90" />
                   <div className="glassmorphism-subtle p-2 rounded-2xl"><Image src="/images/arrow-right-icon.svg" alt="View" width={16} height={16} /></div>
                 </div>
               </div>

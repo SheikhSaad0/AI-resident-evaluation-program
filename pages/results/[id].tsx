@@ -1,3 +1,4 @@
+// pages/results/[id].tsx
 import { useRouter } from 'next/router';
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
@@ -158,7 +159,7 @@ export default function ResultsPage() {
                 setResidentName(parsedData.residentName || '');
                 setAdditionalContext(parsedData.additionalContext || '');
                 setIsFinalized(parsedData.isFinalized || false);
-                setVisualAnalysisPerformed(jobData.withVideo && jobData.videoAnalysis);
+                setVisualAnalysisPerformed(jobData.videoAnalysis);
                 setIsOriginalFileVideo(jobData.withVideo);
                 if (jobData.readableUrl) setMediaUrl(jobData.readableUrl);
                 
@@ -249,8 +250,8 @@ export default function ResultsPage() {
   const getSurgeryIcon = (s: string) => {
     if (s.toLowerCase().includes('cholecyst')) return '/images/galbladderArt.png';
     if (s.toLowerCase().includes('appendic')) return '/images/appendectomyArt.png';
-    if (s.toLowerCase().includes('inguinal')) return '/images/inguinalHerniaArt.svg';
-    if (s.toLowerCase().includes('ventral')) return '/images/ventralHerniaArt.svg';
+    if (s.toLowerCase().includes('inguinal')) return '/images/herniaArt.png';
+    if (s.toLowerCase().includes('ventral')) return '/images/HerniaArt.png';
     return '/images/default-avatar.svg';
   };
 

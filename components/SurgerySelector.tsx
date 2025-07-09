@@ -5,7 +5,7 @@ import { GlassCard } from './ui';
 const surgeries = [
   {
     name: 'Laparoscopic Inguinal Hernia Repair with Mesh (TEP)',
-    icon: '/images/inguinalHerniaArt.svg',
+    icon: '/images/herniaArt.png',
     shortName: 'Inguinal Hernia TEP'
   },
   {
@@ -20,12 +20,12 @@ const surgeries = [
   },
   {
     name: 'Robotic Assisted Laparoscopic Inguinal Hernia Repair (TAPP)',
-    icon: '/images/inguinalHerniaArt.svg',
+    icon: '/images/herniaArt.png',
     shortName: 'Inguinal Hernia TAPP'
   },
   {
     name: 'Robotic Lap Ventral Hernia Repair (TAPP)',
-    icon: '/images/ventralHerniaArt.svg',
+    icon: '/images/herniaArt.png',
     shortName: 'Ventral Hernia Repair'
   },
   {
