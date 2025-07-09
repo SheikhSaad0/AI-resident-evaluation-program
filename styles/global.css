@@ -68,6 +68,10 @@
     background-size: 1em;
   }
 
+  .dropdown-background {
+    @apply bg-navy-800;
+  }
+
   /* Navigation styles */
   .nav-item {
     @apply flex items-center px-4 py-3 rounded-3xl transition-all duration-300 text-base font-medium;

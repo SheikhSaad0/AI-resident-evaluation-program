@@ -101,13 +101,12 @@ export default function Evaluations() {
         <p className="text-text-tertiary text-lg">Comprehensive view of all surgical assessments and their progress</p>
       </div>
       <GlassCard variant="strong" className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
           <div>
             <label className="block mb-2 text-sm font-medium text-text-secondary">Search Evaluations</label>
             <GlassInput type="text" placeholder="Search by surgery or resident..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
           <div>
-            <label className="block mb-2 text-sm font-medium text-text-secondary">Filter by Resident</label>
             <ResidentSelector residents={residents} selected={selectedResident} setSelected={setSelectedResident} />
           </div>
           <div>

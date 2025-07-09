@@ -33,7 +33,7 @@ const ResidentSelector: React.FC<Props> = ({ residents, selected, setSelected })
   return (
     <div ref={containerRef}>
       <label className="block mb-3 text-sm font-medium text-text-secondary">
-        Select Resident
+        Filter by Resident
       </label>
       
       <div className="relative">
@@ -51,7 +51,7 @@ const ResidentSelector: React.FC<Props> = ({ residents, selected, setSelected })
                     alt={selected.name} 
                     width={32} 
                     height={32}
-                    className="rounded-full object-cover"
+                    className="rounded-full object-cover w-8 h-8"
                   />
                   <div>
                     <p className="font-medium text-text-primary">{selected.name}</p>
@@ -80,7 +80,7 @@ const ResidentSelector: React.FC<Props> = ({ residents, selected, setSelected })
 
         {isExpanded && (
           <div className="absolute top-full left-0 right-0 z-10 mt-2">
-            <GlassCard variant="strong" className="p-2 max-h-64 overflow-y-auto scrollbar-glass">
+            <GlassCard variant="strong" className="p-2 max-h-64 overflow-y-auto scrollbar-glass dropdown-background">
               <div className="space-y-1">
                 {residents.map((resident) => (
                   <div
@@ -97,7 +97,7 @@ const ResidentSelector: React.FC<Props> = ({ residents, selected, setSelected })
                         alt={resident.name} 
                         width={32} 
                         height={32}
-                        className="rounded-full object-cover"
+                        className="rounded-full object-cover w-8 h-8"
                       />
                       <div>
                         <p className="font-medium text-text-primary text-sm">{resident.name}</p>

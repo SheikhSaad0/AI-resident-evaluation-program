@@ -107,7 +107,7 @@ const SurgerySelector: React.FC<Props> = ({ selected, setSelected }) => {
 
         {isExpanded && (
           <div className="absolute top-full left-0 right-0 z-10 mt-2">
-            <GlassCard variant="strong" className="p-2 max-h-64 overflow-y-auto scrollbar-glass">
+            <GlassCard variant="strong" className="p-2 max-h-64 overflow-y-auto scrollbar-glass dropdown-background">
               <div className="space-y-1">
                 {surgeries.map((surgery) => (
                   <div

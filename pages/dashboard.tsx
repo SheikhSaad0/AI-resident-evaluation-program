@@ -190,7 +190,7 @@ const ResidentsWidget = ({ residents }: { residents: Resident[] }) => {
             <GlassCard key={resident.id} variant="subtle" className="p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3 cursor-pointer" onClick={() => router.push(`/residents/${resident.id}`)}>
-                  <Image src={resident.photoUrl || '/images/default-avatar.svg'} alt={resident.name} width={32} height={32} className="rounded-2xl object-cover opacity-80" />
+                  <Image src={resident.photoUrl || '/images/default-avatar.svg'} alt={resident.name} width={32} height={32} className="rounded-2xl object-cover w-8 h-8" />
                   <span className="font-medium text-text-primary">{resident.name}</span>
                 </div>
               </div>

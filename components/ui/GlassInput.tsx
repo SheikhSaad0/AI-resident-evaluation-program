@@ -14,6 +14,7 @@ interface GlassInputProps {
   required?: boolean;
   min?: number;
   max?: number;
+  step?: string;
 }
 
 export default function GlassInput({
@@ -29,7 +30,8 @@ export default function GlassInput({
   name,
   required,
   min,
-  max
+  max,
+  step
 }: GlassInputProps) {
   return (
     <input
@@ -45,6 +47,7 @@ export default function GlassInput({
       required={required}
       min={min}
       max={max}
+      step={step}
       className={`glass-input ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
     />
   );

@@ -29,6 +29,7 @@ interface EvaluationData {
   residentName?: string;
   additionalContext?: string;
   isFinalized?: boolean;
+  finalScore?: number;
 }
 
 const difficultyDescriptions = {
@@ -192,6 +193,19 @@ export default function ResultsPage() {
       alert(error instanceof Error ? error.message : 'An unknown error occurred.');
     }
   };
+
+  const handleDelete = async () => {
+    if (!id || !window.confirm('Are you sure you want to delete this evaluation? This action cannot be undone.')) return;
+    try {
+      const response = await fetch(`/api/evaluations/${id}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error((await response.json()).message || 'Failed to delete evaluation.');
+      alert('Evaluation deleted successfully.');
+      router.push('/evaluations');
+    } catch (error) {
+      console.error('Deletion error:', error);
+      alert(error instanceof Error ? error.message : 'An unknown error occurred.');
+    }
+  };
   
   const handleSendEmail = async () => {
     if (!email || !editedEvaluation) return;
@@ -244,7 +258,7 @@ export default function ResultsPage() {
     { id: 'overview', label: 'Overview', content: <OverviewTab evaluation={evaluation} surgery={surgery} residentName={residentName} additionalContext={additionalContext} isFinalized={isFinalized} visualAnalysisPerformed={visualAnalysisPerformed} mediaUrl={mediaUrl} isOriginalFileVideo={isOriginalFileVideo} /> },
     { id: 'steps', label: 'Step Analysis', content: <StepsTab procedureSteps={procedureSteps} evaluation={evaluation} editedEvaluation={editedEvaluation} isFinalized={isFinalized} onEvaluationChange={handleEvaluationChange} /> },
     { id: 'transcription', label: 'Transcription', content: <TranscriptionTab transcription={evaluation.transcription as string} showTranscription={showTranscription} setShowTranscription={setShowTranscription} /> },
-    { id: 'finalize', label: 'Finalize', content: <FinalizeTab editedEvaluation={editedEvaluation} descriptions={EVALUATION_CONFIGS[surgery as keyof typeof EVALUATION_CONFIGS]?.caseDifficultyDescriptions} isFinalized={isFinalized} email={email} setEmail={setEmail} isSending={isSending} emailMessage={emailMessage} onOverallChange={handleOverallChange} onFinalize={handleFinalize} onSendEmail={handleSendEmail} /> }
+    { id: 'finalize', label: 'Finalize', content: <FinalizeTab editedEvaluation={editedEvaluation} descriptions={EVALUATION_CONFIGS[surgery as keyof typeof EVALUATION_CONFIGS]?.caseDifficultyDescriptions} isFinalized={isFinalized} email={email} setEmail={setEmail} isSending={isSending} emailMessage={emailMessage} onOverallChange={handleOverallChange} onFinalize={handleFinalize} onSendEmail={handleSendEmail} onDelete={handleDelete} /> }
   ];
 
   return (
@@ -252,13 +266,12 @@ export default function ResultsPage() {
       <div className="text-center">
         <div className="flex items-center justify-center mb-4">
           <div className="glassmorphism-subtle p-4 rounded-3xl mr-4"><Image src={getSurgeryIcon(surgery)} alt={surgery} width={48} height={48} className="opacity-90" /></div>
-          <Image src={visualAnalysisPerformed ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg'} alt={visualAnalysisPerformed ? 'Visual Analysis' : 'Audio Analysis'} width={32} height={32} className="opacity-80 mr-4" />
           <div>
             <h1 className="heading-xl text-gradient">{isFinalized ? 'Final Evaluation' : 'Evaluation Results'}</h1>
-            {isFinalized && (<div className="status-success mt-2">✓ Finalized</div>)}
           </div>
         </div>
         <div className="glassmorphism-subtle p-4 rounded-3xl inline-block">
+        {isFinalized && (<div className="status-success mt-2">✓ Finalized</div>)}
           <h2 className="heading-sm mb-1">{surgery}</h2>
           {residentName && (<p className="text-text-tertiary">Resident: <span className="text-text-secondary font-medium">{residentName}</span></p>)}
         </div>
@@ -274,7 +287,7 @@ const OverviewTab = ({ evaluation, surgery, residentName, additionalContext, isF
       <GlassCard variant="subtle" className="p-6 text-center">
         <h4 className="text-text-tertiary text-sm font-medium mb-2">Analysis Type</h4>
         <Image src={visualAnalysisPerformed ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg'} alt="Analysis type" width={150} height={150} className="mx-auto mb-2" />
-        <p className="text-text-primary font-semibold">{visualAnalysisPerformed ? 'Video + Audio' : 'Audio Only'}</p>
+        <p className="text-text-primary font-semibold text-lg">{visualAnalysisPerformed ? 'Visual Analysis' : 'Audio Analysis'}</p>
       </GlassCard>
       <GlassCard variant="subtle" className="p-6 text-center">
         <h4 className="text-text-tertiary text-sm font-medium mb-2">Case Difficulty</h4>
@@ -339,7 +352,7 @@ const TranscriptionTab = ({ transcription, showTranscription, setShowTranscripti
     </div>
 );
 
-const FinalizeTab = ({ editedEvaluation, descriptions, isFinalized, email, setEmail, isSending, emailMessage, onOverallChange, onFinalize, onSendEmail }: any) => (
+const FinalizeTab = ({ editedEvaluation, descriptions, isFinalized, email, setEmail, isSending, emailMessage, onOverallChange, onFinalize, onSendEmail, onDelete }: any) => (
   <div className="space-y-6">
     <GlassCard variant="strong" className="p-6">
       <h3 className="heading-sm mb-6">Overall Assessment</h3>
@@ -353,10 +366,7 @@ const FinalizeTab = ({ editedEvaluation, descriptions, isFinalized, email, setEm
         </div>
         <div>
           <label className="block text-sm font-medium text-text-tertiary mb-2">Overall Performance Score</label>
-          <div className="glassmorphism-subtle p-4 rounded-xl text-center">
-            <p className="text-2xl font-bold text-brand-secondary">{editedEvaluation.attendingCaseDifficulty || 'Not Set'}</p>
-            <p className="text-xs text-text-quaternary">Final Assessment</p>
-          </div>
+          <GlassInput type="number" min={1} max={5} step="0.1" value={editedEvaluation.finalScore ?? ''} onChange={(e) => onOverallChange('finalScore', e.target.value ? parseFloat(e.target.value) : undefined)} disabled={isFinalized} placeholder="Enter final score" />
         </div>
       </div>
       <div className="mt-6">
@@ -376,6 +386,7 @@ const FinalizeTab = ({ editedEvaluation, descriptions, isFinalized, email, setEm
           {emailMessage && (<p className="text-sm mt-3 text-text-tertiary">{emailMessage}</p>)}
         </GlassCard>
       )}
+       <GlassButton variant="ghost" onClick={onDelete} className="w-full !text-red-400 hover:!bg-red-500/20" size="lg">Delete Evaluation</GlassButton>
     </div>
   </div>
 );
