@@ -19,7 +19,8 @@ interface Evaluation {
   date: string;
   score?: number;
   type: 'video' | 'audio';
-  status: 'completed' | 'in-progress' | 'failed';
+  status: 'completed' | 'in-progress' | 'failed' | 'pending';
+  isFinalized?: boolean;
 }
 
 type TimeRange = 'week' | 'month' | '6M' | '1Y';
@@ -79,13 +80,25 @@ export default function ResidentProfile() {
   };
 
   const getTypeIcon = (type: string) => (type === 'video' ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg');
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed': return 'status-success';
-      case 'in-progress': return 'status-warning';
-      case 'failed': return 'status-error';
-      default: return 'status-info';
+  const getStatusBadge = (evaluation: Evaluation) => {
+    if (evaluation.isFinalized) {
+      return 'status-success';
     }
+    if (evaluation.status === 'in-progress' || evaluation.status === 'pending') {
+        return 'status-warning';
+    }
+    if (evaluation.status === 'failed') {
+        return 'status-error';
+    }
+    return 'status-info';
+  };
+  
+  const getStatusText = (evaluation: Evaluation) => {
+    if (evaluation.isFinalized) return 'Finalized';
+    if (evaluation.status === 'completed') return 'Draft';
+    if (evaluation.status === 'in-progress') return 'In Progress';
+    if (evaluation.status === 'failed') return 'Failed';
+    return 'Unknown';
   };
 
   if (loading) {
@@ -114,7 +127,7 @@ export default function ResidentProfile() {
       </div>
       <GlassCard variant="strong" className="p-8">
         <div className="flex flex-col sm:flex-row items-start space-y-4 sm:space-y-0 sm:space-x-6">
-          <div className="glassmorphism-subtle p-4 rounded-3xl"><Image src={resident.photoUrl || '/images/default-avatar.svg'} alt={resident.name} width={120} height={120} className="rounded-3xl object-cover" onError={(e) => { e.currentTarget.src = '/images/default-avatar.svg'; }} /></div>
+          <div className="glassmorphism-subtle p-2 rounded-full"><Image src={resident.photoUrl || '/images/default-avatar.svg'} alt={resident.name} width={120} height={120} className="rounded-full object-cover" onError={(e) => { e.currentTarget.src = '/images/default-avatar.svg'; }} /></div>
           <div className="flex-1">
             <h1 className="heading-xl text-gradient mb-2">{resident.name}</h1>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-text-secondary">
@@ -157,7 +170,7 @@ export default function ResidentProfile() {
                     <div className="flex-shrink-0"><Image src={getSurgeryIcon(evaluation.surgery)} alt={evaluation.surgery} width={32} height={32} className="opacity-80" /></div>
                     <div className="flex-1 min-w-0">
                       <h4 className="font-medium text-text-primary truncate">{evaluation.surgery}</h4>
-                      <div className="flex items-center space-x-2 text-xs text-text-tertiary"><span>{evaluation.date}</span><span className={`${getStatusBadge(evaluation.status)}`}>{evaluation.status.charAt(0).toUpperCase() + evaluation.status.slice(1)}</span></div>
+                      <div className="flex items-center space-x-2 text-xs text-text-tertiary"><span>{evaluation.date}</span><span className={`${getStatusBadge(evaluation)}`}>{getStatusText(evaluation)}</span></div>
                       {evaluation.score !== undefined && (
                         <div className="flex items-center space-x-1 mt-1">
                           {[...Array(5)].map((_, i) => (<div key={i} className={`w-1.5 h-1.5 rounded-full ${i < Math.floor(evaluation.score!) ? 'bg-brand-secondary' : 'bg-glass-300'}`} />))}
