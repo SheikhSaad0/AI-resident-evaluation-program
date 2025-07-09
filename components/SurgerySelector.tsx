@@ -58,7 +58,7 @@ const SurgerySelector: React.FC<Props> = ({ selected, setSelected }) => {
   const selectedSurgery = surgeries.find(s => s.name === selected);
 
   return (
-    <div ref={containerRef}>
+    <div ref={containerRef} className="relative z-20">
       <label className="block mb-3 text-sm font-medium text-text-secondary">
         Select Surgery Type
       </label>
@@ -106,7 +106,7 @@ const SurgerySelector: React.FC<Props> = ({ selected, setSelected }) => {
         </GlassCard>
 
         {isExpanded && (
-          <div className="absolute top-full left-0 right-0 z-10 mt-2">
+          <div className="absolute top-full left-0 right-0 z-30 mt-2">
             <GlassCard variant="strong" className="p-2 max-h-64 overflow-y-auto scrollbar-glass dropdown-background">
               <div className="space-y-1">
                 {surgeries.map((surgery) => (

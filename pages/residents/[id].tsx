@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
-import { GlassCard, GlassButton, PerformanceChart, StatCard } from '../../components/ui';
+import { GlassCard, GlassButton, PerformanceChart, StatCard, GlassInput, ImageUpload } from '../../components/ui';
 
 interface Resident {
   id: string;
@@ -25,6 +25,50 @@ interface Evaluation {
 
 type TimeRange = 'all' |'week' | 'month' | '6M' | '1Y';
 
+interface EditResidentModalProps {
+    resident: Resident;
+    onClose: () => void;
+    onSave: (resident: Resident) => Promise<void>;
+}
+
+const EditResidentModal = ({ resident, onClose, onSave }: EditResidentModalProps) => {
+    const [editedResident, setEditedResident] = useState(resident);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setEditedResident(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handlePhotoChange = (url: string) => {
+        setEditedResident(prev => ({ ...prev, photoUrl: url }));
+    };
+
+    const handleSave = async () => {
+        await onSave(editedResident);
+        onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <GlassCard variant="strong" className="p-8 w-full max-w-md">
+                <h2 className="heading-md mb-6">Edit Resident</h2>
+                <div className="space-y-4">
+                    <ImageUpload value={editedResident.photoUrl || undefined} onChange={handlePhotoChange} />
+                    <GlassInput name="name" value={editedResident.name} onChange={handleChange} placeholder="Name" />
+                    <GlassInput name="company" value={editedResident.company || ''} onChange={handleChange} placeholder="Institution" />
+                    <GlassInput name="year" value={editedResident.year || ''} onChange={handleChange} placeholder="Training Year" />
+                    <GlassInput name="medicalSchool" value={editedResident.medicalSchool || ''} onChange={handleChange} placeholder="Medical School" />
+                </div>
+                <div className="flex justify-end space-x-4 mt-6">
+                    <GlassButton variant="ghost" onClick={onClose}>Cancel</GlassButton>
+                    <GlassButton variant="primary" onClick={handleSave}>Save</GlassButton>
+                </div>
+            </GlassCard>
+        </div>
+    );
+};
+
+
 export default function ResidentProfile() {
   const router = useRouter();
   const { id } = router.query;
@@ -33,6 +77,7 @@ export default function ResidentProfile() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ totalEvaluations: 0, avgScore: 0, completedEvaluations: 0, improvement: 0 });
   const [timeRange, setTimeRange] = useState<TimeRange>('all');
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   useEffect(() => {
     if (!id || typeof id !== 'string') return;
@@ -70,6 +115,23 @@ export default function ResidentProfile() {
 
     fetchResidentData();
   }, [id]);
+
+  const handleSaveResident = async (updatedResident: Resident) => {
+    if (!id || typeof id !== 'string') return;
+    try {
+        const res = await fetch(`/api/residents/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedResident),
+        });
+        if (!res.ok) throw new Error('Failed to save resident data');
+        const data = await res.json();
+        setResident(data);
+    } catch (error) {
+        console.error(error);
+    }
+  };
+
 
   const getSurgeryIcon = (surgery: string) => {
     if (surgery.toLowerCase().includes('cholecyst')) return '/images/galbladderArt.png';
@@ -122,13 +184,17 @@ export default function ResidentProfile() {
 
   return (
     <div className="space-y-8">
+      {isEditModalOpen && resident && <EditResidentModal resident={resident} onClose={() => setIsEditModalOpen(false)} onSave={handleSaveResident} />}
       <div className="flex items-center justify-between">
         <GlassButton variant="ghost" onClick={() => router.back()}>← Back</GlassButton>
         <a href={`/evaluations?resident=${resident.id}`} target="_blank" rel="noopener noreferrer">
           <GlassButton variant="secondary">View All Evaluations</GlassButton>
         </a>
       </div>
-      <GlassCard variant="strong" className="p-8">
+      <GlassCard variant="strong" className="p-8 relative">
+        <GlassButton variant="ghost" onClick={() => setIsEditModalOpen(true)} className="absolute top-4 right-4 !p-2">
+            <Image src="/images/public/editBtn.svg" alt="Edit" width={24} height={24} />
+        </GlassButton>
         <div className="flex flex-col sm:flex-row items-start space-y-4 sm:space-y-0 sm:space-x-6">
         
         <div className="glassmorphism-subtle p-2 rounded-full">
@@ -140,7 +206,7 @@ export default function ResidentProfile() {
               height={120}
               className="w-full h-full object-cover"
               onError={(e) => {
-                e.currentTarget.src = '/images/default-avatar.svg';
+                (e.target as HTMLImageElement).src = '/images/default-avatar.svg';
               }}
             />
           </div>

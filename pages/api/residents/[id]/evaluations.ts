@@ -41,12 +41,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
             if (resultData) {
                 isFinalized = resultData.isFinalized || false;
-                const stepScores = Object.values(resultData)
-                    .map((step: any) => step?.score)
-                    .filter(s => typeof s === 'number' && s > 0);
 
-                if (stepScores.length > 0) {
-                    score = stepScores.reduce((a, b) => a + b, 0) / stepScores.length;
+                if (isFinalized && typeof resultData.finalScore === 'number') {
+                    score = resultData.finalScore;
+                } else {
+                    const stepScores = Object.values(resultData)
+                        .map((step: any) => step?.score)
+                        .filter(s => typeof s === 'number' && s > 0);
+
+                    if (stepScores.length > 0) {
+                        score = stepScores.reduce((a, b) => a + b, 0) / stepScores.length;
+                    }
                 }
             }
             return {

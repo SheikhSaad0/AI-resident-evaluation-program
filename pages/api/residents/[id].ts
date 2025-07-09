@@ -21,6 +21,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             console.error(`Error fetching resident ${id}:`, error);
             res.status(500).json({ message: `Failed to fetch resident ${id}` });
         }
+    } else if (req.method === 'PUT') {
+        try {
+            const { name, company, year, medicalSchool, photoUrl } = req.body;
+            const updatedResident = await prisma.resident.update({
+                where: { id },
+                data: { name, company, year, medicalSchool, photoUrl },
+            });
+            res.status(200).json(updatedResident);
+        } catch (error) {
+            console.error(`Error updating resident ${id}:`, error);
+            res.status(500).json({ message: `Failed to update resident ${id}` });
+        }
     } else if (req.method === 'DELETE') {
         try {
             await prisma.resident.delete({
@@ -32,7 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             res.status(500).json({ message: `Failed to delete resident ${id}` });
         }
     } else {
-        res.setHeader('Allow', ['GET', 'DELETE']);
+        res.setHeader('Allow', ['GET', 'PUT', 'DELETE']);
         res.status(405).end(`Method ${req.method} Not Allowed`);
     }
 }
