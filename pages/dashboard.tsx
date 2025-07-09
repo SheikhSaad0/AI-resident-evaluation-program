@@ -35,6 +35,7 @@ export default function Dashboard() {
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [stats, setStats] = useState({
     totalEvals: 0,
+    drafts: 0, // New state for drafts
     avgScore: 0,
     practiceReady: 0,
     needsImprovement: 0,
@@ -58,15 +59,15 @@ export default function Dashboard() {
           const evalsData = await evalsResponse.json();
           setEvaluations(evalsData);
 
-          // --- REFINED: More robust data processing and trend calculation ---
           const now = new Date();
           const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
 
-          const completedEvals = evalsData.filter((e: Evaluation) => e.score !== undefined && e.score !== null);
-          const currentMonthEvals = completedEvals.filter((e: Evaluation) => new Date(e.date) >= oneMonthAgo);
-          const previousMonthEvals = completedEvals.filter((e: Evaluation) => new Date(e.date) < oneMonthAgo);
+          const finalizedEvals = evalsData.filter((e: Evaluation) => e.isFinalized && e.score !== undefined && e.score !== null);
+          const currentMonthEvals = finalizedEvals.filter((e: Evaluation) => new Date(e.date) >= oneMonthAgo);
+          const previousMonthEvals = finalizedEvals.filter((e: Evaluation) => new Date(e.date) < oneMonthAgo);
           
           const totalEvals = evalsData.length;
+          const draftsCount = evalsData.filter((e: Evaluation) => !e.isFinalized).length;
 
           const calculateMetrics = (evals: Evaluation[]) => {
             if (evals.length === 0) return { avgScore: 0, practiceReady: 0, needsImprovement: 0 };
@@ -83,6 +84,7 @@ export default function Dashboard() {
 
           setStats({
             totalEvals,
+            drafts: draftsCount,
             avgScore: currentMetrics.avgScore,
             practiceReady: currentMetrics.practiceReady,
             needsImprovement: currentMetrics.needsImprovement,
@@ -107,9 +109,9 @@ export default function Dashboard() {
         <p className="text-text-tertiary text-lg">Comprehensive overview of surgical evaluation performance</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        {/* --- REFINED: StatCards now use the calculated trends --- */}
         <StatCard title="Total Evaluations" value={stats.totalEvals} icon="/images/eval-count-icon.svg" trend={{ value: stats.totalEvalsTrend, isPositive: stats.totalEvalsTrend >= 0 }} onClick={() => router.push('/evaluations')} />
-        <StatCard title="Average Score" value={`${stats.avgScore.toFixed(1)}/5.0`} icon="/images/avg-score-icon.svg" trend={{ value: stats.avgScoreTrend, isPositive: stats.avgScoreTrend >= 0 }} subtitle="Performance Rating" />
+        <StatCard title="Drafts" value={stats.drafts} icon="/images/draft-icon.svg" subtitle="In Progress" />
+        <StatCard title="Average Score" value={`${stats.avgScore.toFixed(1)}/5.0`} icon="/images/avg-score-icon.svg" trend={{ value: stats.avgScoreTrend, isPositive: stats.avgScoreTrend >= 0 }} subtitle="Finalized Evals" />
         <StatCard title="Practice Ready" value={`${stats.practiceReady.toFixed(0)}%`} icon="/images/ready-icon.svg" trend={{ value: stats.practiceReadyTrend, isPositive: stats.practiceReadyTrend >= 0 }} subtitle="Residents qualified" />
         <StatCard title="Needs Improvement" value={`${stats.needsImprovement.toFixed(0)}%`} icon="/images/improve-icon.svg" trend={{ value: stats.needsImprovementTrend, isPositive: stats.needsImprovementTrend <= 0 }} subtitle="Requires attention" />
       </div>
@@ -129,7 +131,6 @@ export default function Dashboard() {
 const RecentEvaluationsWidget = ({ evaluations }: { evaluations: Evaluation[] }) => {
   const router = useRouter();
 
-  // --- REFINED: Simplified status logic ---
   const getStatusInfo = (evaluation: Evaluation) => {
     if (evaluation.isFinalized) return { text: 'Finalized', badge: 'status-success' };
     if (evaluation.status.startsWith('processing') || evaluation.status === 'in-progress' || evaluation.status === 'pending') return { text: 'In Progress', badge: 'status-warning' };

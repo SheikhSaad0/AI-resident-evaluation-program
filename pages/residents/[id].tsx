@@ -95,13 +95,13 @@ export default function ResidentProfile() {
             const evalsData = await evalsRes.json();
             setEvaluations(evalsData);
 
-            const completed = evalsData.filter((e: Evaluation) => (e.status === 'completed' || e.status === 'complete') && e.score !== undefined);
-            const avgScore = completed.length > 0 ? completed.reduce((acc: number, e: Evaluation) => acc + (e.score || 0), 0) / completed.length : 0;
+            const finalizedEvals = evalsData.filter((e: Evaluation) => e.isFinalized && e.score !== undefined);
+            const avgScore = finalizedEvals.length > 0 ? finalizedEvals.reduce((acc: number, e: Evaluation) => acc + (e.score || 0), 0) / finalizedEvals.length : 0;
             
             setStats({
               totalEvaluations: evalsData.length,
               avgScore: avgScore,
-              completedEvaluations: completed.length,
+              completedEvaluations: finalizedEvals.length,
               improvement: 0 // Mock improvement percentage for now
             });
 
@@ -227,7 +227,7 @@ export default function ResidentProfile() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <StatCard title="Total Evaluations" value={stats.totalEvaluations} icon="/images/eval-count-icon.svg" />
         <StatCard title="Average Score" value={`${stats.avgScore.toFixed(1)}/5.0`} icon="/images/avg-score-icon.svg" />
-        <StatCard title="Completed" value={stats.completedEvaluations} icon="/images/ready-icon.svg" />
+        <StatCard title="Finalized Evals" value={stats.completedEvaluations} icon="/images/eval-count-icon.svg" />
         <StatCard title="Improvement" value={`+${stats.improvement}%`} icon="/images/improve-icon.svg" />
       </div>
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
