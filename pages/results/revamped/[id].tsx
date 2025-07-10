@@ -51,8 +51,8 @@ const EVALUATION_CONFIGS: { [key: string]: { procedureSteps: ProcedureStep[] } }
 const getSurgeryIcon = (s: string) => {
     if (!s) return '/images/default-avatar.svg';
     const lowerCaseSurgery = s.toLowerCase();
-    if (lowerCaseSurgery.includes('cholecyst')) return '/Images/galbladderArt.png';
-    if (lowerCaseSurgery.includes('appendic')) return '/Images/appendectomyArt.png';
+    if (lowerCaseSurgery.includes('chole')) return '/Images/galbladderArt.png';
+    if (lowerCaseSurgery.includes('appe')) return '/Images/appendectomyArt.png';
     if (lowerCaseSurgery.includes('hernia')) return '/Images/herniaArt.png';
     return '/images/default-avatar.svg';
 };
@@ -454,7 +454,7 @@ export default function RevampedResultsPage() {
             text = '✓ Finalized';
             className += ' status-success';
         } else {
-            text = '📝 Draft';
+            text = '⚠ Draft';
             className += ' status-warning';
         }
 
