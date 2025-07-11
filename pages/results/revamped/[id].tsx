@@ -51,8 +51,8 @@ const EVALUATION_CONFIGS: { [key: string]: { procedureSteps: ProcedureStep[] } }
 const getSurgeryIcon = (s: string) => {
     if (!s) return '/images/default-avatar.svg';
     const lowerCaseSurgery = s.toLowerCase();
-    if (lowerCaseSurgery.includes('chole')) return '/Images/galbladderArt.png';
-    if (lowerCaseSurgery.includes('appe')) return '/Images/appendectomyArt.png';
+    if (lowerCaseSurgery.includes('cholecyst')) return '/Images/galbladderArt.png';
+    if (lowerCaseSurgery.includes('appendic')) return '/Images/appendectomyArt.png';
     if (lowerCaseSurgery.includes('hernia')) return '/Images/herniaArt.png';
     return '/images/default-avatar.svg';
 };
@@ -87,16 +87,16 @@ const ScoreRing = ({ score, max = 5 }: { score: number; max?: number }) => {
     );
 };
 
-// UPDATED: Icons are now larger
+// UPDATED: Icons are now responsive
 const InfoWidget = ({ title, value, icon }: { title: string, value: string | number, icon: string }) => (
     <GlassCard variant="subtle" className="p-4 flex-1">
         <div className="flex items-center space-x-4">
-            <div className="p-2 rounded-xl">
-                <Image src={icon} alt={title} width={32} height={32} />
+            <div className="relative w-10 h-10">
+                <Image src={icon} alt={title} layout="fill" objectFit="contain" />
             </div>
             <div>
                 <p className="text-sm text-text-quaternary">{title}</p>
-                <p className="text-xl font-bold text-text-primary">{value}</p>
+                <p className="text-2xl font-bold text-text-primary">{value}</p>
             </div>
         </div>
     </GlassCard>
@@ -454,7 +454,7 @@ export default function RevampedResultsPage() {
             text = '✓ Finalized';
             className += ' status-success';
         } else {
-            text = '⚠ Draft';
+            text = '📝 Draft';
             className += ' status-warning';
         }
 

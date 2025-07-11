@@ -165,7 +165,7 @@ export default function Dashboard() {
             <GlassCard variant='default' className="h-full">
                 <div className="flex items-center justify-between p-6 h-full">
                     <div className="flex-1">
-                        <p className="text-text-tertiary text-sm font-medium mb-1">Lowest Scored Proc.</p>
+                        <p className="text-text-tertiary text-sm font-medium mb-1">Lowest Scored Procedure</p>
                         <p className="heading-md truncate">{lowestProcedure ? lowestProcedure.name : 'N/A'}</p>
                         <p className="text-text-quaternary text-xs mt-1">{lowestProcedure ? `${lowestProcedure.score.toFixed(1)}/5.0` : 'No finalized evals'}</p>
                     </div>
