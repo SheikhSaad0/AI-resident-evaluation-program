@@ -1,7 +1,7 @@
 // pages/api/submit.ts
 
 import { NextApiRequest, NextApiResponse } from 'next';
-import { getPrismaClient } from '../../lib/prisma'; // Import the new router
+import { getPrismaClient } from '../../lib/prisma';
 
 export default async function handler(
   req: NextApiRequest,
@@ -12,28 +12,41 @@ export default async function handler(
     return res.status(405).end('Method Not Allowed');
   }
 
-  // Get the correct prisma client at runtime, right before you use it.
+  // Get the correct prisma client at runtime
   const prisma = await getPrismaClient();
 
   try {
-    const { residentId, evaluationData } = req.body;
+    const {
+      gcsUrl,
+      gcsObjectPath,
+      surgeryName,
+      residentId,
+      additionalContext,
+      withVideo,
+      videoAnalysis,
+    } = req.body;
 
-    if (!residentId || !evaluationData) {
-      return res.status(400).json({ message: 'Missing residentId or evaluationData' });
+    if (!gcsUrl || !surgeryName || !residentId) {
+      return res.status(400).json({ message: 'Missing required fields for submission.' });
     }
 
-    // This 'prisma' variable is now correctly pointing to either the testing or production client.
-    const newJob = await prisma.job.create({
+    const job = await prisma.job.create({
       data: {
+        status: 'pending',
+        gcsUrl,
+        gcsObjectPath,
+        surgeryName,
         residentId,
-        status: 'PENDING',
-        evaluationData, 
+        additionalContext,
+        withVideo,
+        videoAnalysis,
       },
     });
 
-    res.status(201).json(newJob);
+    res.status(201).json({ jobId: job.id });
+
   } catch (error) {
-    console.error('Error submitting evaluation:', error);
-    res.status(500).json({ message: 'Failed to submit evaluation' });
+    console.error('Error submitting job:', error);
+    res.status(500).json({ message: 'Failed to submit job for analysis.' });
   }
 }

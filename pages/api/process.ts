@@ -1,50 +1,58 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import { verifySignature } from "@upstash/qstash/nextjs";
-import { prisma } from '../../lib/prisma';
-import { processJob } from '../../lib/process-job';
+// pages/api/process.ts
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+import { NextApiRequest, NextApiResponse } from 'next';
+import { getPrismaClient } from '../../lib/prisma'; // Use the async getter
+import { processJob } from '../../lib/process-job';
+import { Job, Resident } from '@prisma/client';
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
   if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
+    res.setHeader('Allow', ['POST']);
     return res.status(405).end('Method Not Allowed');
   }
+
+  // Authorize the request (e.g., check for a secret header)
+  // This is crucial for a webhook that triggers a long-running process
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || req.headers['authorization'] !== `Bearer ${cronSecret}`) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
+  // Get the prisma client
+  const prisma = await getPrismaClient();
 
   try {
     const { jobId } = req.body;
 
-    if (!jobId || typeof jobId !== 'string') {
-      return res.status(400).json({ error: 'A valid jobId must be provided.' });
+    if (!jobId) {
+      return res.status(400).json({ message: 'Job ID is required.' });
     }
 
-    // Fetch the job and explicitly include the related resident data
-    const job = await prisma.job.findUnique({
+    // Find the job that needs to be processed
+    const jobToProcess = await prisma.job.findUnique({
       where: { id: jobId },
       include: {
-        resident: true, // This is the crucial addition
+        resident: true, // Include resident details
       },
     });
 
-    if (!job) {
-      return res.status(404).json({ message: 'Job not found.' });
+    if (!jobToProcess) {
+      return res.status(404).json({ message: `Job with ID ${jobId} not found.` });
     }
     
-    // Now the 'job' object has the required 'resident' property
-    await processJob(job);
+    // Don't await this, let it run in the background
+    processJob(jobToProcess as Job & { resident: Resident | null });
 
-    res.status(200).json({ message: `Successfully processed job ${jobId}` });
+    // Immediately respond to the request
+    res.status(202).json({
+      message: `Accepted job ${jobId} for processing.`,
+    });
 
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('[QStash Handler] Error processing job:', errorMessage);
-    res.status(500).json({ error: 'Failed to process job.' });
+    console.error('Error in /api/process endpoint:', error);
+    res.status(500).json({ message: 'Internal server error.' });
   }
 }
-
-// Wrap the handler with QStash signature verification
-export default verifySignature(handler);
-
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};

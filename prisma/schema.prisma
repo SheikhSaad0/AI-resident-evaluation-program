@@ -7,9 +7,10 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("DATABASE_URL") // This will be dynamically overridden
 }
 
+// Main application models
 model Job {
   id                String    @id @default(cuid())
   status            String
@@ -24,10 +25,9 @@ model Job {
   withVideo         Boolean   @default(false)
   videoAnalysis     Boolean   @default(false)
   residentId        String?
-  resident          Resident? @relation(fields: [residentId], references: [id])
+  resident          Resident? @relation(fields: [residentId], references: [id], onDelete: SetNull)
 }
 
-// This is a comment to trigger a change
 model Resident {
   id            String    @id @default(cuid())
   name          String
@@ -41,12 +41,11 @@ model Resident {
   jobs          Job[]
 }
 
-// prisma/schema.prisma
-
+// NEW: Add this model for managing database settings
 model Settings {
-  id              String   @id @default(cuid())
-  activeDatabase  String   @default("testing")
-  defaultDatabase String   @default("testing")
-  testingDbName   String   @default("Testing Database")
-  productionDbName String   @default("Production Database")
+  id               String @id @default(cuid())
+  activeDatabase   String @default("testing") // 'testing' or 'production'
+  defaultDatabase  String @default("testing")
+  testingDbName    String @default("Testing Database")
+  productionDbName String @default("Production Database")
 }

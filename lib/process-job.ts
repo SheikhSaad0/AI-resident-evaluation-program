@@ -1,14 +1,15 @@
-import { Job, Resident } from '@prisma/client'; // Correct import
+// lib/process-job.ts
+
+import { Job, Resident } from '@prisma/client';
 import { VertexAI, Part } from '@google-cloud/vertexai';
 import { createClient, DeepgramError } from '@deepgram/sdk';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { prisma } from './prisma';
+import { getPrismaClient } from './prisma'; // Correct: Use the async getter
 import { generateV4ReadSignedUrl } from './gcs';
 
-// ... (the rest of the file remains the same)
-
+// ... (keep all the service configuration, type definitions, and helper functions the same)
 // --- Services Configuration ---
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY || '');
 
@@ -30,15 +31,15 @@ const vertex_ai = new VertexAI({
 });
 
 const generativeModel = vertex_ai.getGenerativeModel({
-    model: 'gemini-2.5-flash', // Corrected to a valid model name
+    model: 'gemini-1.5-flash',
 });
 const textModel = vertex_ai.getGenerativeModel({
-    model: 'gemini-2.5-flash', // Corrected to a valid model name
+    model: 'gemini-1.5-flash',
 });
 
 // --- TYPE DEFINITIONS AND CONFIGS ---
 interface ProcedureStepConfig { key: string; name: string; }
-interface EvaluationStep { score: number; time: string; comments: string; }
+interface EvaluationStep { score: number; time: string; comments:string; }
 interface GeminiEvaluationResult {
     [key: string]: EvaluationStep | number | string | undefined;
     caseDifficulty: number;
@@ -254,6 +255,9 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
 
 
 export async function processJob(jobWithDetails: Job & { resident: Resident | null }) {
+    // FIX: Get the prisma client at the start of the function.
+    const prisma = await getPrismaClient();
+
     console.log(`Processing job ${jobWithDetails.id} for surgery: ${jobWithDetails.surgeryName}`);
     const { id, gcsObjectPath, gcsUrl, surgeryName, additionalContext, withVideo, videoAnalysis, resident } = jobWithDetails;
 
@@ -268,6 +272,7 @@ export async function processJob(jobWithDetails: Job & { resident: Resident | nu
         if (withVideo && videoAnalysis) {
             try {
                 console.log("Visual analysis is enabled. Transcribing audio first...");
+                // FIX: Use the 'prisma' instance defined above for all DB calls.
                 await prisma.job.update({ where: { id }, data: { status: 'processing-transcription' } });
                 const readableUrl = await generateV4ReadSignedUrl(gcsObjectPath);
                 transcription = await transcribeWithDeepgram(readableUrl);
@@ -304,7 +309,7 @@ export async function processJob(jobWithDetails: Job & { resident: Resident | nu
             ...evaluationResult,
             transcription,
             surgery: surgeryName,
-            residentName: resident?.name, // Correctly access resident name
+            residentName: resident?.name,
             additionalContext: additionalContext,
             isFinalized: false,
         };

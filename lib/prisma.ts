@@ -11,7 +11,7 @@ declare global {
 // Function to create and return the testing client singleton
 const testingClientSingleton = () => {
   if (!process.env.DATABASE_URL_TESTING) {
-    throw new Error('DATABASE_URL_TESTING is not defined in your .env.local file.');
+    throw new Error('DATABASE_URL_TESTING is not defined in your .env file.');
   }
   console.log('Initializing Prisma client for Testing DB');
   return new PrismaClient({
@@ -22,7 +22,7 @@ const testingClientSingleton = () => {
 // Function to create and return the production client singleton
 const productionClientSingleton = () => {
   if (!process.env.DATABASE_URL_PRODUCTION) {
-    throw new Error('DATABASE_URL_PRODUCTION is not defined in your .env.local file.');
+    throw new Error('DATABASE_URL_PRODUCTION is not defined in your .env file.');
   }
   console.log('Initializing Prisma client for Production DB');
   return new PrismaClient({
@@ -51,6 +51,7 @@ export const getPrismaClient = async (): Promise<PrismaClient> => {
 
     // If settings are found and the active DB is 'production', return the production client.
     if (settings?.activeDatabase === 'production') {
+      console.log("SWITCH: Using Production Database");
       return prismaProduction;
     }
   } catch (error) {
@@ -60,5 +61,6 @@ export const getPrismaClient = async (): Promise<PrismaClient> => {
   }
   
   // By default, or if the active DB is 'testing', return the testing client.
+  console.log("SWITCH: Using Testing Database");
   return prismaTesting;
 };
