@@ -112,11 +112,6 @@ export default function Home() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0] || null;
     setFile(selectedFile);
-    if (selectedFile && selectedFile.type.startsWith('video/')) {
-      setAnalysisType('video');
-    } else {
-      setAnalysisType('audio');
-    }
   };
 
   return (
