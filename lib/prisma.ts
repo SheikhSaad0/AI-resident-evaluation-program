@@ -1,54 +1,64 @@
-import { PrismaClient } from '@prisma/client';
-import fs from 'fs';
-import path from 'path';
+// lib/prisma.ts
 
+import { PrismaClient } from '@prisma/client';
+
+// Declare global variables to hold the clients for hot-reloading in development
 declare global {
-  var prisma: PrismaClient | undefined;
+  var prismaTesting: PrismaClient | undefined;
+  var prismaProduction: PrismaClient | undefined;
 }
 
-const prismaClientSingleton = () => {
-  const settingsFilePath = path.resolve(process.cwd(), 'settings.json');
-  let activeDatabase = 'testing'; // Default to testing
-
-  if (fs.existsSync(settingsFilePath)) {
-    try {
-      const fileContent = fs.readFileSync(settingsFilePath, 'utf-8');
-      const settings = JSON.parse(fileContent);
-      activeDatabase = settings.activeDatabase || 'testing';
-    } catch (error) {
-      console.error('Could not read or parse settings.json, defaulting to testing database.', error);
-    }
+// Function to create and return the testing client singleton
+const testingClientSingleton = () => {
+  if (!process.env.DATABASE_URL_TESTING) {
+    throw new Error('DATABASE_URL_TESTING is not defined in your .env.local file.');
   }
-
-  const databaseUrl = activeDatabase === 'production'
-    ? process.env.DATABASE_URL_PRODUCTION
-    : process.env.DATABASE_URL_TESTING;
-
-  if (!databaseUrl) {
-    console.error(`DATABASE_URL for "${activeDatabase}" is not defined. Please check your environment variables.`);
-    // Fallback to the default DATABASE_URL if specific one is not found
-    if (!process.env.DATABASE_URL) {
-      throw new Error('No DATABASE_URL configured.');
-    }
-    return new PrismaClient({
-      log: ['query'],
-    });
-  }
-
-  console.log(`Prisma client is connecting to: ${activeDatabase}`);
-
+  console.log('Initializing Prisma client for Testing DB');
   return new PrismaClient({
-    datasources: {
-      db: {
-        url: databaseUrl,
-      },
-    },
-    log: ['query'],
+    datasources: { db: { url: process.env.DATABASE_URL_TESTING } },
   });
 };
 
-export const prisma = globalThis.prisma ?? prismaClientSingleton();
+// Function to create and return the production client singleton
+const productionClientSingleton = () => {
+  if (!process.env.DATABASE_URL_PRODUCTION) {
+    throw new Error('DATABASE_URL_PRODUCTION is not defined in your .env.local file.');
+  }
+  console.log('Initializing Prisma client for Production DB');
+  return new PrismaClient({
+    datasources: { db: { url: process.env.DATABASE_URL_PRODUCTION } },
+  });
+};
 
+// Export singleton instances of each client
+// In development, this prevents creating new connections on every hot reload
+export const prismaTesting = globalThis.prismaTesting ?? testingClientSingleton();
+export const prismaProduction =
+  globalThis.prismaProduction ?? productionClientSingleton();
+
+// Make sure to re-assign the global variables in development
 if (process.env.NODE_ENV !== 'production') {
-  globalThis.prisma = prisma;
+  globalThis.prismaTesting = prismaTesting;
+  globalThis.prismaProduction = prismaProduction;
 }
+
+// This is our dynamic "router" function.
+// It fetches the current setting and returns the correct prisma client.
+export const getPrismaClient = async (): Promise<PrismaClient> => {
+  try {
+    // The settings table should only exist in the production database as the single source of truth.
+    const settings = await prismaProduction.settings.findFirst();
+
+    // If settings are found and the active DB is 'production', return the production client.
+    if (settings?.activeDatabase === 'production') {
+      return prismaProduction;
+    }
+  } catch (error) {
+    console.error("Could not fetch settings from production DB, defaulting to testing.", error);
+    // If there's any error fetching settings, fall back to testing for safety.
+    return prismaTesting;
+  }
+  
+  // By default, or if the active DB is 'testing', return the testing client.
+  return prismaTesting;
+};

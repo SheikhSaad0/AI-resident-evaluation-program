@@ -40,3 +40,13 @@ model Resident {
   updatedAt     DateTime  @updatedAt
   jobs          Job[]
 }
+
+// prisma/schema.prisma
+
+model Settings {
+  id              String   @id @default(cuid())
+  activeDatabase  String   @default("testing")
+  defaultDatabase String   @default("testing")
+  testingDbName   String   @default("Testing Database")
+  productionDbName String   @default("Production Database")
+}

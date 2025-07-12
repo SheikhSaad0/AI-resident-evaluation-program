@@ -1,3 +1,5 @@
+// pages/settings/index.tsx
+
 import { useState, useEffect } from 'react';
 import { GlassCard, GlassButton, GlassInput, GlassTabs, PillToggle } from '../../components/ui';
 
@@ -18,17 +20,23 @@ const SettingsPage = () => {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     fetch('/api/settings')
-      .then(res => res.json())
-      .then(data => setSettings(data));
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to load settings.");
+        return res.json();
+      })
+      .then(data => setSettings(data))
+      .catch(err => setError(err.message));
   }, []);
 
   const handleSave = async () => {
     if (!settings) return;
     setIsSaving(true);
     setMessage('');
+    setError('');
     try {
       const response = await fetch('/api/settings', {
         method: 'POST',
@@ -36,9 +44,11 @@ const SettingsPage = () => {
         body: JSON.stringify(settings),
       });
       if (!response.ok) throw new Error('Failed to save settings');
-      setMessage('Settings saved successfully! A server restart is required for the active database change to take effect.');
+      // Success! The change is now instant.
+      setMessage('Settings saved successfully! The active database has been switched.');
     } catch (error) {
-      setMessage(`Error saving settings: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setError(`Error saving settings: ${errorMessage}`);
     } finally {
       setIsSaving(false);
     }
@@ -47,6 +57,10 @@ const SettingsPage = () => {
   const handleDatabaseNameChange = (db: 'testing' | 'production', name: string) => {
     setSettings(prev => prev && { ...prev, databases: { ...prev.databases, [db]: { ...prev.databases[db], name } } });
   };
+
+  if (error) {
+     return <div className="text-center text-red-500">Error: {error}</div>;
+  }
 
   if (!settings) {
     return (
@@ -75,9 +89,7 @@ const SettingsPage = () => {
               defaultSelected={settings.activeDatabase}
               onChange={(id) => setSettings(s => s && { ...s, activeDatabase: id as 'testing' | 'production' })}
             />
-            <p className="text-xs text-text-quaternary mt-4">
-              Note: Changing the active database requires a server restart to take effect.
-            </p>
+            {/* The note about restarting is no longer needed. */}
           </GlassCard>
 
           <GlassCard variant="strong" className="p-6">
@@ -103,7 +115,7 @@ const SettingsPage = () => {
           </GlassCard>
 
           <GlassCard variant="strong" className="p-6">
-            <h3 className="heading-md mb-6">Default Database</h3>
+            <h3 className="heading-md mb-6">Default Database on Load</h3>
             <PillToggle
               options={[
                 { id: 'testing', label: settings.databases.testing.name },
@@ -112,21 +124,19 @@ const SettingsPage = () => {
               defaultSelected={settings.defaultDatabase}
               onChange={(id) => setSettings(s => s && { ...s, defaultDatabase: id as 'testing' | 'production' })}
             />
-            <p className="text-xs text-text-quaternary mt-4">
-              The default database to load when the application starts.
-            </p>
           </GlassCard>
 
           <div className="pt-4">
             <GlassButton variant="primary" size="lg" onClick={handleSave} loading={isSaving} className="w-full">
               Save Settings
             </GlassButton>
-            {message && <p className="text-center mt-4 text-sm text-text-tertiary">{message}</p>}
+            {message && <p className="text-center mt-4 text-sm text-green-400">{message}</p>}
+            {error && <p className="text-center mt-4 text-sm text-red-500">{error}</p>}
           </div>
         </div>
       )
     },
-    {
+     {
       id: 'general',
       label: 'General',
       content: (

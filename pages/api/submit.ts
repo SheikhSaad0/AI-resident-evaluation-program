@@ -1,56 +1,39 @@
+// pages/api/submit.ts
+
 import { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../lib/prisma';
-import { Client } from "@upstash/qstash";
+import { getPrismaClient } from '../../lib/prisma'; // Import the new router
 
-const qstashClient = new Client({
-  token: process.env.QSTASH_TOKEN!,
-});
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', ['POST']);
+    return res.status(405).end('Method Not Allowed');
+  }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-    if (req.method !== 'POST') {
-        return res.status(405).json({ message: 'Method not allowed' });
+  // Get the correct prisma client at runtime, right before you use it.
+  const prisma = await getPrismaClient();
+
+  try {
+    const { residentId, evaluationData } = req.body;
+
+    if (!residentId || !evaluationData) {
+      return res.status(400).json({ message: 'Missing residentId or evaluationData' });
     }
 
-    try {
-        const {
-            gcsUrl,
-            gcsObjectPath,
-            surgeryName,
-            residentId, // Changed from residentName
-            additionalContext,
-            withVideo,
-            videoAnalysis
-        } = req.body;
+    // This 'prisma' variable is now correctly pointing to either the testing or production client.
+    const newJob = await prisma.job.create({
+      data: {
+        residentId,
+        status: 'PENDING',
+        evaluationData, 
+      },
+    });
 
-        const job = await prisma.job.create({
-            data: {
-                status: 'pending',
-                gcsUrl,
-                gcsObjectPath,
-                surgeryName,
-                residentId, // Storing the ID
-                additionalContext,
-                withVideo: !!withVideo,
-                videoAnalysis: !!videoAnalysis,
-            },
-        });
-
-        const baseUrl = process.env.QSTASH_URL_OVERRIDE || 
-                        `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` ||
-                        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
-        
-        const destinationUrl = `${baseUrl}/api/process`;
-
-        await qstashClient.publishJSON({
-          url: destinationUrl,
-          body: { jobId: job.id },
-        });
-
-        res.status(202).json({ jobId: job.id });
-
-    } catch (error) {
-        console.error('Error submitting job:', error);
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        res.status(500).json({ message: `Error submitting job: ${errorMessage}` });
-    }
+    res.status(201).json(newJob);
+  } catch (error) {
+    console.error('Error submitting evaluation:', error);
+    res.status(500).json({ message: 'Failed to submit evaluation' });
+  }
 }
