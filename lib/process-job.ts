@@ -179,7 +179,7 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
     }
 }
 
-async function evaluateVideo(surgeryName: string, additionalContext: string, gcsUri: string): Promise<GeminiEvaluationResult> {
+async function evaluateVideo(surgeryName: string, additionalContext: string, gcsUri: string, transcription: string): Promise<GeminiEvaluationResult> {
     const config = EVALUATION_CONFIGS[surgeryName as keyof typeof EVALUATION_CONFIGS];
     console.log(`Starting video evaluation with GCS URI: ${gcsUri}`);
     const stepKeys = config.procedureSteps.map(s => `"${s.key}": { "score": ..., "time": "...", "comments": "..." }`).join(',\n    ');
@@ -188,17 +188,17 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
         .join('\n          ');
 
     const prompt = `
-      You are an expert surgical education analyst. Your task is to provide a detailed, constructive evaluation of a resident's performance based on the provided video for the **${surgeryName}** procedure.
+      You are an expert surgical education analyst. Your task is to provide a detailed, constructive evaluation of a resident's performance based on the provided video and transcript for the **${surgeryName}** procedure.
 
       **CONTEXT:**
       - **Procedure:** ${surgeryName}
       - **Additional Context:** ${additionalContext || 'None'}
       - **Video:** A video of the surgical procedure is provided.
+      - **Transcript:** A transcript of the audio from the video is provided below.
 
       **PRIMARY INSTRUCTIONS:**
-      1.  **Transcribe the Audio:** First, provide a complete and accurate transcription of all spoken dialogue in the video.
-      2.  **Analyze the Procedure:** Review the entire video, transcription, and context. Identify the resident (learner) and the attending (teacher). Focus the evaluation on the resident's performance. Evaluate the residents movements and skills against the transcript and attendings comments, evaluate how well a job the resident is doing and if they are 'practice ready' (being able to do the surgery accurately).
-      3.  **Evaluate Step-by-Step:** For each surgical step, provide a detailed evaluation, include comments the attending may have given that can criique and improve the residents future performance
+      1.  **Analyze the Procedure:** Review the entire video, the provided transcript, and context. Identify the resident (learner) and the attending (teacher). Focus the evaluation on the resident's performance. Evaluate the resident's movements and skills against the transcript and attending's comments, evaluate how well a job the resident is doing and if they are 'practice ready' (being able to do the surgery accurately).
+      2.  **Evaluate Step-by-Step:** For each surgical step, provide a detailed evaluation, include comments the attending may have given that can critique and improve the resident's future performance
           - **Scoring Scale (1-5):**
             - **1:** Unsafe, attending took over.
             - **2:** Performed <50% of step, significant help needed.
@@ -206,21 +206,25 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
             - **4:** Completed with coaching and guidance.
             - **5:** Completed independently and proficiently.
           - **If a step was NOT performed:** Use a score of 0, time "N/A", and comment "This step was not performed or mentioned."
-      4.  **Provide Overall Assessment:**
+      3.  **Provide Overall Assessment:**
           - **\`caseDifficulty\`**: (Number 1-3) Rate the case difficulty based on the following procedure-specific scale:
           ${difficultyText}
           - **\`additionalComments\`**: (String) Provide a concise summary of the resident's overall performance, include key details to their performance and ideas for improvement
        Record the time taken, the format should be "X minutes and Y seconds", where one step might have taken 4 minutes and 22 seconds, take into consideration the video provided may be a teaching example and not a full procedure from start to finish, so then estimate the time accurately.
-      5.  **JSON OUTPUT FORMAT:** You MUST return ONLY a single, valid JSON object matching this exact structure. Do not include any other text or markdown formatting.
+      4.  **JSON OUTPUT FORMAT:** You MUST return ONLY a single, valid JSON object matching this exact structure. Do not include any other text or markdown formatting.
 
       \`\`\`json
       {
-        "transcription": "<string>",
         "caseDifficulty": <number>,
         "additionalComments": "<string>",
         ${stepKeys}
       }
       \`\`\`
+
+      **TRANSCRIPT FOR ANALYSIS:**
+      ---
+      ${transcription}
+      ---
     `;
 
     const filePart: Part = { fileData: { mimeType: getMimeTypeFromGcsUri(gcsUri), fileUri: gcsUri } };
@@ -239,7 +243,9 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
     }
 
     try {
-        return JSON.parse(responseText) as GeminiEvaluationResult;
+        const parsedResult = JSON.parse(responseText) as GeminiEvaluationResult;
+        parsedResult.transcription = transcription;
+        return parsedResult;
     } catch(error) {
         console.error("Failed to parse JSON from video model. Raw response:", responseText);
         throw new Error("AI model returned invalid JSON.");
@@ -261,18 +267,24 @@ export async function processJob(jobWithDetails: Job & { resident: Resident | nu
     try {
         if (withVideo && videoAnalysis) {
             try {
-                console.log("Visual analysis is enabled. Attempting Vertex AI video evaluation.");
-                await prisma.job.update({ where: { id }, data: { status: 'processing-in-gemini' } });
+                console.log("Visual analysis is enabled. Transcribing audio first...");
+                await prisma.job.update({ where: { id }, data: { status: 'processing-transcription' } });
+                const readableUrl = await generateV4ReadSignedUrl(gcsObjectPath);
+                transcription = await transcribeWithDeepgram(readableUrl);
 
+                console.log("Transcription complete. Attempting Vertex AI video evaluation with transcript...");
+                await prisma.job.update({ where: { id }, data: { status: 'processing-in-gemini' } });
                 const gcsUri = gcsUrl.replace('https://storage.googleapis.com/', 'gs://');
-                evaluationResult = await evaluateVideo(surgeryName, additionalContext || '', gcsUri);
-                transcription = evaluationResult.transcription;
+                evaluationResult = await evaluateVideo(surgeryName, additionalContext || '', gcsUri, transcription);
+
             } catch (videoError) {
                 console.error("Vertex AI video evaluation failed. Falling back to audio-only analysis.", videoError);
                 await prisma.job.update({ where: { id }, data: { status: 'processing-transcription' } });
 
-                const readableUrl = await generateV4ReadSignedUrl(gcsObjectPath);
-                transcription = await transcribeWithDeepgram(readableUrl);
+                if (!transcription) {
+                    const readableUrl = await generateV4ReadSignedUrl(gcsObjectPath);
+                    transcription = await transcribeWithDeepgram(readableUrl);
+                }
                 evaluationResult = await evaluateTranscript(transcription, surgeryName, additionalContext || '');
             }
         } else {
