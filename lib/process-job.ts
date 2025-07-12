@@ -31,10 +31,10 @@ const vertex_ai = new VertexAI({
 });
 
 const generativeModel = vertex_ai.getGenerativeModel({
-    model: 'gemini-1.5-flash',
+    model: 'gemini-2.5-flash',
 });
 const textModel = vertex_ai.getGenerativeModel({
-    model: 'gemini-1.5-flash',
+    model: 'gemini-2.5-flash',
 });
 
 // --- TYPE DEFINITIONS AND CONFIGS ---

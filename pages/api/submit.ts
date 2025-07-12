@@ -12,17 +12,17 @@ const qstashClient = new Client({
 /**
  * Determines the base URL for the API endpoint.
  * In production/staging on Vercel, it uses the VERCEL_URL.
- * For local development, it uses the QSTASH_FORWARDING_URL from your .env.local file (e.g., your ngrok tunnel).
- * As a final fallback, it defaults to localhost.
+ * For local development, it now uses the NEXT_PUBLIC_QSTASH_FORWARDING_URL for reliability.
  */
 function getApiBaseUrl() {
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`;
   }
-  if (process.env.QSTASH_FORWARDING_URL) {
-    return process.env.QSTASH_FORWARDING_URL;
+  // Use the NEXT_PUBLIC_ prefixed variable for local development
+  if (process.env.NEXT_PUBLIC_QSTASH_FORWARDING_URL) {
+    return process.env.NEXT_PUBLIC_QSTASH_FORWARDING_URL;
   }
-  // This fallback is for environments where neither is set, though it will fail with QStash.
+  // Fallback for QStash to show an error, as localhost is not reachable.
   return 'http://localhost:3000';
 }
 
@@ -36,7 +36,6 @@ export default async function handler(
     return res.status(405).end('Method Not Allowed');
   }
 
-  // Get the correct prisma client at runtime
   const prisma = await getPrismaClient();
 
   try {
@@ -54,7 +53,6 @@ export default async function handler(
       return res.status(400).json({ message: 'Missing required fields for submission.' });
     }
 
-    // 1. Create the job entry in the database
     const job = await prisma.job.create({
       data: {
         status: 'pending',
@@ -68,7 +66,6 @@ export default async function handler(
       },
     });
 
-    // 2. Trigger the background processing task via QStash
     const apiBaseUrl = getApiBaseUrl();
     const destinationUrl = `${apiBaseUrl}/api/process`;
       
@@ -84,7 +81,6 @@ export default async function handler(
       },
     });
 
-    // 3. Respond to the client immediately
     res.status(201).json({ jobId: job.id });
 
   } catch (error) {
