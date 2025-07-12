@@ -1,8 +1,15 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../../lib/prisma';
+import { getPrismaClient } from '../../../lib/prisma';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+    // Set Cache-Control header to prevent caching
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Date', new Date().toUTCString());
+
     if (req.method === 'GET') {
+        const prisma = await getPrismaClient();
         try {
             const jobs = await prisma.job.findMany({
                 orderBy: { createdAt: 'desc' },
@@ -50,7 +57,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     type: job.withVideo ? 'video' : 'audio',
                     isFinalized: isFinalized,
                     videoAnalysis: job.videoAnalysis,
-                    result: resultData, // <-- FIX: Add result data to the response
+                    result: resultData, 
                 };
             }));
 

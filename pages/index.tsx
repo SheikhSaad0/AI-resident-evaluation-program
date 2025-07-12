@@ -24,19 +24,36 @@ export default function Home() {
   const [analysisType, setAnalysisType] = useState('audio');
   const router = useRouter();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const residentsRes = await fetch('/api/residents');
-        if (residentsRes.ok) setResidents(await residentsRes.json());
+  const fetchData = async () => {
+    try {
+      const residentsRes = await fetch('/api/residents');
+      if (residentsRes.ok) setResidents(await residentsRes.json());
 
-        const evalsRes = await fetch('/api/evaluations');
-        if (evalsRes.ok) setPastEvaluations(await evalsRes.json());
-      } catch (error) {
-        console.error("Error fetching initial data:", error);
+      // Add a cache-busting query parameter to the evaluations fetch call
+      const evalsRes = await fetch(`/api/evaluations?t=${new Date().getTime()}`);
+      if (evalsRes.ok) {
+        setPastEvaluations(await evalsRes.json());
+      }
+    } catch (error) {
+      console.error("Error fetching initial data:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+
+    // Add event listener to refetch data when the page becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchData();
       }
     };
-    fetchData();
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const handleSubmit = async () => {

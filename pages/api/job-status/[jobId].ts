@@ -1,8 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
-import { generateV4ReadSignedUrl } from '../../../lib/gcs'; // Corrected import path
-
-const prisma = new PrismaClient();
+import { getPrismaClient } from '../../../lib/prisma';
+import { generateV4ReadSignedUrl } from '../../../lib/gcs';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     const { jobId } = req.query;
@@ -10,6 +8,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!jobId || typeof jobId !== 'string') {
         return res.status(400).json({ error: 'A valid jobId must be provided.' });
     }
+    
+    const prisma = await getPrismaClient();
 
     try {
         const job = await prisma.job.findUnique({

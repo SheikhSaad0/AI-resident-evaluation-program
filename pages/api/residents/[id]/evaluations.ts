@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../../../lib/prisma';
+import { getPrismaClient } from '../../../../lib/prisma';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     const { id } = req.query;
@@ -8,6 +8,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         res.setHeader('Allow', ['GET']);
         return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
+    const prisma = await getPrismaClient();
 
     try {
         const jobs = await prisma.job.findMany({
