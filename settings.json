@@ -1,0 +1,12 @@
+{
+  "activeDatabase": "testing",
+  "defaultDatabase": "testing",
+  "databases": {
+    "testing": {
+      "name": "Testing Database"
+    },
+    "production": {
+      "name": "Production Database"
+    }
+  }
+}

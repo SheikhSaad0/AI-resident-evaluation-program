@@ -7,6 +7,7 @@ const navItems = [
   { name: 'Dashboard', href: '/dashboard', icon: '/images/dashboard-icon.svg' },
   { name: 'View Reports', href: '/evaluations', icon: '/images/dashboard-icon.svg' },
   { name: 'Resident Management', href: '/residents', icon: '/images/default-avatar.svg' },
+  { name: 'Settings', href: '/settings', icon: '/images/settings-icon.svg' }, // Added Settings link
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
