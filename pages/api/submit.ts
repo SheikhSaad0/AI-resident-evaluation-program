@@ -1,5 +1,3 @@
-// pages/api/submit.ts
-
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getPrismaClient } from '../../lib/prisma';
 import { Client } from '@upstash/qstash';
@@ -9,20 +7,13 @@ const qstashClient = new Client({
   token: process.env.QSTASH_TOKEN!,
 });
 
-/**
- * Determines the base URL for the API endpoint.
- * In production/staging on Vercel, it uses the VERCEL_URL.
- * For local development, it now uses the NEXT_PUBLIC_QSTASH_FORWARDING_URL for reliability.
- */
 function getApiBaseUrl() {
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`;
   }
-  // Use the NEXT_PUBLIC_ prefixed variable for local development
   if (process.env.NEXT_PUBLIC_QSTASH_FORWARDING_URL) {
     return process.env.NEXT_PUBLIC_QSTASH_FORWARDING_URL;
   }
-  // Fallback for QStash to show an error, as localhost is not reachable.
   return 'http://localhost:3000';
 }
 
@@ -40,35 +31,36 @@ export default async function handler(
 
   try {
     const {
-      gcsUrl,
-      gcsObjectPath,
+      gcsPaths,
       surgeryName,
       residentId,
       additionalContext,
-      withVideo,
-      videoAnalysis,
+      analysisType,
     } = req.body;
 
-    if (!gcsUrl || !surgeryName || !residentId) {
+    if (!gcsPaths || gcsPaths.length === 0 || !surgeryName || !residentId) {
       return res.status(400).json({ message: 'Missing required fields for submission.' });
     }
 
+    // For simplicity, we'll take the first path for the main gcsUrl and gcsObjectPath fields.
+    // The full list is stored in the result for now. A better approach would be to have a separate model for files.
     const job = await prisma.job.create({
       data: {
         status: 'pending',
-        gcsUrl,
-        gcsObjectPath,
+        gcsUrl: gcsPaths[0].url,
+        gcsObjectPath: gcsPaths[0].path,
         surgeryName,
         residentId,
         additionalContext,
-        withVideo,
-        videoAnalysis,
+        withVideo: gcsPaths.some((p: any) => p.type.startsWith('video/')),
+        videoAnalysis: analysisType === 'video',
+        result: { gcsPaths } as any,
       },
     });
 
     const apiBaseUrl = getApiBaseUrl();
     const destinationUrl = `${apiBaseUrl}/api/process`;
-      
+
     console.log(`[Submission] Queuing job ${job.id} for processing at: ${destinationUrl}`);
 
     await qstashClient.publishJSON({

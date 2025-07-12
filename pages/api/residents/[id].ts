@@ -26,9 +26,17 @@ export default async function handler(
     }
   } else if (req.method === 'PUT') {
     try {
+      const { name, email, photoUrl, company, year, medicalSchool } = req.body;
       const updatedResident = await prisma.resident.update({
         where: { id: residentId },
-        data: req.body,
+        data: {
+          name,
+          email,
+          photoUrl,
+          company,
+          year,
+          medicalSchool,
+        },
       });
       res.status(200).json(updatedResident);
     } catch (error) {

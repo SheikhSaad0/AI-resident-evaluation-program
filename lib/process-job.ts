@@ -255,12 +255,13 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
 
 
 export async function processJob(jobWithDetails: Job & { resident: Resident | null }) {
-    // FIX: Get the prisma client at the start of the function.
     const prisma = await getPrismaClient();
 
     console.log(`Processing job ${jobWithDetails.id} for surgery: ${jobWithDetails.surgeryName}`);
-    const { id, gcsObjectPath, gcsUrl, surgeryName, additionalContext, withVideo, videoAnalysis, resident } = jobWithDetails;
+    const { id, gcsUrl, gcsObjectPath, surgeryName, additionalContext, withVideo, videoAnalysis, resident } = jobWithDetails;
 
+    // The gcsUrl and gcsObjectPath will now point to the first file.
+    // In a more advanced implementation, you would loop through all files.
     if (!gcsUrl || !gcsObjectPath) {
         throw new Error(`Job ${id} is missing gcsUrl or gcsObjectPath.`);
     }
@@ -272,7 +273,6 @@ export async function processJob(jobWithDetails: Job & { resident: Resident | nu
         if (withVideo && videoAnalysis) {
             try {
                 console.log("Visual analysis is enabled. Transcribing audio first...");
-                // FIX: Use the 'prisma' instance defined above for all DB calls.
                 await prisma.job.update({ where: { id }, data: { status: 'processing-transcription' } });
                 const readableUrl = await generateV4ReadSignedUrl(gcsObjectPath);
                 transcription = await transcribeWithDeepgram(readableUrl);

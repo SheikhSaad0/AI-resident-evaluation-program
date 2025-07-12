@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Image from 'next/image';
 import SurgerySelector from '../components/SurgerySelector';
 import ResidentSelector from '../components/ResidentSelector';
-import { GlassCard, GlassButton, GlassTextarea, PillToggle } from '../components/ui';
+import { GlassCard, GlassButton, GlassTextarea, PillToggle, GlassInput } from '../components/ui';
 
 interface Resident {
   id: string;
@@ -15,7 +15,8 @@ interface PastEvaluation { id: string; surgery: string; date: string; residentNa
 
 export default function Home() {
   const [selectedSurgery, setSelectedSurgery] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [gcsLink, setGcsLink] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [residents, setResidents] = useState<Resident[]>([]);
   const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
@@ -29,7 +30,6 @@ export default function Home() {
       const residentsRes = await fetch('/api/residents');
       if (residentsRes.ok) setResidents(await residentsRes.json());
 
-      // Add a cache-busting query parameter to the evaluations fetch call
       const evalsRes = await fetch(`/api/evaluations?t=${new Date().getTime()}`);
       if (evalsRes.ok) {
         setPastEvaluations(await evalsRes.json());
@@ -42,7 +42,6 @@ export default function Home() {
   useEffect(() => {
     fetchData();
 
-    // Add event listener to refetch data when the page becomes visible
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         fetchData();
@@ -57,8 +56,8 @@ export default function Home() {
   }, []);
 
   const handleSubmit = async () => {
-    if (!file) {
-      alert('Please select a file to upload.');
+    if (files.length === 0 && !gcsLink) {
+      alert('Please select files to upload or provide a GCS link.');
       return;
     }
     if (!selectedResident) {
@@ -66,42 +65,66 @@ export default function Home() {
       return;
     }
     setIsAnalyzing(true);
-    
+
     try {
-      const gcsPath = `uploads/${Date.now()}-${file.name.replace(/\s/g, '_')}`;
-      const gcsResponse = await fetch('/api/generate-upload-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName: gcsPath, fileType: file.type }),
-      });
+      let gcsPaths = [];
+      if (files.length > 0) {
+        for (const file of files) {
+          const gcsPath = `uploads/${Date.now()}-${file.name.replace(/\s/g, '_')}`;
+          const gcsResponse = await fetch('/api/generate-upload-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fileName: gcsPath, fileType: file.type }),
+          });
 
-      if (!gcsResponse.ok) throw new Error('Failed to get upload URL');
-      const { uploadUrl, filePath } = await gcsResponse.json();
+          if (!gcsResponse.ok) throw new Error('Failed to get upload URL');
+          const { uploadUrl, filePath } = await gcsResponse.json();
 
-      await fetch(uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type },
-      });
+          await fetch(uploadUrl, {
+            method: 'PUT',
+            body: file,
+            headers: { 'Content-Type': file.type },
+          });
+          gcsPaths.push({
+            url: `gs://${process.env.NEXT_PUBLIC_GCS_BUCKET_NAME || 'ai-surgical-evaluator'}/${filePath}`,
+            path: filePath,
+            type: file.type
+          });
+        }
+      } else if (gcsLink) {
+        // Basic validation for gs:// link
+        if (!gcsLink.startsWith('gs://')) {
+          alert('Invalid GCS link. It must start with "gs://".');
+          setIsAnalyzing(false);
+          return;
+        }
+        const bucketAndPath = gcsLink.substring(5);
+        const [bucket, ...pathParts] = bucketAndPath.split('/');
+        const path = pathParts.join('/');
+        gcsPaths.push({
+          url: gcsLink,
+          path: path,
+          type: 'video/mp4' // Assume mp4 for now, could be improved
+        });
+      }
+
 
       const analysisResponse = await fetch('/api/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          gcsUrl: `gs://${process.env.NEXT_PUBLIC_GCS_BUCKET_NAME || 'ai-surgical-evaluator'}/${filePath}`,
-          gcsObjectPath: filePath,
+          gcsPaths: gcsPaths,
           surgeryName: selectedSurgery,
           residentId: selectedResident.id,
           additionalContext,
-          withVideo: file.type.startsWith('video/'),
-          videoAnalysis: file.type.startsWith('video/') && analysisType === 'video'
+          analysisType
         }),
       });
 
       if (!analysisResponse.ok) throw new Error('Failed to start analysis');
       const { jobId } = await analysisResponse.json();
       router.push(`/results/${jobId}`);
-      
+
     } catch (error) {
       console.error("Analysis failed:", error);
       alert(`Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -110,8 +133,9 @@ export default function Home() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0] || null;
-    setFile(selectedFile);
+    if (e.target.files) {
+      setFiles(Array.from(e.target.files));
+    }
   };
 
   return (
@@ -137,23 +161,32 @@ export default function Home() {
             <PillToggle options={[{ id: 'audio', label: 'Audio Analysis' }, { id: 'video', label: 'Visual Analysis' }]} defaultSelected={analysisType} onChange={setAnalysisType} />
           </div>
           <div>
-            <label className="block mb-3 text-sm font-medium text-text-secondary">Upload Recording</label>
+            <label className="block mb-3 text-sm font-medium text-text-secondary">Upload Recordings</label>
             <div className="glassmorphism-subtle border-2 border-dashed border-glass-border-strong rounded-4xl p-8 text-center hover:border-brand-primary/50 transition-all duration-300 group">
               <div className="space-y-4">
                 <div className="glassmorphism p-4 rounded-3xl w-fit mx-auto"><Image src="/images/upload-icon.svg" alt="Upload" width={48} height={48} className="opacity-60 group-hover:opacity-100 transition-opacity" /></div>
                 <div>
                   <label htmlFor="file-upload" className="cursor-pointer">
-                    <span className="text-brand-primary font-semibold hover:text-brand-primary-hover transition-colors">Click to upload a file</span>
+                    <span className="text-brand-primary font-semibold hover:text-brand-primary-hover transition-colors">Click to upload files</span>
                     <span className="text-text-tertiary"> or drag and drop</span>
-                    <input id="file-upload" name="file-upload" type="file" className="sr-only" accept="audio/*,video/*" onChange={handleFileChange} />
+                    <input id="file-upload" name="file-upload" type="file" className="sr-only" accept="audio/*,video/*" onChange={handleFileChange} multiple />
                   </label>
                 </div>
-                <p className="text-xs text-text-quaternary">{file ? (<span className="text-brand-secondary font-medium">✓ {file.name}</span>) : ("MP3, MP4, MOV up to 500MB")}</p>
+                <p className="text-xs text-text-quaternary">{files.length > 0 ? (<span className="text-brand-secondary font-medium">✓ {files.length} file(s) selected</span>) : ("MP3, MP4, MOV up to 500MB")}</p>
               </div>
             </div>
           </div>
+          <div className="text-center text-text-tertiary">OR</div>
+          <div>
+            <label className="block mb-3 text-sm font-medium text-text-secondary">Import from GCS</label>
+            <GlassInput
+              value={gcsLink}
+              onChange={(e) => setGcsLink(e.target.value)}
+              placeholder="gs://bucket-name/path/to/file"
+            />
+          </div>
           <div className="pt-4">
-            <GlassButton variant="primary" size="lg" onClick={handleSubmit} disabled={!selectedSurgery || !selectedResident || !file} loading={isAnalyzing} className="w-full">
+            <GlassButton variant="primary" size="lg" onClick={handleSubmit} disabled={!selectedSurgery || !selectedResident || (files.length === 0 && !gcsLink)} loading={isAnalyzing} className="w-full">
               {isAnalyzing ? 'Analyzing Recording...' : 'Start AI Analysis'}
             </GlassButton>
           </div>
