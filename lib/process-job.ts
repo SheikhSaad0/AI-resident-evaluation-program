@@ -119,44 +119,49 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
         .map(([key, value]) => `- ${key}: ${value}`)
         .join('\n          ');
 
-    const prompt = `
-      You are an expert surgical education analyst. Your task is to provide a detailed, constructive evaluation of a resident's performance based on the provided transcript for the **${surgeryName}** procedure.
-
-      **CONTEXT:**
-      - **Procedure:** ${surgeryName}
-      - **Additional Context:** ${additionalContext || 'None'}
-      - **Transcript:** A full transcript with speaker labels and timestamps is provided below.
-
-      **PRIMARY INSTRUCTIONS:**
-      1.  **Analyze the Transcript:** Review the entire transcript and context. Identify the resident (learner) and the attending (teacher). Focus the evaluation on the resident's performance.
-      2.  **Evaluate Step-by-Step:** For each surgical step, provide a detailed evaluation, include comments the attending may have given that can criique and improve the residents future performance
-          - **Scoring Scale (1-5):**
-            - **1:** Unsafe, attending took over.
-            - **2:** Performed <50% of step, significant help needed.
-            - **3:** Performed >50% but still needed assistance.
-            - **4:** Completed with coaching and guidance.
-            - **5:** Completed independently and proficiently.
-          - **If a step was NOT performed:** Use a score of 0, time "N/A", and comment "This step was not performed or mentioned."
-      3.  **Provide Overall Assessment:**
-          - **\`caseDifficulty\`**: (Number 1-3) Rate the case difficulty based on the following procedure-specific scale:
-          ${difficultyText}
-          - **\`additionalComments\`**: (String) Provide a concise summary of the resident's overall performance, include key details to their performance and ideas for improvement
-        Record the time taken, the format should be "X minutes and Y seconds", where one step might have taken 4 minutes and 22 seconds
-      4.  **JSON OUTPUT FORMAT:** You MUST return ONLY a single, valid JSON object matching this exact structure. Do not include any other text or markdown formatting.
-
-      \`\`\`json
-      {
-        "caseDifficulty": <number>,
-        "additionalComments": "<string>",
-        ${stepKeys}
-      }
-      \`\`\`
-
-      **TRANSCRIPT FOR ANALYSIS:**
-      ---
-      ${transcription}
-      ---
-    `;
+        const prompt = `
+        You are an expert surgical education analyst. Your task is to provide a detailed, constructive evaluation of a resident's performance based on the provided transcript for the **${surgeryName}** procedure.
+  
+        **CONTEXT:**
+        - **Procedure:** ${surgeryName}
+        - **Additional Context:** ${additionalContext || 'None'}
+        - **Transcript:** A full transcript with speaker labels and timestamps is provided below.
+        
+        **PRIMARY INSTRUCTIONS:**
+        1.  **Analyze the Transcript:** Review the entire transcript and context. Identify the resident (learner) and the attending (teacher). Focus the evaluation on the resident's performance.
+        2.  **Evaluate Step-by-Step:** For each surgical step, provide a detailed evaluation, include comments the attending may have given that can criique and improve the residents future performance
+            - **Scoring Scale (1-5):**
+              - **1:** Unsafe, attending took over.
+              - **2:** Performed <50% of step, significant help needed.
+              - **3:** Performed >50% but still needed assistance.
+              - **4:** Completed with coaching and guidance.
+              - **5:** Completed independently and proficiently.
+            - **If a step was NOT performed:** Use a score of 0, time "N/A", and comment "This step was not performed or mentioned."
+            - Do not make up information about what the attending says, avoid direct quotes, just evaluate each step effectively, if there was no attending comment for that step, mention that.
+            - Be as accurate as you can, when the transcript is silent, assume that the surgeons are operating
+            - When an attending is talking, without mention of them taking over or verbal cues that they did take over, assume the resident is performing the procedure as they are being the ones evaluated, by default they are doing the surgery.
+            - Use the transcripts timestamps and the procedure steps estimated time to asses where in the case the attending and resident might be, the attending may give the score out verbally after completing a section of the case.
+            - Listen in to the random comments made by the attending throughout the case and take note of those comments to be later used in the additional comments/overall score section of the finished evaluation.
+        3.  **Provide Overall Assessment:**
+            - **\`caseDifficulty\`**: (Number 1-3) Rate the case difficulty based on the following procedure-specific scale:
+            ${difficultyText}
+            - **\`additionalComments\`**: (String) Provide a concise summary of the resident's overall performance, include key details to their performance and ideas for improvement
+          Record the time taken, the format should be "X minutes and Y seconds", where one step might have taken 4 minutes and 22 seconds
+        4.  **JSON OUTPUT FORMAT:** You MUST return ONLY a single, valid JSON object matching this exact structure. Do not include any other text or markdown formatting.
+  
+        \`\`\`json
+        {
+          "caseDifficulty": <number>,
+          "additionalComments": "<string>",
+          ${stepKeys}
+        }
+        \`\`\`
+  
+        **TRANSCRIPT FOR ANALYSIS:**
+        ---
+        ${transcription}
+        ---
+      `;
 
     const request = {
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
