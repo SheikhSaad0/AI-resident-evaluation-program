@@ -21,7 +21,10 @@ wss.on('connection', (ws: WebSocket) => {
         diarize: true,
         smart_format: true,
         interim_results: true,
+        // vvv THE FIX IS HERE vvv
+        // Request that Deepgram send keepalive messages to us
         keepalive: 'true'
+        // ^^^ THE FIX IS HERE ^^^
     });
 
     deepgramLive.on(LiveTranscriptionEvents.Open, () => {
@@ -29,46 +32,37 @@ wss.on('connection', (ws: WebSocket) => {
     });
 
     deepgramLive.on(LiveTranscriptionEvents.Transcript, (data) => {
-        const alternative = data.channel.alternatives[0];
-        const transcript = alternative.transcript;
-        
-        // Only process if there is a transcript to show
-        if (transcript.trim().length === 0) {
-            return;
+        const transcript = data.channel.alternatives[0].transcript;
+        if (transcript) {
+             ws.send(JSON.stringify({
+                type: 'transcript',
+                entry: {
+                    speaker: `Speaker ${data.channel.speaker_name || data.channel.speaker}`,
+                    text: transcript,
+                    timestamp: Date.now(),
+                    isFinal: data.is_final,
+                }
+            }));
         }
-
-        // vvv THE FIX IS HERE vvv
-        let speakerLabel = "Speaker";
-        // Check if words exist and have content before accessing them
-        if (alternative.words && alternative.words.length > 0) {
-            const speakerIndex = alternative.words[0].speaker;
-            speakerLabel = `Speaker ${speakerIndex}`;
-        }
-        // ^^^ THE FIX IS HERE ^^^
-
-        ws.send(JSON.stringify({
-            type: 'transcript',
-            entry: {
-                speaker: speakerLabel, // Use the new, safer label
-                text: transcript,
-                timestamp: Date.now(),
-                isFinal: data.is_final,
-            }
-        }));
     });
     
+    // Log any errors from Deepgram
     deepgramLive.on(LiveTranscriptionEvents.Error, (err) => console.error('Deepgram Error:', err));
     
+    // Log the close event with details
     deepgramLive.on(LiveTranscriptionEvents.Close, (event) => {
         console.log('Deepgram connection closed.', event);
     });
 
     ws.on('message', (data: Buffer) => {
+        // We no longer need to check the ready state here,
+        // as we will just forward the data. If the connection is closed, it will be handled.
         deepgramLive.send(data as any);
     });
 
     ws.on('close', () => {
         console.log('Client disconnected from our server.');
+        // This will trigger the 'close' event on the deepgramLive object
         if (deepgramLive.getReadyState() === 1) {
            deepgramLive.finish();
         }

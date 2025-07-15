@@ -4,7 +4,6 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-// System prompt to define the AI's role and behavior
 const systemPrompt = `
 You are Veritas, an AI surgical assistant for the R.I.S.E Veritas-Scale.
 Your role is to listen to a surgical procedure, provide assistance, and evaluate the resident's performance based on the conversation between the attending surgeon and the resident.
@@ -43,19 +42,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const { transcript } = req.body;
-
     if (!transcript) {
         return res.status(400).json({ message: 'Transcript is required.' });
     }
 
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         const chat = model.startChat({
             history: [{ role: "user", parts: [{ text: systemPrompt }] }],
-            generationConfig: {
-                maxOutputTokens: 200,
-                temperature: 0.7,
-            },
+            generationConfig: { maxOutputTokens: 200, temperature: 0.7 },
             safetySettings: [
                 { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
                 { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -67,13 +62,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const result = await chat.sendMessage(`Here is the latest transcript: "${transcript}"`);
         const responseText = result.response.text();
         
-        // Attempt to parse the AI's response as JSON
         const responseJson = JSON.parse(responseText.replace(/```json|```/g, ''));
-
         res.status(200).json(responseJson);
+
     } catch (error) {
         console.error("Error with Gemini API:", error);
-        // If there's an error (e.g., parsing), send a default "no action" response
         res.status(200).json({ action: 'none' });
     }
 }

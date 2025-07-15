@@ -26,23 +26,17 @@ const MicVisualizer = ({ stream }: MicVisualizerProps) => {
 
     const draw = () => {
       animationFrameId = requestAnimationFrame(draw);
-
       analyser.getByteFrequencyData(dataArray);
 
       if (canvasCtx) {
-        canvasCtx.fillStyle = 'rgba(26, 26, 36, 0.8)'; // Fills with a dark color from your theme
+        canvasCtx.fillStyle = 'rgba(26, 26, 36, 0.8)';
         canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-
         const barWidth = (canvas.width / bufferLength) * 2.5;
-        let barHeight;
         let x = 0;
-
         for (let i = 0; i < bufferLength; i++) {
-          barHeight = dataArray[i] / 2;
-          
-          canvasCtx.fillStyle = `rgba(0, 122, 255, ${barHeight / 100})`; // Uses your brand primary color
+          const barHeight = dataArray[i] / 2;
+          canvasCtx.fillStyle = `rgba(0, 122, 255, ${barHeight / 100})`;
           canvasCtx.fillRect(x, canvas.height - barHeight - 1, barWidth, barHeight);
-
           x += barWidth + 1;
         }
       }
