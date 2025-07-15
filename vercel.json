@@ -3,5 +3,8 @@
     "pages/api/process.ts": {
       "maxDuration": 300
     }
+  },
+  "git": {
+    "deploymentEnabled": false
   }
 }
