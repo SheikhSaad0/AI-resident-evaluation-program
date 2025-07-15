@@ -22,7 +22,7 @@ wss.on('connection', (ws, req) => {
 
     // Stable configuration for live diarization (speaker separation)
     const deepgramLive = deepgramClient.listen.live({
-        model: 'nova-2',
+        model: 'nova-3',
         language: 'en-US',
         smart_format: true,
         interim_results: true,
@@ -64,11 +64,7 @@ wss.on('connection', (ws, req) => {
 
     ws.on('message', (message: RawData) => {
         if (deepgramLive.getReadyState() === 1 /* OPEN */) {
-            // ▼▼▼ THE DEFINITIVE FIX IS HERE ▼▼▼
-            // This tells TypeScript to ignore the type mismatch. This is the
-            // correct and necessary solution for this specific library conflict.
             deepgramLive.send(message as any);
-            // ▲▲▲ THE DEFINITIVE FIX IS HERE ▲▲▲
         }
     });
 
