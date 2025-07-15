@@ -1,13 +1,15 @@
+// components/Layout.tsx
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Image from 'next/image';
 
 const navItems = [
   { name: 'Evaluate', href: '/', icon: '/images/evaluate-icon.svg' },
+  { name: 'Live Mode', href: '/live', icon: '/images/live-icon.svg' }, // New Live Mode Link
   { name: 'Dashboard', href: '/dashboard', icon: '/images/dashboard-icon.svg' },
   { name: 'View Reports', href: '/evaluations', icon: '/images/dashboard-icon.svg' },
   { name: 'Resident Management', href: '/residents', icon: '/images/default-avatar.svg' },
-  { name: 'Settings', href: '/settings', icon: '/images/settings-icon.svg' }, // Added Settings link
+  { name: 'Settings', href: '/settings', icon: '/images/settings-icon.svg' },
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -24,26 +26,26 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <Image src="/images/logo.svg" alt="AI Surgical Evaluator" width={140} height={48} />
             </div>
           </div>
-          
+
           {/* Navigation */}
           <nav className="flex-grow">
             <ul className="space-y-3">
               {navItems.map((item) => (
                 <li key={item.name}>
-                  <Link 
-                    href={item.href} 
+                  <Link
+                    href={item.href}
                     className={`
                       nav-item
                       ${router.pathname === item.href ? 'nav-item-active' : ''}
                     `}
                   >
                     <div className="glassmorphism-subtle p-2 rounded-2xl mr-3">
-                      <Image 
-                        src={item.icon} 
-                        alt={item.name} 
-                        width={20} 
-                        height={20} 
-                        className="opacity-80 group-hover:opacity-100 transition-opacity" 
+                      <Image
+                        src={item.icon}
+                        alt={item.name}
+                        width={20}
+                        height={20}
+                        className="opacity-80 group-hover:opacity-100 transition-opacity"
                       />
                     </div>
                     <span className="font-medium">{item.name}</span>
@@ -52,7 +54,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               ))}
             </ul>
           </nav>
-          
+
           {/* Footer */}
           <div className="glassmorphism-subtle rounded-3xl p-4 text-center">
             <div className="text-xs font-medium text-text-tertiary space-y-1">
