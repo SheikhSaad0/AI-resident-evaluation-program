@@ -1,8 +1,7 @@
 // pages/live.tsx
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/router';
 import Image from 'next/image';
-import { GlassCard, GlassButton, PillToggle } from '../components/ui';
+import { GlassCard, GlassButton } from '../components/ui';
 import ResidentSelector from '../components/ResidentSelector';
 import SurgerySelector from '../components/SurgerySelector';
 
@@ -16,35 +15,29 @@ interface Resident {
 interface TranscriptEntry {
     speaker: string;
     text: string;
-    timestamp: number;
     isFinal: boolean;
 }
 
-const WEBSOCKET_URL = "ws://localhost:3001"; // <-- The correct WebSocket server address
+const WEBSOCKET_URL = "ws://localhost:3001";
 
 const LiveEvaluationPage = () => {
-    // ... (keep all the existing state hooks: isSessionActive, transcript, etc.)
-    const router = useRouter();
     const [isSessionActive, setIsSessionActive] = useState(false);
     const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
-    const [mic, setMic] = useState<MediaRecorder | null>(null);
-    const [socket, setSocket] = useState<WebSocket | null>(null);
-    const [status, setStatus] = useState<'idle' | 'connecting' | 'connected' | 'error' | 'closing'>('idle');
-
+    const [status, setStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
     const [residents, setResidents] = useState<Resident[]>([]);
     const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
     const [selectedSurgery, setSelectedSurgery] = useState('');
-    
+
+    const micRecorderRef = useRef<MediaRecorder | null>(null);
+    const socketRef = useRef<WebSocket | null>(null);
     const transcriptEndRef = useRef<HTMLDivElement>(null);
 
+    // Fetch residents when the component loads
     useEffect(() => {
-        // Fetch residents on mount
         const fetchResidents = async () => {
             try {
                 const res = await fetch('/api/residents');
-                if (res.ok) {
-                    setResidents(await res.json());
-                }
+                if (res.ok) setResidents(await res.json());
             } catch (error) {
                 console.error("Failed to fetch residents:", error);
             }
@@ -52,84 +45,113 @@ const LiveEvaluationPage = () => {
         fetchResidents();
     }, []);
 
+    // Scroll to the latest transcript entry
     useEffect(() => {
-        // Scroll to the bottom of the transcript
         transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [transcript]);
 
+    // Cleanup on component unmount
+    useEffect(() => {
+        return () => {
+            if (socketRef.current) {
+                socketRef.current.close();
+            }
+            if (micRecorderRef.current && micRecorderRef.current.state === 'recording') {
+                micRecorderRef.current.stop();
+            }
+        };
+    }, []);
+
     const startSession = async () => {
-        if (!selectedResident || !selectedSurgery) {
-            alert('Please select a resident and a surgery to begin.');
+        if (isSessionActive || !selectedResident || !selectedSurgery) {
+            if (!selectedResident || !selectedSurgery) {
+                alert('Please select a surgery and a resident first.');
+            }
             return;
         }
 
         setStatus('connecting');
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
 
-        // vvv THE FIX IS HERE vvv
-        const ws = new WebSocket(WEBSOCKET_URL);
-        // ^^^ THE FIX IS HERE ^^^
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream);
+            micRecorderRef.current = mediaRecorder;
 
-        ws.onopen = () => {
-            setStatus('connected');
-            setIsSessionActive(true);
-            mediaRecorder.addEventListener('dataavailable', event => {
-                if (event.data.size > 0 && ws.readyState === WebSocket.OPEN) {
-                    ws.send(event.data);
+            // Pass the resident's name to the server for context
+            const wsUrl = `${WEBSOCKET_URL}?residentName=${encodeURIComponent(selectedResident.name)}`;
+            const socket = new WebSocket(wsUrl);
+            socketRef.current = socket;
+
+            socket.onopen = () => {
+                console.log("WebSocket connection established.");
+                setStatus('connected');
+                setIsSessionActive(true);
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0 && socket.readyState === WebSocket.OPEN) {
+                        socket.send(event.data);
+                    }
+                };
+
+                mediaRecorder.start(250); // Start recording and send data every 250ms
+            };
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'transcript') {
+                    setTranscript(prev => {
+                        const newTranscript = [...prev];
+                        const lastEntry = newTranscript[newTranscript.length - 1];
+
+                        // If the last entry is not final and from the same speaker, update it
+                        if (lastEntry && !lastEntry.isFinal && lastEntry.speaker === data.entry.speaker) {
+                            lastEntry.text = data.entry.text;
+                            lastEntry.isFinal = data.entry.isFinal;
+                        } else {
+                            // Otherwise, add a new entry
+                            newTranscript.push(data.entry);
+                        }
+                        return newTranscript;
+                    });
                 }
-            });
-            mediaRecorder.start(250); // Send data every 250ms
-        };
+            };
 
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if (data.type === 'transcript') {
-                setTranscript(prev => {
-                    const newTranscript = [...prev];
-                    const last = newTranscript[newTranscript.length - 1];
-                    // Update the last entry if it's not final, otherwise add a new one
-                    if (last && !last.isFinal && last.speaker === data.entry.speaker) {
-                        newTranscript[newTranscript.length - 1] = { ...data.entry, text: last.text + ' ' + data.entry.text };
-                    } else if (last && !last.isFinal) {
-                        last.isFinal = true;
-                        newTranscript.push(data.entry);
-                    }
-                    else {
-                        newTranscript.push(data.entry);
-                    }
-                    return newTranscript;
-                });
-            } else if (data.type === 'ai') {
-                // Play AI audio response
-                const audio = new Audio(data.audioUrl);
-                audio.play();
-                 setTranscript(prev => [...prev, { speaker: 'Veritas AI', text: data.text, timestamp: Date.now(), isFinal: true }]);
-            }
-        };
+            socket.onclose = () => {
+                console.log("WebSocket connection closed.");
+                setStatus('idle');
+                setIsSessionActive(false);
+                stream.getTracks().forEach(track => track.stop()); // Stop the microphone
+            };
 
-        ws.onclose = () => {
-            setStatus('idle');
-            setIsSessionActive(false);
-            if(mediaRecorder.state === "recording") mediaRecorder.stop();
-            stream.getTracks().forEach(track => track.stop());
-        };
+            socket.onerror = (error) => {
+                console.error("WebSocket Error:", error);
+                setStatus('error');
+            };
 
-        ws.onerror = (err) => {
+        } catch (error) {
+            console.error("Failed to start session:", error);
             setStatus('error');
-            console.error('WebSocket error:', err);
-        };
-
-        setMic(mediaRecorder);
-        setSocket(ws);
+        }
     };
 
     const stopSession = () => {
-        setStatus('closing');
-        socket?.close();
+        if (socketRef.current) {
+            socketRef.current.close();
+        }
+        if (micRecorderRef.current && micRecorderRef.current.state === 'recording') {
+            micRecorderRef.current.stop();
+        }
     };
 
-    // ... (keep the rest of the component JSX as it was)
+    // Main session control buttons
+    const handleButtonClick = () => {
+        if (isSessionActive) {
+            stopSession();
+        } else {
+            startSession();
+        }
+    };
+    
     const getStatusIndicator = () => {
         switch (status) {
             case 'connected': return <div className="status-success">● Live</div>;
@@ -155,15 +177,15 @@ const LiveEvaluationPage = () => {
                         <ResidentSelector residents={residents} selected={selectedResident} setSelected={setSelectedResident} />
                     </div>
                     <div className="pt-4">
-                        {!isSessionActive ? (
-                            <GlassButton variant="primary" size="lg" onClick={startSession} disabled={!selectedSurgery || !selectedResident || status === 'connecting'} className="w-full">
-                                Start Live Session
-                            </GlassButton>
-                        ) : (
-                            <GlassButton variant="secondary" size="lg" onClick={stopSession} className="w-full !text-red-400 hover:!bg-red-500/20">
-                                End Live Session
-                            </GlassButton>
-                        )}
+                        <GlassButton 
+                            variant={isSessionActive ? "secondary" : "primary"}
+                            size="lg" 
+                            onClick={handleButtonClick} 
+                            disabled={!selectedSurgery || !selectedResident || status === 'connecting'} 
+                            className="w-full"
+                        >
+                            {isSessionActive ? 'End Live Session' : 'Start Live Session'}
+                        </GlassButton>
                     </div>
                     <div className="flex items-center justify-center pt-4">
                         {getStatusIndicator()}
@@ -184,8 +206,8 @@ const LiveEvaluationPage = () => {
                         ) : (
                             <div className="space-y-4">
                                 {transcript.map((entry, index) => (
-                                    <div key={index} className={`flex ${entry.speaker === 'Veritas AI' ? 'justify-start' : 'justify-end'}`}>
-                                        <div className={`p-3 rounded-2xl max-w-lg ${entry.speaker === 'Veritas AI' ? 'bg-brand-primary/20' : 'bg-glass-300'}`}>
+                                    <div key={index} className="flex flex-col items-start">
+                                        <div className={`p-3 rounded-2xl max-w-lg ${entry.speaker.includes('0') ? 'bg-blue-500/20' : 'bg-green-500/20'}`}>
                                             <p className="font-semibold text-sm mb-1">{entry.speaker}</p>
                                             <p className="text-text-primary">{entry.text}</p>
                                         </div>
