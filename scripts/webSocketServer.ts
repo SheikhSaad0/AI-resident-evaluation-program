@@ -21,7 +21,7 @@ wss.on('connection', (ws, req) => {
     console.log(`🎙️  Connection established for: ${residentName}`);
 
     const deepgramLive = deepgramClient.listen.live({
-        model: 'nova-3',
+        model: 'nova-2',
         language: 'en-US',
         smart_format: true,
         interim_results: true,
