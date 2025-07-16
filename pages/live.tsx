@@ -32,7 +32,6 @@ const LiveEvaluationPage = () => {
     const socketRef = useRef<WebSocket | null>(null);
     const transcriptEndRef = useRef<HTMLDivElement>(null);
 
-    // Fetch residents when the component loads
     useEffect(() => {
         const fetchResidents = async () => {
             try {
@@ -45,12 +44,10 @@ const LiveEvaluationPage = () => {
         fetchResidents();
     }, []);
 
-    // Scroll to the latest transcript entry
     useEffect(() => {
         transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [transcript]);
 
-    // Cleanup on component unmount
     useEffect(() => {
         return () => {
             if (socketRef.current) {
@@ -74,10 +71,9 @@ const LiveEvaluationPage = () => {
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const mediaRecorder = new MediaRecorder(stream);
+            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
             micRecorderRef.current = mediaRecorder;
 
-            // Pass the resident's name to the server for context
             const wsUrl = `${WEBSOCKET_URL}?residentName=${encodeURIComponent(selectedResident.name)}`;
             const socket = new WebSocket(wsUrl);
             socketRef.current = socket;
@@ -93,7 +89,7 @@ const LiveEvaluationPage = () => {
                     }
                 };
 
-                mediaRecorder.start(250); // Start recording and send data every 250ms
+                mediaRecorder.start(1000); 
             };
 
             socket.onmessage = (event) => {
@@ -103,12 +99,10 @@ const LiveEvaluationPage = () => {
                         const newTranscript = [...prev];
                         const lastEntry = newTranscript[newTranscript.length - 1];
 
-                        // If the last entry is not final and from the same speaker, update it
                         if (lastEntry && !lastEntry.isFinal && lastEntry.speaker === data.entry.speaker) {
                             lastEntry.text = data.entry.text;
                             lastEntry.isFinal = data.entry.isFinal;
                         } else {
-                            // Otherwise, add a new entry
                             newTranscript.push(data.entry);
                         }
                         return newTranscript;
@@ -120,7 +114,10 @@ const LiveEvaluationPage = () => {
                 console.log("WebSocket connection closed.");
                 setStatus('idle');
                 setIsSessionActive(false);
-                stream.getTracks().forEach(track => track.stop()); // Stop the microphone
+                if (micRecorderRef.current && micRecorderRef.current.state === 'recording') {
+                    micRecorderRef.current.stop();
+                }
+                stream.getTracks().forEach(track => track.stop());
             };
 
             socket.onerror = (error) => {
@@ -138,12 +135,8 @@ const LiveEvaluationPage = () => {
         if (socketRef.current) {
             socketRef.current.close();
         }
-        if (micRecorderRef.current && micRecorderRef.current.state === 'recording') {
-            micRecorderRef.current.stop();
-        }
     };
 
-    // Main session control buttons
     const handleButtonClick = () => {
         if (isSessionActive) {
             stopSession();

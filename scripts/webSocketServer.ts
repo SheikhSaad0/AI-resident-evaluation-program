@@ -1,3 +1,4 @@
+// scripts/webSocketServer.ts
 import { WebSocketServer, WebSocket, RawData } from 'ws';
 import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
 import { config } from 'dotenv';
@@ -5,7 +6,6 @@ import { URL } from 'url';
 
 config();
 
-// Ensure you have your Deepgram API Key in a .env file
 if (!process.env.DEEPGRAM_API_KEY) {
     throw new Error("CRITICAL ERROR: DEEPGRAM_API_KEY is not defined in your .env file.");
 }
@@ -20,13 +20,12 @@ wss.on('connection', (ws, req) => {
     const residentName = url.searchParams.get('residentName') || 'Unknown Resident';
     console.log(`🎙️  Connection established for: ${residentName}`);
 
-    // Stable configuration for live diarization (speaker separation)
     const deepgramLive = deepgramClient.listen.live({
         model: 'nova-3',
         language: 'en-US',
         smart_format: true,
         interim_results: true,
-        diarize: true, // Crucial for speaker separation
+        diarize: true, 
     });
 
     let keepAlive: NodeJS.Timeout;
@@ -75,5 +74,3 @@ wss.on('connection', (ws, req) => {
         }
     });
 });
-
-//when you select certain procedures it does not work properly and actually just does not work at all, for example, the inguinal hernia TEP
