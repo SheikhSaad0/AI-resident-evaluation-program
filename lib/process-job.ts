@@ -127,25 +127,74 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
         - **Additional Context:** ${additionalContext || 'None'}
         - **Transcript:** A full transcript with speaker labels and timestamps is provided below.
         
-        **PRIMARY INSTRUCTIONS:**
-        1.  **Analyze the Transcript:** Review the entire transcript and context. Identify the resident (learner) and the attending (teacher). Focus the evaluation on the resident's performance.
-        2.  **Evaluate Step-by-Step:** For each surgical step, provide a detailed evaluation, include comments the attending may have given that can criique and improve the residents future performance
-            - **Scoring Scale (1-5):**
-              - **1:** Unsafe, attending took over.
-              - **2:** Performed <50% of step, significant help needed.
-              - **3:** Performed >50% but still needed assistance.
-              - **4:** Completed with coaching and guidance.
-              - **5:** Completed independently and proficiently.
-            - **If a step was NOT performed:** Use a score of 0, time "N/A", and comment "This step was not performed or mentioned."
-            - Do not make up information about what the attending says, avoid direct quotes, just evaluate each step effectively, if there was no attending comment for that step, mention that.
-            - Be as accurate as you can, when the transcript is silent, assume that the surgeons are operating
-            - When an attending is talking, without mention of them taking over or verbal cues that they did take over, assume the resident is performing the procedure as they are being the ones evaluated, by default they are doing the surgery.
-            - Use the transcripts timestamps and the procedure steps estimated time to asses where in the case the attending and resident might be, the attending may give the score out verbally after completing a section of the case.
-            - Listen in to the random comments made by the attending throughout the case and take note of those comments to be later used in the additional comments/overall score section of the finished evaluation.
+        **SCORING SCALE (0–5):**
+
+        **5 – Full autonomy**  
+        Resident completed the step independently, with minimal or no verbal feedback. May include brief confirmation or non-corrective commentary from the attending.
+
+        **4 – Verbal coaching only**  
+        Resident completed the full step with moderate to heavy **verbal** instruction.  
+        ✅ Extensive coaching is fine — as long as **the attending did not perform the step or intervene physically in a corrective way**.
+
+        **3 – Physical assistance or redo required**  
+        Resident completed >50% of the step, but:
+        - Required physical help to correct technique (e.g., attending adjusted angle, guided a needle, loaded a clip)
+        - Attending gave explicit redo instructions with partial physical involvement
+        - Resident performed the task incorrectly at first and attending physically intervened to fix it
+
+        **2 – Shared or corrected performance**  
+        Attending had to co-perform the step due to error or inefficiency:
+        - Resident could not complete a subtask without attending taking over
+        - Attending re-did a portion due to technical error
+
+        **1 – Incomplete or unsafe**  
+        Resident failed to perform the step; attending took over for safety or completion
+
+        **0 – Step not done / no info**
+
+        ---
+
+        **SCORING PRINCIPLES**
+
+        - **Verbal guidance ≠ deduction.**  
+        Even step-by-step verbal coaching earns a 4 **if the resident physically performs the task**.
+
+        - **Physical help ≠ takeover** — unless procedural.  
+        ✅ *Examples of acceptable physical help that **should NOT reduce score**:*  
+        - Handing over instruments  
+        - Holding tissue briefly to improve visibility  
+        - Adjusting camera angle or retraction  
+        - Repositioning a tool without performing the task  
+        These are considered *facilitative support*, not takeover.
+
+        - **True "taking over" means performing part of the step themselves.**  
+        Only deduct for **procedural actions** — cutting, suturing, dissecting, tying, clipping, etc.
+
+        - **Redo alone doesn’t justify a 3.**  
+        If the resident corrects the mistake on their own, still score a 4.
+
+        - **In unclear situations, lean toward higher score unless the attending did part of the step themselves.**
+
+        ---
+
+        - **If a step was NOT performed:** Use a score of 0, time "N/A", and comment "This step was not performed or mentioned."
+        - Do not make up information about what the attending says, avoid direct quotes, just evaluate each step effectively, if there was no attending comment for that step, mention that.
+        - Be as accurate as you can, when the transcript is silent, assume that the surgeons are operating
+        - When an attending is talking, without mention of them taking over or verbal cues that they did take over, assume the resident is performing the procedure as they are being the ones evaluated, by default they are doing the surgery.
+        - Use the transcripts timestamps and the procedure steps estimated time to asses where in the case the attending and resident might be, the attending may give the score out verbally after completing a section of the case.
+        - Listen in to the random comments made by the attending throughout the case and take note of those comments to be later used in the additional comments/overall score section of the finished evaluation.
+        - unless the attending EXPLICITLY states that they are taking over, assume the resident is in full control
+        - know the difference between the attending speaking / guiding and taking over, if the attending is speaking and acting like he is doing the procedure, but the resident is doing the same, assume the resident is operating, take timestamps into consideration as well, they will verbally ASK to switch in, it is never silent
+        - Take into account random mishaps or accidents that may happen in the OR
+        - use context clues to differentiate coaching and acting from the attending, things like "let me scrub in now" or "give me that" are some examples
+        - keep into account that speak 0 and 1 labels may not be very accurate in the transcript
+        - keep in mind, even if the residents makes mistakes or does something wrong and is corrected by the attending verbally, under all circumstances that the attending does nott physically have to take over or do the step, the resident is awarded at minimum a score of 4 for that step, this is due to the fact they only had verbal coachiing and no interference from the attending
+        - always assume that the resident is performing the procedure, even when the attending gives negative comments on the resident's performance, example: a bad and dangerous performance from a resident but no intervention from the attending is still a score of 4 - write the negative things as an additional comment of the step, a resident who is doing great and only given some tips throughout a step is also just a 4 at minimum.
+        - we can define a 5 as done without intensive coaching (This can be defined as constant direction and comments from the attending for a step, a few comments before he does the step would generally not count), the attending may speak but overall the resident probably would have been fine if the attending did not make any comments at all, this is up to evaluate based on context
         3.  **Provide Overall Assessment:**
-            - **\`caseDifficulty\`**: (Number 1-3) Rate the case difficulty based on the following procedure-specific scale:
-            ${difficultyText}
-            - **\`additionalComments\`**: (String) Provide a concise summary of the resident's overall performance, include key details to their performance and ideas for improvement
+        - **\`caseDifficulty\`**: (Number 1-3) Rate the case difficulty based on the following procedure-specific scale:
+        ${difficultyText}
+        - **\`additionalComments\`**: (String) Provide a concise summary of the resident's overall performance, include key details to their performance and ideas for improvement
           Record the time taken, the format should be "X minutes and Y seconds", where one step might have taken 4 minutes and 22 seconds
         4.  **JSON OUTPUT FORMAT:** You MUST return ONLY a single, valid JSON object matching this exact structure. Do not include any other text or markdown formatting.
   
@@ -193,45 +242,49 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
         .map(([key, value]) => `- ${key}: ${value}`)
         .join('\n          ');
 
-    const prompt = `
-      You are an expert surgical education analyst. Your task is to provide a detailed, constructive evaluation of a resident's performance based on the provided video and transcript for the **${surgeryName}** procedure.
-
-      **CONTEXT:**
-      - **Procedure:** ${surgeryName}
-      - **Additional Context:** ${additionalContext || 'None'}
-      - **Video:** A video of the surgical procedure is provided.
-      - **Transcript:** A transcript of the audio from the video is provided below.
-
-      **PRIMARY INSTRUCTIONS:**
-      1.  **Analyze the Procedure:** Review the entire video, the provided transcript, and context. Identify the resident (learner) and the attending (teacher). Focus the evaluation on the resident's performance. Evaluate the resident's movements and skills against the transcript and attending's comments, evaluate how well a job the resident is doing and if they are 'practice ready' (being able to do the surgery accurately).
-      2.  **Evaluate Step-by-Step:** For each surgical step, provide a detailed evaluation, include comments the attending may have given that can critique and improve the resident's future performance
-          - **Scoring Scale (1-5):**
-            - **1:** Unsafe, attending took over.
-            - **2:** Performed <50% of step, significant help needed.
-            - **3:** Performed >50% but still needed assistance.
-            - **4:** Completed with coaching and guidance.
-            - **5:** Completed independently and proficiently.
-          - **If a step was NOT performed:** Use a score of 0, time "N/A", and comment "This step was not performed or mentioned."
-      3.  **Provide Overall Assessment:**
-          - **\`caseDifficulty\`**: (Number 1-3) Rate the case difficulty based on the following procedure-specific scale:
-          ${difficultyText}
-          - **\`additionalComments\`**: (String) Provide a concise summary of the resident's overall performance, include key details to their performance and ideas for improvement
-       Record the time taken, the format should be "X minutes and Y seconds", where one step might have taken 4 minutes and 22 seconds, take into consideration the video provided may be a teaching example and not a full procedure from start to finish, so then estimate the time accurately.
-      4.  **JSON OUTPUT FORMAT:** You MUST return ONLY a single, valid JSON object matching this exact structure. Do not include any other text or markdown formatting.
-
-      \`\`\`json
-      {
-        "caseDifficulty": <number>,
-        "additionalComments": "<string>",
-        ${stepKeys}
-      }
-      \`\`\`
-
-      **TRANSCRIPT FOR ANALYSIS:**
-      ---
-      ${transcription}
-      ---
-    `;
+            const prompt = `
+        You are an expert surgical education analyst. Your task is to provide a detailed, constructive evaluation of a resident's performance based on the provided transcript for the **${surgeryName}** procedure.
+  
+        **CONTEXT:**
+        - **Procedure:** ${surgeryName}
+        - **Additional Context:** ${additionalContext || 'None'}
+        - **Transcript:** A full transcript with speaker labels and timestamps is provided below.
+        
+        **PRIMARY INSTRUCTIONS:**
+        1.  **Analyze the Transcript:** Review the entire transcript and context. Identify the resident (learner) and the attending (teacher). Focus the evaluation on the resident's performance.
+        2.  **Evaluate Step-by-Step:** For each surgical step, provide a detailed evaluation, include comments the attending may have given that can criique and improve the residents future performance
+            - **Scoring Scale (1-5):**
+              - **1:** Unsafe, attending took over.
+              - **2:** Performed <50% of step, significant help needed.
+              - **3:** Performed >50% but still needed assistance.
+              - **4:** Completed with coaching and guidance.
+              - **5:** Completed independently and proficiently.
+            - **If a step was NOT performed:** Use a score of 0, time "N/A", and comment "This step was not performed or mentioned."
+            - Do not make up information about what the attending says, avoid direct quotes, just evaluate each step effectively, if there was no attending comment for that step, mention that.
+            - Be as accurate as you can, when the transcript is silent, assume that the surgeons are operating
+            - When an attending is talking, without mention of them taking over or verbal cues that they did take over, assume the resident is performing the procedure as they are being the ones evaluated, by default they are doing the surgery.
+            - Use the transcripts timestamps and the procedure steps estimated time to asses where in the case the attending and resident might be, the attending may give the score out verbally after completing a section of the case.
+            - Listen in to the random comments made by the attending throughout the case and take note of those comments to be later used in the additional comments/overall score section of the finished evaluation.
+        3.  **Provide Overall Assessment:**
+            - **\`caseDifficulty\`**: (Number 1-3) Rate the case difficulty based on the following procedure-specific scale:
+            ${difficultyText}
+            - **\`additionalComments\`**: (String) Provide a concise summary of the resident's overall performance, include key details to their performance and ideas for improvement
+          Record the time taken, the format should be "X minutes and Y seconds", where one step might have taken 4 minutes and 22 seconds
+        4.  **JSON OUTPUT FORMAT:** You MUST return ONLY a single, valid JSON object matching this exact structure. Do not include any other text or markdown formatting.
+  
+        \`\`\`json
+        {
+          "caseDifficulty": <number>,
+          "additionalComments": "<string>",
+          ${stepKeys}
+        }
+        \`\`\`
+  
+        **TRANSCRIPT FOR ANALYSIS:**
+        ---
+        ${transcription}
+        ---
+      `;
 
     const filePart: Part = { fileData: { mimeType: getMimeTypeFromGcsUri(gcsUri), fileUri: gcsUri } };
     const request = {

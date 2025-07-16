@@ -12,20 +12,20 @@ datasource db {
 
 // Main application models
 model Job {
-  id                String    @id @default(cuid())
-  status            String
-  gcsUrl            String
-  gcsObjectPath     String?
-  surgeryName       String
+  id              String    @id @default(cuid())
+  status          String
+  gcsUrl          String
+  gcsObjectPath   String?
+  surgeryName     String
   additionalContext String?
-  result            Json?
-  error             String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  withVideo         Boolean   @default(false)
-  videoAnalysis     Boolean   @default(false)
-  residentId        String?
-  resident          Resident? @relation(fields: [residentId], references: [id], onDelete: SetNull)
+  result          Json?
+  error           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  withVideo       Boolean   @default(false)
+  videoAnalysis   Boolean   @default(false)
+  residentId      String?
+  resident        Resident? @relation(fields: [residentId], references: [id], onDelete: SetNull)
 }
 
 model Resident {
@@ -39,6 +39,7 @@ model Resident {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   jobs          Job[]
+  evaluations   Evaluation[] // ADDED: Relation to the new Evaluation model
 }
 
 // NEW: Add this model for managing database settings
@@ -48,4 +49,37 @@ model Settings {
   defaultDatabase  String @default("testing")
   testingDbName    String @default("Testing Database")
   productionDbName String @default("Production Database")
+}
+
+// -- Models for R.I.S.E Veritas-Scale Evaluations --
+
+// Defines the main data model for a single surgical evaluation.
+model Evaluation {
+  id              String @id @default(cuid())
+  procedure       String // e.g., "Laparoscopic Cholecystectomy"
+  overallFeedback String @db.Text
+  transcript      String @db.Text
+
+  // Establishes a many-to-one relationship with the Resident model.
+  resident   Resident @relation(fields: [residentId], references: [id])
+  residentId String
+
+  // An evaluation is composed of multiple steps.
+  steps EvaluationStep[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Defines the model for a single step within an evaluation.
+model EvaluationStep {
+  id    String @id @default(cuid())
+  name  String // e.g., "Port Placement", "Dissection of Hernia Sac"
+  score Int    // The R.I.S.E. score from 1-5
+  duration String // e.g., "15 minutes"
+  feedback String @db.Text
+
+  // Establishes a many-to-one relationship with the Evaluation model.
+  evaluation   Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  evaluationId String
 }
