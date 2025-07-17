@@ -113,7 +113,9 @@ const LiveEvaluationPage = () => {
             micRecorderRef.current = mediaRecorder;
 
             mediaRecorder.addEventListener("dataavailable", event => {
-                if (event.data.size > 0) {
+                if (event.data.size > 0 && socketRef.current?.readyState === WebSocket.OPEN) {
+                    socketRef.current.send(event.data);
+                    // We still push to the array for the final, full-session analysis
                     recordedChunksRef.current.push(event.data);
                 }
             });
