@@ -1,63 +1,72 @@
+// pages/api/evaluations/[id].ts
+
 import { NextApiRequest, NextApiResponse } from 'next';
-import { getPrismaClient } from '../../../lib/prisma';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     const { id } = req.query;
 
-    if (typeof id !== 'string') {
-        return res.status(400).json({ message: 'Job ID must be a string.' });
+    if (!id || typeof id !== 'string') {
+        return res.status(400).json({ message: 'A valid evaluation ID is required.' });
     }
 
-    const prisma = await getPrismaClient();
+    // --- GET Request Handler ---
+    // This fetches the data for your results page.
+    if (req.method === 'GET') {
+        try {
+            const evaluation = await prisma.evaluation.findUnique({
+                where: { id },
+            });
 
+            if (evaluation) {
+                res.status(200).json(evaluation);
+            } else {
+                res.status(404).json({ message: 'Evaluation not found.' });
+            }
+        } catch (error) {
+            console.error('Error fetching evaluation:', error);
+            res.status(500).json({ message: 'An error occurred while fetching the evaluation.' });
+        }
+        return;
+    }
+
+    // --- PUT Request Handler ---
+    // This is what gets called when you end the live session.
     if (req.method === 'PUT') {
         try {
-            const { updatedEvaluation } = req.body;
+            // Get the new data from the request body
+            const { scores, comments, overallScore, overallComments, status } = req.body;
 
-            if (!updatedEvaluation) {
-                return res.status(400).json({ message: 'Updated evaluation data is required.' });
+            // Build an object with only the fields that were actually sent.
+            // This is the key to the fix: it prevents overwriting existing data with 'null' or 'undefined'.
+            const dataToUpdate: any = {};
+            if (scores) dataToUpdate.scores = scores;
+            if (comments) dataToUpdate.comments = comments;
+            if (overallScore !== undefined) dataToUpdate.overallScore = overallScore;
+            if (overallComments) dataToUpdate.overallComments = overallComments;
+            if (status) dataToUpdate.status = status;
+
+            // Make sure there's something to update
+            if (Object.keys(dataToUpdate).length === 0) {
+                return res.status(400).json({ message: 'No update data provided.' });
             }
 
-            const job = await prisma.job.findUnique({ where: { id } });
-
-            if (!job) {
-                return res.status(404).json({ message: 'Job not found.' });
-            }
-
-            const updatedJob = await prisma.job.update({
+            const updatedEvaluation = await prisma.evaluation.update({
                 where: { id },
-                data: {
-                    result: JSON.stringify(updatedEvaluation),
-                    updatedAt: new Date(),
-                },
+                data: dataToUpdate,
             });
 
-            res.status(200).json(updatedJob);
+            res.status(200).json(updatedEvaluation);
         } catch (error) {
-            console.error(`Error updating job ${id}:`, error);
-            const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-            res.status(500).json({ message: errorMessage });
+            console.error('Failed to update evaluation:', error);
+            res.status(500).json({ message: 'An error occurred while updating the evaluation.' });
         }
-    } else if (req.method === 'DELETE') {
-        try {
-            const jobToDelete = await prisma.job.findUnique({ where: { id } });
-
-            if (!jobToDelete) {
-                return res.status(404).json({ message: 'Job not found.' });
-            }
-
-            await prisma.job.delete({
-                where: { id },
-            });
-
-            res.status(200).json({ message: `Job ${id} deleted successfully.` });
-        } catch (error) {
-            console.error(`Error deleting job ${id}:`, error);
-            const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-            res.status(500).json({ message: errorMessage });
-        }
-    } else {
-        res.setHeader('Allow', ['PUT', 'DELETE']);
-        res.status(405).json({ message: `Method ${req.method} not allowed` });
+        return;
     }
+
+    // Handle any other methods
+    res.setHeader('Allow', ['GET', 'PUT']);
+    res.status(405).end(`Method ${req.method} Not Allowed`);
 }

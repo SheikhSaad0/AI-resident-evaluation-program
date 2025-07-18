@@ -1,46 +1,28 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import { GlassCard, GlassButton } from '../components/ui';
 import ResidentSelector from '../components/ResidentSelector';
 import SurgerySelector from '../components/SurgerySelector';
-// Make sure this path is correct for your project structure
 import { EVALUATION_CONFIGS } from '../lib/evaluation-configs';
 
 // --- INTERFACES ---
-interface Resident {
-    id: string;
-    name: string;
-    photoUrl?: string | null;
-    year?: string;
-}
+interface Resident { id: string; name: string; photoUrl?: string | null; year?: string; }
+interface TranscriptEntry { speaker: string; text: string; isFinal: boolean; }
+interface AiResponsePayload { step?: string; score?: number; }
+interface AiResponse { action: string; payload?: any; }
+type ChatEntry = TranscriptEntry | { speaker: 'Veritas'; text: string; };
 
-interface TranscriptEntry {
-    speaker: string;
-    text: string;
-    isFinal: boolean;
-}
-
-interface AiResponse {
-    speaker: 'Veritas';
-    text: string;
-    action: string;
-    payload?: any;
-}
-
-type ChatEntry = TranscriptEntry | AiResponse;
-
-// A type for the live session state required by the AI
 interface LiveSessionState {
     isStartOfCase: boolean;
-    currentStepName: string;
-    nextStepName: string;
+    currentStepIndex: number;
+    timeElapsedInSession: number;
     timeElapsedInStep: number;
-    attendingName: string; // This could be made dynamic in the future
-    residentName: string;
+    lastScoreLogTime: number; // Stored as a timestamp
 }
 
-const WEBSOCKET_URL = "ws://localhost:3001";
+const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEBSOCKET_URL || "ws://localhost:3001";
+const PROACTIVE_CHECKIN_SECONDS = 180; // 3 minutes
 
 const LiveEvaluationPage = () => {
     const router = useRouter();
@@ -50,208 +32,211 @@ const LiveEvaluationPage = () => {
     const [status, setStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
     const [residents, setResidents] = useState<Resident[]>([]);
     const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
-    // This state will continue to hold the full surgery NAME, e.g., "Laparoscopic Cholecystectomy"
     const [selectedSurgery, setSelectedSurgery] = useState('');
 
     const [currentState, setCurrentState] = useState<LiveSessionState>({
         isStartOfCase: true,
-        currentStepName: 'Procedure Start',
-        nextStepName: 'Initial Incision', // Example, this would be dynamic
+        currentStepIndex: 0,
+        timeElapsedInSession: 0,
         timeElapsedInStep: 0,
-        attendingName: 'Attending',
-        residentName: '',
+        lastScoreLogTime: 0,
     });
 
+    const stateRef = useRef(currentState);
+    const fullTranscriptRef = useRef<string>("");
+    const liveNotesRef = useRef<any[]>([]);
     const micRecorderRef = useRef<MediaRecorder | null>(null);
     const socketRef = useRef<WebSocket | null>(null);
     const transcriptEndRef = useRef<HTMLDivElement>(null);
-    const fullTranscriptRef = useRef<string>("");
+    // --- FIX: Correctly declare recordedChunksRef here ---
     const recordedChunksRef = useRef<Blob[]>([]);
-    const liveNotesRef = useRef<any[]>([]);
 
-    // Fetch residents on component mount
+    // Keep stateRef in sync with currentState
+    useEffect(() => {
+        stateRef.current = currentState;
+    }, [currentState]);
+
+    // Fetch residents on mount
     useEffect(() => {
         const fetchResidents = async () => {
             try {
                 const res = await fetch('/api/residents');
                 if (res.ok) setResidents(await res.json());
-            } catch (error) {
-                console.error("Failed to fetch residents:", error);
-            }
+            } catch (error) { console.error("Failed to fetch residents:", error); }
         };
         fetchResidents();
     }, []);
 
-    // Auto-scroll chat history
+    // Scroll chat to the bottom on new message
     useEffect(() => {
         transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [chatHistory]);
-    
-    // Sync resident name to current state when selected
-    useEffect(() => {
-        if (selectedResident) {
-            setCurrentState(prev => ({ ...prev, residentName: selectedResident.name }));
-        }
-    }, [selectedResident]);
 
-    // Cleanup on unmount
+    // Cleanup websockets and timers on unmount
     useEffect(() => {
         return () => {
-            if (socketRef.current) socketRef.current.close();
-            if (micRecorderRef.current && micRecorderRef.current.state === 'recording') {
+            socketRef.current?.close();
+            if (micRecorderRef.current?.state === 'recording') {
                 micRecorderRef.current.stop();
             }
         };
     }, []);
 
-    // --- FINAL CORRECTED FUNCTION ---
-    const getAiResponse = async (transcript: string) => {
-        if (!selectedSurgery || !currentState) {
-            console.error("AI call skipped: Missing surgery or state information.");
-            return;
-        }
+    // Helper to add a message from Veritas to the chat
+    const addVeritasMessage = useCallback((text: string) => {
+        setChatHistory(prev => [...prev, { speaker: 'Veritas', text }]);
+        fullTranscriptRef.current += `[Veritas] ${text}\n`;
+    }, []);
 
-        // Find the procedure ID by searching through the imported configs object
-        let procedureId: string | null = null;
-        for (const key in EVALUATION_CONFIGS) {
-            if (EVALUATION_CONFIGS[key].name === selectedSurgery) {
-                procedureId = key; // Found the matching ID (e.g., 'lap_chole')
-                break;
-            }
-        }
+    const getAiResponse = useCallback(async () => {
+        const currentLiveState = stateRef.current;
+        if (!selectedSurgery) return;
 
-        // If no ID was found, the selection is invalid.
-        if (!procedureId) {
-            const errorMessage = `Invalid procedure selected: "${selectedSurgery}". No matching configuration found.`;
-            console.error(errorMessage);
-            setChatHistory(prev => [...prev, { speaker: 'Veritas', text: `Error: ${errorMessage}`, action: 'error' }]);
-            return;
-        }
+        const procedureId = Object.keys(EVALUATION_CONFIGS).find(key => EVALUATION_CONFIGS[key].name === selectedSurgery);
+        if (!procedureId) return;
 
-        // Proceed with the API call using the correct ID
+        const config = EVALUATION_CONFIGS[procedureId];
+        const currentStep = config.procedureSteps[currentLiveState.currentStepIndex];
+        const nextStep = config.procedureSteps[currentLiveState.currentStepIndex + 1];
+
         try {
             const response = await fetch('/api/ai', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    transcript,
-                    procedureId, // Pass the correct ID we just found
-                    currentState,
+                    transcript: fullTranscriptRef.current,
+                    procedureId,
+                    currentState: {
+                        ...currentLiveState,
+                        currentStepName: currentStep?.name || "End of Procedure",
+                        nextStepName: nextStep?.name || "N/A",
+                    },
                 }),
             });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || "AI API request failed");
-            }
-            
-            const aiData = await response.json();
+            if (!response.ok) return;
+            const aiData: AiResponse = await response.json();
+            if (aiData.action === 'none') return;
 
-            // ✅ THIS IS THE CORRECTED LOGIC BLOCK
-            if (aiData.action && aiData.action !== 'none') {
-                 if (aiData.action === 'speak') {
-                    const aiSpeechText = aiData.payload;
-                    // 1. Add AI response to the visual chat history
-                    setChatHistory(prev => [...prev, { speaker: 'Veritas', text: aiSpeechText, action: 'speak' }]);
-                    // 2. ALSO add AI response to the permanent transcript record
-                    fullTranscriptRef.current += `[Veritas] ${aiSpeechText}\n`;
-                 }
-                 // Add the AI's action (speak, note, etc.) to the live notes for final analysis
-                 liveNotesRef.current.push(aiData);
-            }
+            liveNotesRef.current.push(aiData);
 
-            if (currentState.isStartOfCase) {
-                setCurrentState(prev => ({ ...prev, isStartOfCase: false }));
-            }
+            if (aiData.action === 'CONFIRM_TIMEOUT' && stateRef.current.isStartOfCase) {
+                setCurrentState(prev => ({ ...prev, isStartOfCase: false, lastScoreLogTime: Date.now() }));
+                addVeritasMessage(aiData.payload);
+            } else if (aiData.action === 'SPEAK') {
+                addVeritasMessage(aiData.payload);
+            } else if (aiData.action === 'LOG_SCORE' && aiData.payload) {
+                const { step: stepName, score } = aiData.payload;
+                const loggedStepIndex = config.procedureSteps.findIndex(s => s.name === stepName);
 
+                if (loggedStepIndex !== -1) {
+                    addVeritasMessage(`Noted: Score of ${score} for ${stepName}.`);
+                    setCurrentState(prev => ({
+                        ...prev,
+                        currentStepIndex: loggedStepIndex + 1,
+                        timeElapsedInStep: 0,
+                        lastScoreLogTime: Date.now(),
+                    }));
+                }
+            }
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-            console.error("Error fetching AI response:", errorMessage);
-            setChatHistory(prev => [...prev, { speaker: 'Veritas', text: "I'm having trouble connecting.", action: 'error' }]);
+            console.error("Error fetching AI response:", error);
         }
-    };
-    
+    }, [selectedSurgery, addVeritasMessage]);
+
+    // Main Timer and Proactive Check-in Logic
+    useEffect(() => {
+        if (!isSessionActive || currentState.isStartOfCase) return;
+
+        const timer = setInterval(() => {
+            const now = Date.now();
+            const timeSinceLastScore = (now - stateRef.current.lastScoreLogTime) / 1000;
+
+            if (timeSinceLastScore > PROACTIVE_CHECKIN_SECONDS) {
+                addVeritasMessage("Just checking in, it's been a few minutes. Is there any feedback or a score to log?");
+                setCurrentState(prev => ({ ...prev, lastScoreLogTime: now }));
+            }
+
+            setCurrentState(prev => ({
+                ...prev,
+                timeElapsedInSession: prev.timeElapsedInSession + 1,
+                timeElapsedInStep: prev.timeElapsedInStep + 1,
+            }));
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [isSessionActive, currentState.isStartOfCase, addVeritasMessage]);
+
     const startSession = async () => {
-        if (isSessionActive || !selectedResident || !selectedSurgery) {
-            alert('Please select a surgery and a resident first.');
+        if (!selectedResident || !selectedSurgery) {
+            alert("Please select a surgery and a resident.");
             return;
         }
-        
+
         setStatus('connecting');
         setChatHistory([]);
-        fullTranscriptRef.current = ""; 
-        recordedChunksRef.current = [];
+        fullTranscriptRef.current = "";
         liveNotesRef.current = [];
-        
+        // --- FIX: Correctly reset the ref's current value ---
+        recordedChunksRef.current = [];
+
         setCurrentState({
             isStartOfCase: true,
-            currentStepName: 'Procedure Start',
-            nextStepName: 'Initial Incision',
+            currentStepIndex: 0,
+            timeElapsedInSession: 0,
             timeElapsedInStep: 0,
-            attendingName: 'Attending',
-            residentName: selectedResident.name,
+            lastScoreLogTime: Date.now(),
         });
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-            micRecorderRef.current = mediaRecorder;
+            micRecorderRef.current = new MediaRecorder(stream, { mimeType: 'audio/webm' });
 
-            mediaRecorder.addEventListener("dataavailable", event => {
-                if (event.data.size > 0 && socketRef.current?.readyState === WebSocket.OPEN) {
-                    socketRef.current.send(event.data);
+            // --- FIX: ondataavailable pushes to the component-level ref ---
+            micRecorderRef.current.ondataavailable = (event) => {
+                if (event.data.size > 0) {
                     recordedChunksRef.current.push(event.data);
-                }
-            });
-
-            const wsUrl = `${WEBSOCKET_URL}?residentName=${encodeURIComponent(selectedResident.name)}`;
-            const socket = new WebSocket(wsUrl);
-            socketRef.current = socket;
-
-            socket.onopen = () => {
-                console.log("WebSocket connection established.");
-                setStatus('connected');
-                setIsSessionActive(true);
-                mediaRecorder.start(1000);
-            };
-
-            socket.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                if (data.type === 'transcript') {
-                    const newEntry: TranscriptEntry = data.entry;
-                    
-                    setChatHistory(prevChat => {
-                        const lastEntry = prevChat[prevChat.length - 1];
-                        if (lastEntry && 'isFinal' in lastEntry && !lastEntry.isFinal && lastEntry.speaker === newEntry.speaker) {
-                            return [...prevChat.slice(0, -1), newEntry];
-                        } else {
-                            return [...prevChat, newEntry];
-                        }
-                    });
-
-                    if (newEntry.isFinal && newEntry.text.trim().length > 0) {
-                        const newText = `[${newEntry.speaker}] ${newEntry.text}\n`;
-                        fullTranscriptRef.current += newText;
-                        getAiResponse(fullTranscriptRef.current);
+                    if (socketRef.current?.readyState === WebSocket.OPEN) {
+                        socketRef.current.send(event.data);
                     }
                 }
             };
             
-            socket.onclose = () => {
-                console.log("WebSocket connection closed.");
+            const wsUrl = `${WEBSOCKET_URL}?residentName=${encodeURIComponent(selectedResident.name)}`;
+            socketRef.current = new WebSocket(wsUrl);
+
+            socketRef.current.onopen = () => {
+                setStatus('connected');
+                setIsSessionActive(true);
+                micRecorderRef.current?.start(1000);
+                addVeritasMessage("Time-out initiated. Please state your names, roles, and the planned procedure for the record.");
+            };
+
+            socketRef.current.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'transcript') {
+                    const newEntry: TranscriptEntry = data.entry;
+                    setChatHistory(prev => {
+                        const last = prev[prev.length - 1];
+                        if (last && 'isFinal' in last && !last.isFinal && last.speaker === newEntry.speaker) {
+                            return [...prev.slice(0, -1), newEntry];
+                        }
+                        return [...prev, newEntry];
+                    });
+                    if (newEntry.isFinal && newEntry.text.trim()) {
+                        fullTranscriptRef.current += `[${newEntry.speaker}] ${newEntry.text}\n`;
+                        getAiResponse();
+                    }
+                }
+            };
+
+            socketRef.current.onclose = () => {
                 setStatus('idle');
                 setIsSessionActive(false);
-                if (micRecorderRef.current?.state === 'recording') {
-                    micRecorderRef.current.stop();
-                }
                 stream.getTracks().forEach(track => track.stop());
             };
 
-            socket.onerror = (error) => {
-                console.error("WebSocket Error:", error);
-                setStatus('error');
-            };
-
+            socketRef.current.onerror = () => setStatus('error');
         } catch (error) {
             console.error("Failed to start session:", error);
             setStatus('error');
@@ -259,24 +244,20 @@ const LiveEvaluationPage = () => {
     };
 
     const stopSessionAndAnalyze = async () => {
+        setIsProcessing(true);
         if (micRecorderRef.current?.state === "recording") {
             micRecorderRef.current.stop();
         }
-        if (socketRef.current) {
-            socketRef.current.close();
-        }
-
-        setIsProcessing(true);
+        socketRef.current?.close();
 
         setTimeout(async () => {
+            // --- FIX: Uses the correctly populated component-level ref ---
             const audioBlob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
-            
             const formData = new FormData();
             formData.append('audio', audioBlob, 'live_recording.webm');
             formData.append('residentId', selectedResident!.id);
             formData.append('surgery', selectedSurgery);
-            // This now contains both resident and AI speech
-            formData.append('fullTranscript', fullTranscriptRef.current); 
+            formData.append('fullTranscript', fullTranscriptRef.current);
             formData.append('liveNotes', JSON.stringify(liveNotesRef.current));
 
             try {
@@ -284,49 +265,36 @@ const LiveEvaluationPage = () => {
                     method: 'POST',
                     body: formData,
                 });
-
                 if (!response.ok) {
                     const errorData = await response.json();
                     throw new Error(errorData.error || 'Analysis failed');
                 }
-                
                 const result = await response.json();
-                
                 router.push(`/results/${result.evaluationId}`);
-
             } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-                console.error('Error during final analysis:', error);
-                alert(`An error occurred during the final analysis: ${errorMessage}`);
+                alert(`Error during final analysis: ${error instanceof Error ? error.message : 'Unknown error'}`);
                 setIsProcessing(false);
             }
         }, 500);
     };
-
-    const handleButtonClick = () => {
-        if (isSessionActive) {
-            stopSessionAndAnalyze();
-        } else {
-            startSession();
-        }
-    };
+    
+    const handleButtonClick = isSessionActive ? stopSessionAndAnalyze : startSession;
 
     const getStatusIndicator = () => {
         switch (status) {
-            case 'connected': return <div className="status-success">● Live</div>;
-            case 'connecting': return <div className="status-warning">● Connecting...</div>;
-            case 'error': return <div className="status-error">● Error</div>;
-            default: return <div className="status-info">● Idle</div>;
+            case 'connected': return <div className="text-green-400">● Live</div>;
+            case 'connecting': return <div className="text-yellow-400">● Connecting...</div>;
+            case 'error': return <div className="text-red-500">● Error</div>;
+            default: return <div className="text-gray-400">● Idle</div>;
         }
     };
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full">
-            {/* Left Column: Setup and Controls */}
             <div className="lg:col-span-1 flex flex-col space-y-6">
                 <div className="text-center lg:text-left">
-                    <h1 className="heading-xl text-gradient mb-2">Live Evaluation</h1>
-                    <p className="text-text-tertiary text-lg">Real-time analysis powered by R.I.S.E Veritas-Scale</p>
+                    <h1 className="text-4xl font-bold text-white mb-2">Live Evaluation</h1>
+                    <p className="text-lg text-gray-300">Real-time analysis powered by R.I.S.E Veritas-Scale</p>
                 </div>
                 <GlassCard variant="strong" className="p-6 space-y-6 flex-grow">
                     <div className="relative z-30">
@@ -339,40 +307,38 @@ const LiveEvaluationPage = () => {
                         <GlassButton 
                             variant={isSessionActive ? "secondary" : "primary"}
                             size="lg" 
-                            onClick={handleButtonClick} 
+                            onClick={handleButtonClick}
                             disabled={!selectedSurgery || !selectedResident || status === 'connecting' || isProcessing} 
                             className="w-full"
                         >
                             {isProcessing ? 'Analyzing...' : (isSessionActive ? 'End Live Session' : 'Start Live Session')}
                         </GlassButton>
                     </div>
-                    <div className="flex items-center justify-center pt-4">
+                    <div className="flex items-center justify-center pt-4 font-semibold">
                         {getStatusIndicator()}
                     </div>
                 </GlassCard>
             </div>
-
-            {/* Right Column: Transcript and Chat */}
             <div className="lg:col-span-2 flex flex-col h-full">
                  <GlassCard variant="strong" className="p-6 flex-grow flex flex-col h-full">
-                    <h3 className="heading-md mb-4">Veritas Live Session</h3>
-                    <div className="glassmorphism-subtle rounded-2xl p-4 flex-grow overflow-y-auto scrollbar-glass min-h-[300px]">
+                    <h3 className="text-2xl font-semibold text-white mb-4">Veritas Live Session</h3>
+                    <div className="bg-black bg-opacity-20 rounded-2xl p-4 flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent min-h-[400px]">
                         {chatHistory.length === 0 ? (
-                             <div className="text-center text-text-tertiary h-full flex flex-col items-center justify-center">
+                             <div className="text-center text-gray-400 h-full flex flex-col items-center justify-center">
                                 <Image src="/images/live-icon.svg" alt="Waiting" width={64} height={64} className="opacity-50 mb-4" />
                                 <p>Waiting for session to start...</p>
                             </div>
                         ) : (
                             <div className="space-y-4">
                                 {chatHistory.map((entry, index) => (
-                                    <div key={index} className={`flex flex-col ${entry.speaker === 'Veritas' ? 'items-center' : 'items-start'}`}>
+                                    <div key={index} className={`flex flex-col ${entry.speaker === 'Veritas' ? 'items-center text-center' : 'items-start'}`}>
                                         <div className={`p-3 rounded-2xl max-w-lg ${
                                             entry.speaker === 'Veritas' 
-                                                ? 'bg-purple-500/30 text-center'
-                                                : 'isFinal' in entry && entry.isFinal ? 'bg-zinc-700/50' : 'bg-zinc-800/40 text-gray-400'
+                                                ? 'bg-purple-900 bg-opacity-50'
+                                                : ('isFinal' in entry && entry.isFinal) ? 'bg-gray-700' : 'bg-gray-800 text-gray-400'
                                         }`}>
-                                            <p className="font-semibold text-sm mb-1">{entry.speaker}</p>
-                                            <p className="text-text-primary">{entry.text}</p>
+                                            <p className="font-semibold text-sm mb-1 text-purple-300">{entry.speaker}</p>
+                                            <p className="text-white">{'text' in entry ? entry.text : ''}</p>
                                         </div>
                                     </div>
                                 ))}

@@ -61,6 +61,8 @@ export const EVALUATION_CONFIGS: EvaluationConfigs = {
         name: 'Robotic Cholecystectomy',
         procedureSteps: [
             { key: 'portPlacement', name: 'Port Placement', time: '5-10 min' },
+            { key: 'robotDocking', name: 'Docking the robot', time: '5-15 min' },
+            { key: 'instrumentPlacement', name: 'Instrument Placement', time: '2-5 min' },
             { key: 'calotTriangleDissection', name: "Dissection of Calot's Triangle", time: '15-25 min' },
             { key: 'cysticArteryDuctClipping', name: 'Clipping and division of Cystic Artery and Duct', time: '5-10 min' },
             { key: 'gallbladderDissection', name: 'Gallbladder Dissection of the Liver', time: '10-20 min' },
