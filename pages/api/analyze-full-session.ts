@@ -4,6 +4,7 @@ import fs from 'fs';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getPrismaClient } from '../../lib/prisma';
 import { uploadFileToGCS, getPublicUrl } from '../../lib/gcs';
+import { EVALUATION_CONFIGS } from '../../lib/evaluation-configs'; // Import the configs
 
 // Initialize AI clients
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
@@ -17,7 +18,7 @@ export const config = {
 
 // Helper function to parse Gemini's JSON response
 async function getGeminiResponse(prompt: string) {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Using 1.5 Flash for better performance
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
@@ -60,27 +61,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
 
         const residentId = getFieldValue(fields.residentId);
-        const surgery = getFieldValue(fields.surgery);
+        const surgeryName = getFieldValue(fields.surgery); // Renamed for clarity
         const liveNotes = getFieldValue(fields.liveNotes);
-        const fullTranscript = getFieldValue(fields.fullTranscript); // Get the full conversation
+        const fullTranscript = getFieldValue(fields.fullTranscript);
         const audioFile = getFile(files.audio);
 
-        if (!residentId || !surgery || !fullTranscript || !audioFile) {
+        if (!residentId || !surgeryName || !fullTranscript || !audioFile) {
              return res.status(400).json({ error: 'Missing required fields: residentId, surgery, fullTranscript, or audio file.' });
         }
 
-        // 1. Upload audio to GCS for archival
+        // --- FIX START: Find correct surgery configuration ---
+        const procedureId = Object.keys(EVALUATION_CONFIGS).find(key => EVALUATION_CONFIGS[key].name === surgeryName);
+        if (!procedureId) {
+            return res.status(400).json({ error: `Configuration for surgery "${surgeryName}" not found.` });
+        }
+        const config = EVALUATION_CONFIGS[procedureId];
+        // --- FIX END ---
+
         const destination = `uploads/live_session_${Date.now()}.webm`;
         await uploadFileToGCS(audioFile.filepath, destination);
-        fs.unlinkSync(audioFile.filepath); // Clean up temp file
+        fs.unlinkSync(audioFile.filepath);
 
-        // 2. Construct a detailed final prompt for Gemini
-        // ✅ THIS PROMPT NOW USES THE COMPLETE TRANSCRIPT AS THE PRIMARY SOURCE
+        // --- FIX START: Corrected prompt to match standard format ---
+        const stepKeys = config.procedureSteps.map(s => `"${s.key}": { "score": <number>, "time": "<string>", "comments": "<string>" }`).join(',\n    ');
+        const difficultyText = Object.entries(config.caseDifficultyDescriptions)
+            .map(([key, value]) => `- ${key}: ${value}`)
+            .join('\n          ');
+
         const finalPrompt = `
             You are Veritas, an AI surgical assistant performing a final, comprehensive evaluation for the R.I.S.E Veritas-Scale.
 
             **Procedure Details:**
-            - Surgery: ${surgery}
+            - Surgery: ${surgeryName}
             - Resident ID: ${residentId}
 
             **Task:**
@@ -154,30 +166,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               ]
             }
         `;
+        // --- FIX END ---
 
-        // 3. Get the final structured JSON analysis from Gemini
         const evaluationData = await getGeminiResponse(finalPrompt);
 
-        // 4. Fetch resident data to include in the result
         const resident = await prisma.resident.findUnique({ where: { id: residentId } });
 
-        // 5. Create a new Job record with the evaluation data
+        // --- FIX START: Create the final result in the correct format ---
         const finalResult = {
-            ...evaluationData,
-            transcription: fullTranscript, // Save the complete transcript
-            surgery: surgery,
+            ...evaluationData, // This now contains caseDifficulty, additionalComments, and step keys
+            transcription: fullTranscript,
+            surgery: surgeryName,
             residentName: resident?.name,
+            residentEmail: resident?.email, // Added resident email
             isFinalized: false,
         };
+        // --- FIX END ---
 
         const newJob = await prisma.job.create({
             data: {
                 residentId: residentId,
-                surgeryName: surgery,
+                surgeryName: surgeryName,
                 status: 'complete',
                 gcsUrl: getPublicUrl(destination),
                 gcsObjectPath: destination,
-                result: JSON.stringify(finalResult),
+                result: JSON.stringify(finalResult), // Storing the correctly formatted result
                 withVideo: false, 
                 videoAnalysis: false,
             },

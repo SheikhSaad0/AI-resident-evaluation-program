@@ -3,6 +3,8 @@ import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { GlassCard, GlassButton, GlassInput, GlassTextarea } from '../../components/ui';
+// --- FIX: Import shared configurations instead of defining them locally ---
+import { EVALUATION_CONFIGS } from '../../lib/evaluation-configs';
 
 // --- TYPE DEFINITIONS ---
 interface EvaluationStep {
@@ -22,7 +24,7 @@ interface EvaluationData {
   attendingCaseDifficulty?: number;
   attendingAdditionalComments?: string;
   transcription: string;
-  surgery: string;
+  surgery: string; // This is the full name, e.g., "Laparoscopic Cholecystectomy"
   residentId?: string;
   residentName?: string;
   residentPhotoUrl?: string;
@@ -38,16 +40,7 @@ interface ProcedureStep {
   name: string;
 }
 
-// --- CONFIGURATION ---
-const EVALUATION_CONFIGS: { [key: string]: { procedureSteps: ProcedureStep[] } } = {
-    'Laparoscopic Inguinal Hernia Repair with Mesh (TEP)': { procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'herniaDissection', name: 'Hernia Dissection' }, { key: 'meshPlacement', name: 'Mesh Placement' }, { key: 'portClosure', name: 'Port Closure' }, { key: 'skinClosure', name: 'Skin Closure' }, ]},
-    'Laparoscopic Cholecystectomy': { procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'calotTriangleDissection', name: "Calot's Triangle" }, { key: 'cysticArteryDuctClipping', name: 'Cystic Artery/Duct' }, { key: 'gallbladderDissection', name: 'Gallbladder Dissection' }, { key: 'specimenRemoval', name: 'Specimen Removal' }, { key: 'portClosure', name: 'Port Closure' }, { key: 'skinClosure', name: 'Skin Closure' }, ]},
-    'Robotic Cholecystectomy': { procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'calotTriangleDissection', name: "Calot's Triangle" }, { key: 'cysticArteryDuctClipping', name: 'Cystic Artery/Duct' }, { key: 'gallbladderDissection', name: 'Gallbladder Dissection' }, { key: 'specimenRemoval', name: 'Specimen Removal' }, { key: 'portClosure', name: 'Port Closure' }, { key: 'skinClosure', name: 'Skin Closure' }, ]},
-    'Robotic Assisted Laparoscopic Inguinal Hernia Repair (TAPP)': { procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'robotDocking', name: 'Robot Docking' }, { key: 'instrumentPlacement', name: 'Instrument Placement' }, { key: 'herniaReduction', name: 'Hernia Reduction' }, { key: 'flapCreation', name: 'Flap Creation' }, { key: 'meshPlacement', name: 'Mesh Placement' }, { key: 'flapClosure', name: 'Flap Closure' }, { key: 'undocking', name: 'Undocking' }, { key: 'skinClosure', name: 'Skin Closure' }, ]},
-    'Robotic Lap Ventral Hernia Repair (TAPP)': { procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'robotDocking', name: 'Robot Docking' }, { key: 'instrumentPlacement', name: 'Instrument Placement' }, { key: 'herniaReduction', name: 'Hernia Reduction' }, { key: 'flapCreation', name: 'Flap Creation' }, { key: 'herniaClosure', name: 'Hernia Closure' }, { key: 'meshPlacement', name: 'Mesh Placement' }, { key: 'flapClosure', name: 'Flap Closure' }, { key: 'undocking', name: 'Undocking' }, { key: 'skinClosure', name: 'Skin Closure' }, ]},
-    'Laparoscopic Appendicectomy': { procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'appendixDissection', name: 'Appendix Dissection' }, { key: 'mesoappendixDivision', name: 'Mesoappendix Division' }, { key: 'specimenExtraction', name: 'Specimen Extraction' }, { key: 'portClosure', name: 'Port Closure' }, { key: 'skinClosure', name: 'Skin Closure' }, ]},
-};
-
+// Helper to get the correct surgery icon based on name
 const getSurgeryIcon = (s: string) => {
     if (!s) return '/images/default-avatar.svg';
     const lowerCaseSurgery = s.toLowerCase();
@@ -57,7 +50,8 @@ const getSurgeryIcon = (s: string) => {
     return '/images/default-avatar.svg';
 };
 
-// --- UI COMPONENTS ---
+
+// --- UI COMPONENTS (UNCHANGED) ---
 
 const ScoreRing = ({ score, max = 5 }: { score: number; max?: number }) => {
     const percentage = (score / max) * 100;
@@ -87,7 +81,6 @@ const ScoreRing = ({ score, max = 5 }: { score: number; max?: number }) => {
     );
 };
 
-// UPDATED: Icons are now responsive
 const InfoWidget = ({ title, value, icon }: { title: string, value: string | number, icon: string }) => (
     <GlassCard variant="subtle" className="p-4 flex-1">
         <div className="flex items-center space-x-4">
@@ -101,46 +94,6 @@ const InfoWidget = ({ title, value, icon }: { title: string, value: string | num
         </div>
     </GlassCard>
 );
-
-const LeftSidebar = ({ evaluation }: { evaluation?: EvaluationData | null }) => {
-    const surgery = evaluation?.surgery;
-    const finalScore = evaluation?.finalScore;
-    const caseDifficulty = evaluation?.attendingCaseDifficulty ?? evaluation?.caseDifficulty;
-    
-    let displayScore = finalScore;
-    if (finalScore === undefined && evaluation && surgery) {
-        const config = EVALUATION_CONFIGS[surgery as keyof typeof EVALUATION_CONFIGS];
-        if (config) {
-            const stepScores = config.procedureSteps
-                .map(step => (evaluation[step.key] as EvaluationStep)?.score)
-                .filter(score => typeof score === 'number' && score > 0);
-            
-            if (stepScores.length > 0) {
-                displayScore = stepScores.reduce((a, b) => a + b, 0) / stepScores.length;
-            }
-        }
-    }
-
-    return (
-        <div className="flex flex-col items-center justify-start h-full p-6 text-center">
-            <h1 className="heading-lg text-text-primary mb-6">{surgery || 'Loading Evaluation...'}</h1>
-            
-            <div className="relative w-56 h-56 my-6">
-                <Image src={getSurgeryIcon(surgery || '')} alt={surgery || 'Loading'} layout="fill" objectFit="contain"/>
-            </div>
-
-            <div className="flex items-center justify-center gap-4 mt-6 w-full max-w-sm">
-                {displayScore !== undefined && (
-                    <InfoWidget title="Overall Score" value={`${displayScore.toFixed(1)}/5`} icon="/images/eval-image.svg" />
-                )}
-                {caseDifficulty !== undefined && (
-                    <InfoWidget title="Case Difficulty" value={`${caseDifficulty}/3`} icon="/images/difficulty-icon.svg" />
-                )}
-            </div>
-        </div>
-    );
-};
-
 
 const StepAssessmentWidget = ({ stepName, score, comments }: { stepName: string; score: number; comments: string }) => {
     const wasPerformed = score > 0;
@@ -176,10 +129,57 @@ const PillTabs = ({ tabs, activeTab, setActiveTab }: { tabs: any[], activeTab: s
 );
 
 
-// --- TABS CONTENT ---
+// --- FIXED SIDEBAR & TABS ---
+
+const LeftSidebar = ({ evaluation }: { evaluation?: EvaluationData | null }) => {
+    const surgery = evaluation?.surgery;
+    const finalScore = evaluation?.finalScore;
+    const caseDifficulty = evaluation?.attendingCaseDifficulty ?? evaluation?.caseDifficulty;
+    
+    let displayScore = finalScore;
+    // Calculate average score only if no final score is set
+    if (finalScore === undefined && evaluation && surgery) {
+        // --- FIX: Find the config by matching the surgery name, not using it as a key ---
+        const config = Object.values(EVALUATION_CONFIGS).find(c => c.name === surgery);
+        
+        if (config) {
+            const stepScores = config.procedureSteps
+                .map(step => (evaluation[step.key] as EvaluationStep)?.score)
+                .filter(score => typeof score === 'number' && score > 0);
+            
+            if (stepScores.length > 0) {
+                displayScore = stepScores.reduce((a, b) => a + b, 0) / stepScores.length;
+            }
+        }
+    }
+
+    return (
+        <div className="flex flex-col items-center justify-start h-full p-6 text-center">
+            <h1 className="heading-lg text-text-primary mb-6">{surgery || 'Loading Evaluation...'}</h1>
+            
+            <div className="relative w-56 h-56 my-6">
+                <Image src={getSurgeryIcon(surgery || '')} alt={surgery || 'Loading'} layout="fill" objectFit="contain"/>
+            </div>
+
+            <div className="flex items-center justify-center gap-4 mt-6 w-full max-w-sm">
+                {displayScore !== undefined && (
+                    <InfoWidget title="Overall Score" value={`${displayScore.toFixed(1)}/5`} icon="/images/eval-image.svg" />
+                )}
+                {caseDifficulty !== undefined && (
+                    <InfoWidget title="Case Difficulty" value={`${caseDifficulty}/3`} icon="/images/difficulty-icon.svg" />
+                )}
+            </div>
+        </div>
+    );
+};
 
 const OverviewTab = ({ evaluation }: { evaluation: EvaluationData }) => {
-    const config = EVALUATION_CONFIGS[evaluation.surgery as keyof typeof EVALUATION_CONFIGS];
+    // --- FIX: Find the config by matching the surgery name ---
+    const config = Object.values(EVALUATION_CONFIGS).find(c => c.name === evaluation.surgery);
+
+    if (!config) {
+        return <p>Could not find configuration for {evaluation.surgery}.</p>;
+    }
 
     return (
         <div className="space-y-6">
@@ -194,10 +194,11 @@ const OverviewTab = ({ evaluation }: { evaluation: EvaluationData }) => {
                 )}
             </GlassCard>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 {config?.procedureSteps.map(step => {
+                 {config.procedureSteps.map(step => {
                     const stepData = evaluation[step.key] as EvaluationStep | undefined;
+                    // Use a default score of 0 if the step data is missing
                     const displayScore = stepData?.attendingScore ?? stepData?.score ?? 0;
-                    const displayComments = stepData?.attendingComments || stepData?.comments || '';
+                    const displayComments = stepData?.attendingComments || stepData?.comments || 'No comments available.';
 
                     return (
                         <StepAssessmentWidget 
@@ -212,6 +213,9 @@ const OverviewTab = ({ evaluation }: { evaluation: EvaluationData }) => {
         </div>
     );
 };
+
+
+// --- OTHER TABS & MAIN PAGE (LOGIC REMAINS MOSTLY THE SAME) ---
 
 const StepAnalysisTab = ({ procedureSteps, editedEvaluation, isFinalized, onEvaluationChange }: { procedureSteps: ProcedureStep[], editedEvaluation: EvaluationData, isFinalized: boolean, onEvaluationChange: Function }) => (
     <div className="space-y-6">
@@ -286,7 +290,7 @@ const EditTab = ({ editedEvaluation, isFinalized, onOverallChange, onFinalize, o
           </div>
           <div className="mt-6">
             <label className="block text-sm font-medium text-text-tertiary mb-2">Final Remarks & Recommendations</label>
-            <GlassTextarea value={editedEvaluation.attendingAdditionalComments ?? ''} onChange={(e) => onOverallChange('attendingAdditionalComments', e.target.value)} disabled={isFinalized} placeholder={editedEvaluation.additionalComments as string || 'Enter your final remarks and recommendations...'} rows={5} />
+            <GlassTextarea value={editedEvaluation.attendingAdditionalComments ?? ''} onChange={(e) => onOverallChange('attendingAdditionalComments', e.target.value)} disabled={isFinalized} placeholder={editedEvaluation.additionalComments as string || 'Enter your final remarks...'} rows={5} />
           </div>
       </GlassCard>
       <div className="flex flex-col sm:flex-row gap-4">
@@ -301,7 +305,6 @@ const EditTab = ({ editedEvaluation, isFinalized, onOverallChange, onFinalize, o
   );
 
 
-// --- MAIN PAGE ---
 export default function RevampedResultsPage() {
     const router = useRouter();
     const { id } = router.query;
@@ -311,22 +314,32 @@ export default function RevampedResultsPage() {
     const [mediaUrl, setMediaUrl] = useState<string | null>(null);
     const [isOriginalFileVideo, setIsOriginalFileVideo] = useState(false);
     const [activeTab, setActiveTab] = useState('overview');
+    const [errorMessage, setErrorMessage] = useState('');
 
     useEffect(() => {
         if (!id || typeof id !== 'string') return;
+
         const fetchEvaluation = async (jobId: string) => {
             try {
                 const response = await fetch(`/api/job-status/${jobId}`);
-                if (!response.ok) throw new Error('Failed to fetch evaluation data.');
+                if (!response.ok) throw new Error('Network response was not ok.');
                 
                 const jobData = await response.json();
     
                 if (jobData.status === 'complete' && jobData.result) {
+                    // --- FIX: The result from the API might be a string, ensure it's parsed ---
+                    const resultData = typeof jobData.result === 'string' ? JSON.parse(jobData.result) : jobData.result;
+
+                    // Validate that the essential data is present before proceeding
+                    if (!resultData.surgery || !resultData.procedureSteps) {
+                         throw new Error('Incomplete evaluation data received from the server.');
+                    }
+                    
                     const residentResponse = await fetch(`/api/residents/${jobData.residentId}`);
                     const residentData = residentResponse.ok ? await residentResponse.json() : {};
                     
                     const parsedData: EvaluationData = {
-                        ...jobData.result,
+                        ...resultData,
                         id: jobData.id,
                         residentId: jobData.residentId,
                         residentName: residentData.name,
@@ -342,18 +355,23 @@ export default function RevampedResultsPage() {
                     setStatus('loaded');
                 } else if (jobData.status === 'pending' || jobData.status.startsWith('processing')) {
                     setStatus('polling');
+                    // Continue polling
                     setTimeout(() => fetchEvaluation(jobId), 5000);
                 } else {
-                    throw new Error(jobData.error || 'Evaluation not found or has failed.');
+                    // Handle failed or errored jobs
+                    throw new Error(jobData.error || 'Evaluation has failed or the job was not found.');
                 }
             } catch (error) {
-                console.error("Failed to fetch evaluation data", error);
+                console.error("Failed to fetch or process evaluation data:", error);
+                setErrorMessage(error instanceof Error ? error.message : 'An unknown error occurred.');
                 setStatus('error');
             }
         };
+
         fetchEvaluation(id as string);
     }, [id]);
   
+    // --- HANDLER FUNCTIONS (UNCHANGED) ---
     const handleFinalize = async () => {
         if (!editedEvaluation || !id) return;
         const finalEvaluation = { ...editedEvaluation, isFinalized: true };
@@ -369,7 +387,7 @@ export default function RevampedResultsPage() {
     };
     
     const handleEdit = async () => {
-        if (!editedEvaluation || !id || !window.confirm('Are you sure you want to unlock this evaluation? The "finalized" status will be removed until you lock it again.')) return;
+        if (!editedEvaluation || !id || !window.confirm('Are you sure you want to unlock this evaluation?')) return;
         
         const unlockedEvaluation = { ...editedEvaluation, isFinalized: false };
     
@@ -380,9 +398,7 @@ export default function RevampedResultsPage() {
                 body: JSON.stringify({ updatedEvaluation: unlockedEvaluation })
             });
     
-            if (!response.ok) {
-                throw new Error((await response.json()).message || 'Failed to unlock.');
-            }
+            if (!response.ok) throw new Error((await response.json()).message || 'Failed to unlock.');
     
             setEvaluation(unlockedEvaluation);
             setEditedEvaluation(unlockedEvaluation);
@@ -409,7 +425,7 @@ export default function RevampedResultsPage() {
         setEditedEvaluation(prev => {
             if (!prev) return null;
             const currentStep = prev[stepKey] as EvaluationStep | undefined;
-            if (typeof currentStep !== 'object' || currentStep === null) { return prev; }
+            if (typeof currentStep !== 'object' || currentStep === null) return prev;
             const updatedStep = { ...currentStep, [field]: value };
             return { ...prev, [stepKey]: updatedStep };
         });
@@ -419,24 +435,28 @@ export default function RevampedResultsPage() {
         if (editedEvaluation) setEditedEvaluation({ ...editedEvaluation, [field]: value });
     };
 
+    // --- RENDER LOGIC ---
+
     if (status === 'error') {
         return (
-          <div className="min-h-screen flex items-center justify-center">
-            <GlassCard variant="strong" className="p-8 text-center">
+          <div className="min-h-screen flex items-center justify-center text-center">
+            <GlassCard variant="strong" className="p-8">
               <h2 className="heading-md text-red-400 mb-2">Error</h2>
-              <p className="text-text-tertiary">Could not load the evaluation data.</p>
-              <GlassButton onClick={() => router.push('/evaluations')} className="mt-4">Back to Evaluations</GlassButton>
+              <p className="text-text-tertiary mb-4">Could not load the evaluation data.</p>
+              {errorMessage && <p className="text-sm text-text-quaternary bg-glass-subtle p-2 rounded-md">Details: {errorMessage}</p>}
+              <GlassButton onClick={() => router.push('/evaluations')} className="mt-6">Back to Evaluations</GlassButton>
             </GlassCard>
           </div>
         );
     }
-
+    
+    // --- FIX: Find the config by matching the surgery name for tab generation ---
+    const config = evaluation ? Object.values(EVALUATION_CONFIGS).find(c => c.name === evaluation.surgery) : null;
     const isFinalizedAndLocked = editedEvaluation?.isFinalized === true;
-    const config = evaluation ? EVALUATION_CONFIGS[evaluation.surgery as keyof typeof EVALUATION_CONFIGS] : null;
 
-    const tabs = editedEvaluation ? [
+    const tabs = editedEvaluation && config ? [
         { id: 'overview', label: 'Overview', content: <OverviewTab evaluation={editedEvaluation} /> },
-        { id: 'step_analysis', label: 'Step Analysis', content: <StepAnalysisTab procedureSteps={config?.procedureSteps || []} editedEvaluation={editedEvaluation} isFinalized={isFinalizedAndLocked} onEvaluationChange={handleEvaluationChange} /> },
+        { id: 'step_analysis', label: 'Step Analysis', content: <StepAnalysisTab procedureSteps={config.procedureSteps} editedEvaluation={editedEvaluation} isFinalized={isFinalizedAndLocked} onEvaluationChange={handleEvaluationChange} /> },
         { id: 'media', label: 'Media & Transcription', content: <MediaTab transcription={editedEvaluation.transcription} mediaUrl={mediaUrl} isOriginalFileVideo={isOriginalFileVideo} /> },
         { id: 'edit', label: 'Edit & Finalize', content: <EditTab editedEvaluation={editedEvaluation} isFinalized={isFinalizedAndLocked} onOverallChange={handleOverallChange} onFinalize={handleFinalize} onDelete={handleDelete} onEdit={handleEdit} /> },
     ] : [];
@@ -462,11 +482,9 @@ export default function RevampedResultsPage() {
     };
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-6 h-full">
+        <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-6 h-full p-4 md:p-6">
             <div className="lg:col-span-1 xl:col-span-1">
-                <LeftSidebar 
-                    evaluation={editedEvaluation}
-                />
+                <LeftSidebar evaluation={editedEvaluation} />
             </div>
     
             <div className="lg:col-span-2 xl:col-span-3 space-y-6">
@@ -503,7 +521,7 @@ export default function RevampedResultsPage() {
                     </div>
                 </div>
 
-                {editedEvaluation ? (
+                {editedEvaluation && config ? (
                     <>
                         <PillTabs tabs={tabs} activeTab={activeTab} setActiveTab={setActiveTab} />
                         <div>
@@ -511,8 +529,9 @@ export default function RevampedResultsPage() {
                         </div>
                     </>
                 ) : (
-                    <div className="flex justify-center items-center h-96">
-                        <div className="w-10 h-10 border-2 border-brand-primary border-t-transparent rounded-full animate-spin" />
+                    <div className="flex flex-col justify-center items-center h-96">
+                        <div className="w-10 h-10 border-2 border-brand-primary border-t-transparent rounded-full animate-spin mb-4" />
+                        <p className="text-text-secondary">Loading evaluation...</p>
                     </div>
                 )}
             </div>
