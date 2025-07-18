@@ -1,11 +1,13 @@
-// pages/live.tsx
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import { GlassCard, GlassButton } from '../components/ui';
 import ResidentSelector from '../components/ResidentSelector';
 import SurgerySelector from '../components/SurgerySelector';
+// Make sure this path is correct for your project structure
+import { EVALUATION_CONFIGS } from '../lib/evaluation-configs';
 
+// --- INTERFACES ---
 interface Resident {
     id: string;
     name: string;
@@ -28,6 +30,16 @@ interface AiResponse {
 
 type ChatEntry = TranscriptEntry | AiResponse;
 
+// A type for the live session state required by the AI
+interface LiveSessionState {
+    isStartOfCase: boolean;
+    currentStepName: string;
+    nextStepName: string;
+    timeElapsedInStep: number;
+    attendingName: string; // This could be made dynamic in the future
+    residentName: string;
+}
+
 const WEBSOCKET_URL = "ws://localhost:3001";
 
 const LiveEvaluationPage = () => {
@@ -38,7 +50,17 @@ const LiveEvaluationPage = () => {
     const [status, setStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
     const [residents, setResidents] = useState<Resident[]>([]);
     const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
+    // This state will continue to hold the full surgery NAME, e.g., "Laparoscopic Cholecystectomy"
     const [selectedSurgery, setSelectedSurgery] = useState('');
+
+    const [currentState, setCurrentState] = useState<LiveSessionState>({
+        isStartOfCase: true,
+        currentStepName: 'Procedure Start',
+        nextStepName: 'Initial Incision', // Example, this would be dynamic
+        timeElapsedInStep: 0,
+        attendingName: 'Attending',
+        residentName: '',
+    });
 
     const micRecorderRef = useRef<MediaRecorder | null>(null);
     const socketRef = useRef<WebSocket | null>(null);
@@ -47,6 +69,7 @@ const LiveEvaluationPage = () => {
     const recordedChunksRef = useRef<Blob[]>([]);
     const liveNotesRef = useRef<any[]>([]);
 
+    // Fetch residents on component mount
     useEffect(() => {
         const fetchResidents = async () => {
             try {
@@ -59,10 +82,19 @@ const LiveEvaluationPage = () => {
         fetchResidents();
     }, []);
 
+    // Auto-scroll chat history
     useEffect(() => {
         transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [chatHistory]);
+    
+    // Sync resident name to current state when selected
+    useEffect(() => {
+        if (selectedResident) {
+            setCurrentState(prev => ({ ...prev, residentName: selectedResident.name }));
+        }
+    }, [selectedResident]);
 
+    // Cleanup on unmount
     useEffect(() => {
         return () => {
             if (socketRef.current) socketRef.current.close();
@@ -72,25 +104,63 @@ const LiveEvaluationPage = () => {
         };
     }, []);
 
+    // --- FINAL CORRECTED FUNCTION ---
     const getAiResponse = async (transcript: string) => {
+        if (!selectedSurgery || !currentState) {
+            console.error("AI call skipped: Missing surgery or state information.");
+            return;
+        }
+
+        // Find the procedure ID by searching through the imported configs object
+        let procedureId: string | null = null;
+        for (const key in EVALUATION_CONFIGS) {
+            if (EVALUATION_CONFIGS[key].name === selectedSurgery) {
+                procedureId = key; // Found the matching ID (e.g., 'lap_chole')
+                break;
+            }
+        }
+
+        // If no ID was found, the selection is invalid.
+        if (!procedureId) {
+            const errorMessage = `Invalid procedure selected: "${selectedSurgery}". No matching configuration found.`;
+            console.error(errorMessage);
+            setChatHistory(prev => [...prev, { speaker: 'Veritas', text: `Error: ${errorMessage}`, action: 'error' }]);
+            return;
+        }
+
+        // Proceed with the API call using the correct ID
         try {
             const response = await fetch('/api/ai', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ transcript, surgery: selectedSurgery }),
+                body: JSON.stringify({
+                    transcript,
+                    procedureId, // Pass the correct ID we just found
+                    currentState,
+                }),
             });
-            if (!response.ok) throw new Error("AI API request failed");
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "AI API request failed");
+            }
             
             const aiData = await response.json();
 
-            if (aiData.action !== 'none') {
+            if (aiData.action && aiData.action !== 'none') {
                  if (aiData.action === 'speak') {
                     setChatHistory(prev => [...prev, { speaker: 'Veritas', text: aiData.payload, action: 'speak' }]);
                  }
                  liveNotesRef.current.push(aiData);
             }
+
+            if (currentState.isStartOfCase) {
+                setCurrentState(prev => ({ ...prev, isStartOfCase: false }));
+            }
+
         } catch (error) {
-            console.error("Error fetching AI response:", error);
+            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+            console.error("Error fetching AI response:", errorMessage);
             setChatHistory(prev => [...prev, { speaker: 'Veritas', text: "I'm having trouble connecting.", action: 'error' }]);
         }
     };
@@ -106,6 +176,15 @@ const LiveEvaluationPage = () => {
         fullTranscriptRef.current = ""; 
         recordedChunksRef.current = [];
         liveNotesRef.current = [];
+        
+        setCurrentState({
+            isStartOfCase: true,
+            currentStepName: 'Procedure Start',
+            nextStepName: 'Initial Incision',
+            timeElapsedInStep: 0,
+            attendingName: 'Attending',
+            residentName: selectedResident.name,
+        });
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -115,7 +194,6 @@ const LiveEvaluationPage = () => {
             mediaRecorder.addEventListener("dataavailable", event => {
                 if (event.data.size > 0 && socketRef.current?.readyState === WebSocket.OPEN) {
                     socketRef.current.send(event.data);
-                    // We still push to the array for the final, full-session analysis
                     recordedChunksRef.current.push(event.data);
                 }
             });
@@ -131,7 +209,6 @@ const LiveEvaluationPage = () => {
                 mediaRecorder.start(1000);
             };
 
-            // FIX: Corrected the logic to properly update the live transcript
             socket.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 if (data.type === 'transcript') {
@@ -139,14 +216,9 @@ const LiveEvaluationPage = () => {
                     
                     setChatHistory(prevChat => {
                         const lastEntry = prevChat[prevChat.length - 1];
-
-                        // If the last entry is an interim result from the same speaker, replace it.
                         if (lastEntry && 'isFinal' in lastEntry && !lastEntry.isFinal && lastEntry.speaker === newEntry.speaker) {
-                            const updatedChat = prevChat.slice(0, -1); // Remove the last entry
-                            return [...updatedChat, newEntry]; // Add the new, updated entry
-                        }
-                        // Otherwise, just add the new entry.
-                        else {
+                            return [...prevChat.slice(0, -1), newEntry];
+                        } else {
                             return [...prevChat, newEntry];
                         }
                     });
@@ -163,7 +235,7 @@ const LiveEvaluationPage = () => {
                 console.log("WebSocket connection closed.");
                 setStatus('idle');
                 setIsSessionActive(false);
-                if (micRecorderRef.current && micRecorderRef.current.state === 'recording') {
+                if (micRecorderRef.current?.state === 'recording') {
                     micRecorderRef.current.stop();
                 }
                 stream.getTracks().forEach(track => track.stop());
@@ -181,7 +253,7 @@ const LiveEvaluationPage = () => {
     };
 
     const stopSessionAndAnalyze = async () => {
-        if (micRecorderRef.current && micRecorderRef.current.state === "recording") {
+        if (micRecorderRef.current?.state === "recording") {
             micRecorderRef.current.stop();
         }
         if (socketRef.current) {
@@ -196,7 +268,7 @@ const LiveEvaluationPage = () => {
             const formData = new FormData();
             formData.append('audio', audioBlob, 'live_recording.webm');
             formData.append('residentId', selectedResident!.id);
-            formData.append('surgery', selectedSurgery!);
+            formData.append('surgery', selectedSurgery);
             formData.append('liveNotes', JSON.stringify(liveNotesRef.current));
 
             try {
@@ -215,8 +287,9 @@ const LiveEvaluationPage = () => {
                 router.push(`/results/${result.evaluationId}`);
 
             } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
                 console.error('Error during final analysis:', error);
-                alert(`An error occurred during the final analysis: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                alert(`An error occurred during the final analysis: ${errorMessage}`);
                 setIsProcessing(false);
             }
         }, 500);
@@ -288,7 +361,7 @@ const LiveEvaluationPage = () => {
                                         <div className={`p-3 rounded-2xl max-w-lg ${
                                             entry.speaker === 'Veritas' 
                                                 ? 'bg-purple-500/30 text-center'
-                                                : entry.speaker.includes('0') ? 'bg-blue-500/20' : 'bg-green-500/20'
+                                                : 'isFinal' in entry && entry.isFinal ? 'bg-zinc-700/50' : 'bg-zinc-800/40 text-gray-400'
                                         }`}>
                                             <p className="font-semibold text-sm mb-1">{entry.speaker}</p>
                                             <p className="text-text-primary">{entry.text}</p>
