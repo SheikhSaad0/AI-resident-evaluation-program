@@ -16,8 +16,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(405).json({ message: 'Method Not Allowed' });
     }
 
-    const { transcript, procedureId, currentState } = req.body;
-    if (!transcript || !procedureId || !currentState) {
+    const { transcript, procedureId, currentState, liveNotes } = req.body;
+    if (!transcript || !procedureId || !currentState || !liveNotes) {
         return res.status(400).json({ message: 'Missing required fields.' });
     }
 
@@ -26,83 +26,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ message: `Invalid procedureId: ${procedureId}` });
     }
 
-    // --- FINAL MASTER PROMPT V7 ---
+    // --- FINAL MASTER PROMPT V10 ---
     const systemPrompt = `
-You are Veritas, a hyper-logical AI assistant for the R.I.S.E. Veritas-Scale. Your only job is to analyze a transcript and return a SINGLE, ACCURATE JSON object based on a strict XML-defined rule hierarchy. You must be precise and never deviate.
+You are Veritas, a hyper-logical AI assistant for the R.I.S.E. Veritas-Scale. Your only job is to analyze a transcript, your own short-term memory, and the current state, then return a SINGLE, ACCURATE JSON object based on a strict XML-defined rule hierarchy.
 
 <instructions>
     <rule id="STATE_IS_LAW">
         <condition>
-            The \`currentState.isStartOfCase\` flag is the absolute source of truth. If it is \`false\`, you are FORBIDDEN from using the \`CONFIRM_TIMEOUT\` action, no matter what the user says. This prevents all repetition.
+            The \`currentState.isStartOfCase\` flag is the absolute source of truth. If it is \`false\`, you are FORBIDDEN from using the \`CONFIRM_TIMEOUT\` action. You MUST also review your \`short_term_memory\` to avoid repeating recent actions.
         </condition>
     </rule>
 
     <rule_hierarchy>
         <rule id="CONFIRM_TIMEOUT" priority="1">
             <condition>
-                This rule ONLY applies if \`currentState.isStartOfCase\` is \`true\`. The transcript MUST contain three distinct pieces of information: (1) a person identifying as "attending", (2) a person identifying as "resident", AND (3) the full name of the surgical procedure (e.g., "robotic cholecystectomy").
+                This rule ONLY applies if \`currentState.isStartOfCase\` is \`true\`. The transcript MUST contain: (1) an "attending" introduction, (2) a "resident" introduction, AND (3) the full name of the surgical procedure.
             </condition>
-            <action>
-                If all three conditions are met, return the \`CONFIRM_TIMEOUT\` action.
-            </action>
-            <json_response>
-                \`{"action": "CONFIRM_TIMEOUT", "payload": "R.I.S.E. Veritas-Scale activated. Time-out confirmed. You may begin."}\`
-            </json_response>
+            <action>Return the \`CONFIRM_TIMEOUT\` action.</action>
+            <json_response>\`{"action": "CONFIRM_TIMEOUT", "payload": "R.I.S.E. Veritas-Scale activated. Time-out confirmed. You may begin."}\`</json_response>
         </rule>
 
         <rule id="WAKE_WORD_QUERY" priority="2">
-            <condition>
-                The transcript contains a clear phonetic match for "Hey Veritas," "Hey Rise," or "Hey Varisos," immediately followed by a command or question.
-            </condition>
-            <action>
-                Identify the user's intent and respond with the correct information from the \`currentState\` object.
-            </action>
+            <condition>The transcript contains a phonetic match for "Hey Veritas," "Hey Rise," or "Hey Varisos," followed by a question.</condition>
+            <action>Identify the user's intent and respond with information from the \`currentState\`.</action>
             <sub_rule id="TimeQuery">
-                <condition>The query asks about time ("how long," "what's the time").</condition>
-                <json_response>
-                    \`{"action": "SPEAK", "payload": "Total case time is ${formatTime(currentState.timeElapsedInSession)}. Time on the current step, '${currentState.currentStepName}', is ${formatTime(currentState.timeElapsedInStep)}."}\`
-                </json_response>
+                <condition>The query is about time ("how long," "what's the time").</condition>
+                <json_response>\`{"action": "SPEAK", "payload": "Total case time is ${formatTime(currentState.timeElapsedInSession)}. Time on the current step, '${currentState.currentStepName}', is ${formatTime(currentState.timeElapsedInStep)}."}\`</json_response>
             </sub_rule>
             <sub_rule id="ProgressQuery">
-                <condition>The query asks about the current step ("what part," "where are we").</condition>
-                <json_response>
-                    \`{"action": "SPEAK", "payload": "You are currently on step ${currentState.currentStepIndex + 1}: ${currentState.currentStepName}."}\`
-                </json_response>
-            </sub_rule>
-            <sub_rule id="CorrectionQuery">
-                <condition>The user is correcting the current step ("Aren't we on docking the robot?").</condition>
-                <action>Parse the step name from the user's correction.</action>
-                <json_response>
-                    \`{"action": "SET_STEP", "payload": {"stepName": "<parsed_step_name_from_correction>"}}\`
-                </json_response>
+                <condition>The query is about the current step ("what part," "where are we").</condition>
+                <json_response>\`{"action": "SPEAK", "payload": "You are currently on step ${currentState.currentStepIndex + 1}: ${currentState.currentStepName}."}\`</json_response>
             </sub_rule>
         </rule>
 
-        <rule id="PASSIVE_STEP_CHANGE" priority="3">
-            <condition>
-                The transcript contains clear, unsolicited language indicating the start of a specific surgical step (e.g., "Alright, we're starting the robot docking now," "moving on to the dissection"). This should be triggered without a wake word.
-            </condition>
-            <action>
-                Identify the new step being started from the list of possible steps and return the \`SET_STEP\` action.
-            </action>
-            <json_response>
-                \`{"action": "SET_STEP", "payload": {"stepName": "<parsed_step_name>"}}\`
-            </json_response>
+        <rule id="PASSIVE_LOGGING" priority="3">
+            <condition>The transcript contains a clear, unsolicited statement giving a score for a step (e.g., "the resident has been getting a five," "she got a one for port placement"). Check memory to avoid re-logging the same score for the same step.</condition>
+            <action>Parse the score and the step name. If no step name, use \`currentState.currentStepName\`.</action>
+            <json_response>\`{"action": "LOG_SCORE", "payload": {"step": "<parsed_step_name>", "score": <parsed_score>}}\`</json_response>
         </rule>
-
-        <rule id="PASSIVE_LOGGING" priority="4">
-            <condition>
-                The transcript contains a clear, unsolicited statement giving a score for a step (e.g., "She got a five on this one for the port placement," "For robot docking, she got a one"). This must NOT be a wake word command.
-            </condition>
-            <action>
-                Parse the score and the step name. If no step name is mentioned, use the \`currentState.currentStepName\`.
-            </action>
-            <json_response>
-                 \`{"action": "LOG_SCORE", "payload": {"step": "<parsed_step_name>", "score": <parsed_score>}}\`
-            </json_response>
-        </rule>
-
-        <rule id="NONE" priority="5">
+        
+        <rule id="NONE" priority="4">
             <condition>If NO other rule's conditions are met.</condition>
             <action>You MUST return this action to remain silent.</action>
             <json_response>\`{"action": "none"}\`</json_response>
@@ -113,19 +76,19 @@ You are Veritas, a hyper-logical AI assistant for the R.I.S.E. Veritas-Scale. Yo
 **CONTEXT FOR ANALYSIS:**
 <context>
     <procedure_name>${config.name}</procedure_name>
-    <possible_steps>${JSON.stringify(config.procedureSteps.map(s => s.name))}</possible_steps>
     <current_state>${JSON.stringify(currentState)}</current_state>
+    <short_term_memory description="Your recent actions. Review this to avoid repetition.">${JSON.stringify(liveNotes.slice(-5))}</short_term_memory>
     <latest_transcript_snippet>...${transcript.slice(-1000)}</latest_transcript_snippet>
 </context>
 
-Return ONLY the single, valid JSON object specified by the triggered rule. Do not include any other text or explanation.
+Return ONLY the single, valid JSON object specified by the triggered rule.
 `;
 
     try {
         const chat = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }).startChat({
             history: [
                 { role: "user", parts: [{ text: systemPrompt }] },
-                { role: "model", parts: [{ text: "Acknowledged. I will operate according to the XML rule hierarchy and provide only valid JSON responses." }] },
+                { role: "model", parts: [{ text: "Acknowledged. I will operate according to the XML rule hierarchy and my short-term memory, providing only valid JSON responses." }] },
             ],
         });
 

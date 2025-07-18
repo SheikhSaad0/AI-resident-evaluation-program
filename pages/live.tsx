@@ -9,20 +9,18 @@ import { EVALUATION_CONFIGS } from '../lib/evaluation-configs';
 // --- INTERFACES ---
 interface Resident { id: string; name: string; photoUrl?: string | null; year?: string; }
 interface TranscriptEntry { speaker: string; text: string; isFinal: boolean; }
-interface AiResponsePayload { step?: string; score?: number; }
 interface AiResponse { action: string; payload?: any; }
-type ChatEntry = TranscriptEntry | { speaker: 'Veritas'; text: string; };
+type ChatEntry = TranscriptEntry | { speaker: 'Veritas'; text:string; };
 
 interface LiveSessionState {
     isStartOfCase: boolean;
     currentStepIndex: number;
     timeElapsedInSession: number;
     timeElapsedInStep: number;
-    lastScoreLogTime: number; // Stored as a timestamp
 }
 
 const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEBSOCKET_URL || "ws://localhost:3001";
-const PROACTIVE_CHECKIN_SECONDS = 180; // 3 minutes
+const DEBOUNCE_TIME_MS = 2000; // 2 seconds of silence before calling the AI
 
 const LiveEvaluationPage = () => {
     const router = useRouter();
@@ -33,13 +31,13 @@ const LiveEvaluationPage = () => {
     const [residents, setResidents] = useState<Resident[]>([]);
     const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
     const [selectedSurgery, setSelectedSurgery] = useState('');
+    const [isAiThinking, setIsAiThinking] = useState(false);
 
     const [currentState, setCurrentState] = useState<LiveSessionState>({
         isStartOfCase: true,
         currentStepIndex: 0,
         timeElapsedInSession: 0,
         timeElapsedInStep: 0,
-        lastScoreLogTime: 0,
     });
 
     const stateRef = useRef(currentState);
@@ -48,15 +46,14 @@ const LiveEvaluationPage = () => {
     const micRecorderRef = useRef<MediaRecorder | null>(null);
     const socketRef = useRef<WebSocket | null>(null);
     const transcriptEndRef = useRef<HTMLDivElement>(null);
-    // --- FIX: Correctly declare recordedChunksRef here ---
     const recordedChunksRef = useRef<Blob[]>([]);
+    const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const audioQueueRef = useRef<HTMLAudioElement[]>([]);
+    const isPlayingAudioRef = useRef(false);
 
-    // Keep stateRef in sync with currentState
-    useEffect(() => {
-        stateRef.current = currentState;
-    }, [currentState]);
-
-    // Fetch residents on mount
+    useEffect(() => { stateRef.current = currentState; }, [currentState]);
+    useEffect(() => { transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatHistory, isAiThinking]);
+    
     useEffect(() => {
         const fetchResidents = async () => {
             try {
@@ -67,38 +64,63 @@ const LiveEvaluationPage = () => {
         fetchResidents();
     }, []);
 
-    // Scroll chat to the bottom on new message
-    useEffect(() => {
-        transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [chatHistory]);
-
-    // Cleanup websockets and timers on unmount
     useEffect(() => {
         return () => {
             socketRef.current?.close();
-            if (micRecorderRef.current?.state === 'recording') {
-                micRecorderRef.current.stop();
-            }
+            micRecorderRef.current?.stop();
+            if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
         };
     }, []);
 
-    // Helper to add a message from Veritas to the chat
-    const addVeritasMessage = useCallback((text: string) => {
-        setChatHistory(prev => [...prev, { speaker: 'Veritas', text }]);
-        fullTranscriptRef.current += `[Veritas] ${text}\n`;
+    const playNextInQueue = useCallback(() => {
+        if (isPlayingAudioRef.current || audioQueueRef.current.length === 0) return;
+        isPlayingAudioRef.current = true;
+        const audio = audioQueueRef.current.shift();
+        audio?.play();
+        audio?.addEventListener('ended', () => {
+            isPlayingAudioRef.current = false;
+            playNextInQueue();
+        });
     }, []);
 
-    const getAiResponse = useCallback(async () => {
+    const speakText = useCallback(async (text: string) => {
+        try {
+            const response = await fetch('/api/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text }),
+            });
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const audio = new Audio(url);
+                audioQueueRef.current.push(audio);
+                playNextInQueue();
+            }
+        } catch (error) {
+            console.error("Error fetching TTS audio:", error);
+        }
+    }, [playNextInQueue]);
+    
+    const addVeritasMessage = useCallback((text: string, shouldSpeak: boolean = true) => {
+        setChatHistory(prev => [...prev, { speaker: 'Veritas', text }]);
+        fullTranscriptRef.current += `[Veritas] ${text}\n`;
+        if (shouldSpeak) {
+            speakText(text);
+        }
+    }, [speakText]);
+    
+    const processTranscriptWithAI = useCallback(async () => {
+        setIsAiThinking(true);
         const currentLiveState = stateRef.current;
-        if (!selectedSurgery) return;
+        if (!selectedSurgery) { setIsAiThinking(false); return; }
 
         const procedureId = Object.keys(EVALUATION_CONFIGS).find(key => EVALUATION_CONFIGS[key].name === selectedSurgery);
-        if (!procedureId) return;
+        if (!procedureId) { setIsAiThinking(false); return; }
 
         const config = EVALUATION_CONFIGS[procedureId];
         const currentStep = config.procedureSteps[currentLiveState.currentStepIndex];
-        const nextStep = config.procedureSteps[currentLiveState.currentStepIndex + 1];
-
+        
         try {
             const response = await fetch('/api/ai', {
                 method: 'POST',
@@ -109,109 +131,85 @@ const LiveEvaluationPage = () => {
                     currentState: {
                         ...currentLiveState,
                         currentStepName: currentStep?.name || "End of Procedure",
-                        nextStepName: nextStep?.name || "N/A",
                     },
+                    liveNotes: liveNotesRef.current,
                 }),
             });
 
-            if (!response.ok) return;
+            if (!response.ok) throw new Error('Network response was not ok');
             const aiData: AiResponse = await response.json();
             if (aiData.action === 'none') return;
 
             liveNotesRef.current.push(aiData);
 
             if (aiData.action === 'CONFIRM_TIMEOUT' && stateRef.current.isStartOfCase) {
-                setCurrentState(prev => ({ ...prev, isStartOfCase: false, lastScoreLogTime: Date.now() }));
+                setCurrentState(prev => ({ ...prev, isStartOfCase: false }));
                 addVeritasMessage(aiData.payload);
             } else if (aiData.action === 'SPEAK') {
                 addVeritasMessage(aiData.payload);
             } else if (aiData.action === 'LOG_SCORE' && aiData.payload) {
                 const { step: stepName, score } = aiData.payload;
-                const loggedStepIndex = config.procedureSteps.findIndex(s => s.name === stepName);
-
+                const loggedStepIndex = config.procedureSteps.findIndex(s => s.name.toLowerCase() === stepName.toLowerCase());
                 if (loggedStepIndex !== -1) {
                     addVeritasMessage(`Noted: Score of ${score} for ${stepName}.`);
-                    setCurrentState(prev => ({
-                        ...prev,
-                        currentStepIndex: loggedStepIndex + 1,
-                        timeElapsedInStep: 0,
-                        lastScoreLogTime: Date.now(),
-                    }));
+                    if (loggedStepIndex >= stateRef.current.currentStepIndex) {
+                         setCurrentState(prev => ({
+                            ...prev,
+                            currentStepIndex: loggedStepIndex + 1,
+                            timeElapsedInStep: 0,
+                        }));
+                    }
                 }
             }
-        } catch (error) {
-            console.error("Error fetching AI response:", error);
+        } catch (error) { 
+            console.error("Error processing transcript:", error);
+        } finally {
+            setIsAiThinking(false);
         }
     }, [selectedSurgery, addVeritasMessage]);
 
-    // Main Timer and Proactive Check-in Logic
     useEffect(() => {
         if (!isSessionActive || currentState.isStartOfCase) return;
-
         const timer = setInterval(() => {
-            const now = Date.now();
-            const timeSinceLastScore = (now - stateRef.current.lastScoreLogTime) / 1000;
-
-            if (timeSinceLastScore > PROACTIVE_CHECKIN_SECONDS) {
-                addVeritasMessage("Just checking in, it's been a few minutes. Is there any feedback or a score to log?");
-                setCurrentState(prev => ({ ...prev, lastScoreLogTime: now }));
-            }
-
             setCurrentState(prev => ({
                 ...prev,
                 timeElapsedInSession: prev.timeElapsedInSession + 1,
                 timeElapsedInStep: prev.timeElapsedInStep + 1,
             }));
         }, 1000);
-
         return () => clearInterval(timer);
-    }, [isSessionActive, currentState.isStartOfCase, addVeritasMessage]);
+    }, [isSessionActive, currentState.isStartOfCase]);
 
     const startSession = async () => {
-        if (!selectedResident || !selectedSurgery) {
-            alert("Please select a surgery and a resident.");
-            return;
-        }
-
+        if (!selectedResident || !selectedSurgery) { alert("Please select a surgery and a resident."); return; }
         setStatus('connecting');
         setChatHistory([]);
         fullTranscriptRef.current = "";
         liveNotesRef.current = [];
-        // --- FIX: Correctly reset the ref's current value ---
         recordedChunksRef.current = [];
-
         setCurrentState({
             isStartOfCase: true,
             currentStepIndex: 0,
             timeElapsedInSession: 0,
             timeElapsedInStep: 0,
-            lastScoreLogTime: Date.now(),
         });
-
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             micRecorderRef.current = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-
-            // --- FIX: ondataavailable pushes to the component-level ref ---
             micRecorderRef.current.ondataavailable = (event) => {
                 if (event.data.size > 0) {
                     recordedChunksRef.current.push(event.data);
-                    if (socketRef.current?.readyState === WebSocket.OPEN) {
-                        socketRef.current.send(event.data);
-                    }
+                    socketRef.current?.send(event.data);
                 }
             };
-            
             const wsUrl = `${WEBSOCKET_URL}?residentName=${encodeURIComponent(selectedResident.name)}`;
             socketRef.current = new WebSocket(wsUrl);
-
             socketRef.current.onopen = () => {
                 setStatus('connected');
                 setIsSessionActive(true);
                 micRecorderRef.current?.start(1000);
                 addVeritasMessage("Time-out initiated. Please state your names, roles, and the planned procedure for the record.");
             };
-
             socketRef.current.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 if (data.type === 'transcript') {
@@ -225,17 +223,18 @@ const LiveEvaluationPage = () => {
                     });
                     if (newEntry.isFinal && newEntry.text.trim()) {
                         fullTranscriptRef.current += `[${newEntry.speaker}] ${newEntry.text}\n`;
-                        getAiResponse();
+                        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+                        debounceTimerRef.current = setTimeout(() => {
+                            processTranscriptWithAI();
+                        }, DEBOUNCE_TIME_MS);
                     }
                 }
             };
-
             socketRef.current.onclose = () => {
                 setStatus('idle');
                 setIsSessionActive(false);
                 stream.getTracks().forEach(track => track.stop());
             };
-
             socketRef.current.onerror = () => setStatus('error');
         } catch (error) {
             console.error("Failed to start session:", error);
@@ -245,13 +244,10 @@ const LiveEvaluationPage = () => {
 
     const stopSessionAndAnalyze = async () => {
         setIsProcessing(true);
-        if (micRecorderRef.current?.state === "recording") {
-            micRecorderRef.current.stop();
-        }
+        micRecorderRef.current?.stop();
         socketRef.current?.close();
-
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
         setTimeout(async () => {
-            // --- FIX: Uses the correctly populated component-level ref ---
             const audioBlob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
             const formData = new FormData();
             formData.append('audio', audioBlob, 'live_recording.webm');
@@ -259,16 +255,9 @@ const LiveEvaluationPage = () => {
             formData.append('surgery', selectedSurgery);
             formData.append('fullTranscript', fullTranscriptRef.current);
             formData.append('liveNotes', JSON.stringify(liveNotesRef.current));
-
             try {
-                const response = await fetch('/api/analyze-full-session', {
-                    method: 'POST',
-                    body: formData,
-                });
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Analysis failed');
-                }
+                const response = await fetch('/api/analyze-full-session', { method: 'POST', body: formData });
+                if (!response.ok) throw new Error((await response.json()).error || 'Analysis failed');
                 const result = await response.json();
                 router.push(`/results/${result.evaluationId}`);
             } catch (error) {
@@ -278,17 +267,6 @@ const LiveEvaluationPage = () => {
         }, 500);
     };
     
-    const handleButtonClick = isSessionActive ? stopSessionAndAnalyze : startSession;
-
-    const getStatusIndicator = () => {
-        switch (status) {
-            case 'connected': return <div className="text-green-400">● Live</div>;
-            case 'connecting': return <div className="text-yellow-400">● Connecting...</div>;
-            case 'error': return <div className="text-red-500">● Error</div>;
-            default: return <div className="text-gray-400">● Idle</div>;
-        }
-    };
-
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full">
             <div className="lg:col-span-1 flex flex-col space-y-6">
@@ -297,17 +275,13 @@ const LiveEvaluationPage = () => {
                     <p className="text-lg text-gray-300">Real-time analysis powered by R.I.S.E Veritas-Scale</p>
                 </div>
                 <GlassCard variant="strong" className="p-6 space-y-6 flex-grow">
-                    <div className="relative z-30">
-                        <SurgerySelector selected={selectedSurgery} setSelected={setSelectedSurgery} />
-                    </div>
-                    <div className="relative z-20">
-                        <ResidentSelector residents={residents} selected={selectedResident} setSelected={setSelectedResident} />
-                    </div>
+                    <div className="relative z-30"><SurgerySelector selected={selectedSurgery} setSelected={setSelectedSurgery} /></div>
+                    <div className="relative z-20"><ResidentSelector residents={residents} selected={selectedResident} setSelected={setSelectedResident} /></div>
                     <div className="pt-4">
                         <GlassButton 
                             variant={isSessionActive ? "secondary" : "primary"}
                             size="lg" 
-                            onClick={handleButtonClick}
+                            onClick={isSessionActive ? stopSessionAndAnalyze : startSession}
                             disabled={!selectedSurgery || !selectedResident || status === 'connecting' || isProcessing} 
                             className="w-full"
                         >
@@ -315,7 +289,10 @@ const LiveEvaluationPage = () => {
                         </GlassButton>
                     </div>
                     <div className="flex items-center justify-center pt-4 font-semibold">
-                        {getStatusIndicator()}
+                        {status === 'connected' && <div className="text-green-400">● Live</div>}
+                        {status === 'connecting' && <div className="text-yellow-400">● Connecting...</div>}
+                        {status === 'error' && <div className="text-red-500">● Error</div>}
+                        {status === 'idle' && <div className="text-gray-400">● Idle</div>}
                     </div>
                 </GlassCard>
             </div>
@@ -342,6 +319,14 @@ const LiveEvaluationPage = () => {
                                         </div>
                                     </div>
                                 ))}
+                                {isAiThinking && (
+                                    <div className="flex items-center justify-center text-center">
+                                        <div className="p-3 rounded-2xl max-w-lg bg-purple-900 bg-opacity-50 animate-pulse">
+                                            <p className="font-semibold text-sm mb-1 text-purple-300">Veritas</p>
+                                            <p className="text-white italic">... thinking</p>
+                                        </div>
+                                    </div>
+                                )}
                                 <div ref={transcriptEndRef} />
                             </div>
                         )}
