@@ -147,10 +147,16 @@ const LiveEvaluationPage = () => {
             
             const aiData = await response.json();
 
+            // ✅ THIS IS THE CORRECTED LOGIC BLOCK
             if (aiData.action && aiData.action !== 'none') {
                  if (aiData.action === 'speak') {
-                    setChatHistory(prev => [...prev, { speaker: 'Veritas', text: aiData.payload, action: 'speak' }]);
+                    const aiSpeechText = aiData.payload;
+                    // 1. Add AI response to the visual chat history
+                    setChatHistory(prev => [...prev, { speaker: 'Veritas', text: aiSpeechText, action: 'speak' }]);
+                    // 2. ALSO add AI response to the permanent transcript record
+                    fullTranscriptRef.current += `[Veritas] ${aiSpeechText}\n`;
                  }
+                 // Add the AI's action (speak, note, etc.) to the live notes for final analysis
                  liveNotesRef.current.push(aiData);
             }
 
@@ -269,6 +275,8 @@ const LiveEvaluationPage = () => {
             formData.append('audio', audioBlob, 'live_recording.webm');
             formData.append('residentId', selectedResident!.id);
             formData.append('surgery', selectedSurgery);
+            // This now contains both resident and AI speech
+            formData.append('fullTranscript', fullTranscriptRef.current); 
             formData.append('liveNotes', JSON.stringify(liveNotesRef.current));
 
             try {

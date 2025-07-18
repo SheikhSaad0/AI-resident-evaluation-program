@@ -70,9 +70,10 @@ export async function uploadFileToGCS(localPath: string, destination: string): P
     }
 
     try {
+        // 👇 THIS IS THE ONLY CHANGE NEEDED 👇
         const options = {
             destination: destination,
-            public: true,
+            // public: true,  <- REMOVE OR COMMENT OUT THIS LINE
             metadata: {
                 cacheControl: 'public, max-age=31536000',
             },
@@ -82,7 +83,9 @@ export async function uploadFileToGCS(localPath: string, destination: string): P
     
         console.log(`${localPath} uploaded to ${process.env.GCS_BUCKET_NAME}/${destination}.`);
     
+        // This will now work correctly based on your bucket's permissions
         return `https://storage.googleapis.com/${process.env.GCS_BUCKET_NAME}/${destination}`;
+
     } catch (error) {
         console.error('ERROR uploading file to GCS:', error);
         throw error;

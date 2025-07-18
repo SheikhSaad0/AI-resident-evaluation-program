@@ -1,39 +1,38 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { GlassCard } from './ui';
+import { EVALUATION_CONFIGS } from '../lib/evaluation-configs';
 
-const surgeries = [
-  {
-    name: 'Laparoscopic Inguinal Hernia Repair with Mesh (TEP)',
-    icon: '/images/herniaArt.png',
-    shortName: 'Inguinal Hernia TEP'
-  },
-  {
-    name: 'Laparoscopic Cholecystectomy',
-    icon: '/images/galbladderArt.png',
-    shortName: 'Laparoscopic Cholecystectomy'
-  },
-  {
-    name: 'Robotic Cholecystectomy',
-    icon: '/images/galbladderArt.png',
-    shortName: 'Robotic Cholecystectomy'
-  },
-  {
-    name: 'Robotic Assisted Laparoscopic Inguinal Hernia Repair (TAPP)',
-    icon: '/images/herniaArt.png',
-    shortName: 'Inguinal Hernia TAPP'
-  },
-  {
-    name: 'Robotic Lap Ventral Hernia Repair (TAPP)',
-    icon: '/images/herniaArt.png',
-    shortName: 'Ventral Hernia Repair'
-  },
-  {
-    name: 'Laparoscopic Appendicectomy',
-    icon: '/images/appendectomyArt.png',
-    shortName: 'Laparoscopic Appendicectomy'
-  }
-];
+// A more robust helper function to get display details for each surgery.
+// This now correctly handles all cases without accidentally removing any.
+const getSurgeryDetails = (name: string) => {
+    const lowerName = name.toLowerCase();
+
+    if (lowerName.includes('cholecystectomy')) {
+        return { icon: '/images/galbladderArt.png', shortName: name };
+    }
+    if (lowerName.includes('hernia')) {
+        return { icon: '/images/herniaArt.png', shortName: name.replace('with Mesh', '').replace('Repair', 'Repair') };
+    }
+    if (lowerName.includes('appendicectomy')) {
+        return { icon: '/images/appendectomyArt.png', shortName: 'Laparoscopic Appendicectomy' };
+    }
+    // A fallback for any other procedures like Open VHR
+    return { icon: '/images/herniaArt.png', shortName: name };
+};
+
+
+// Dynamically generate the list of surgeries from the central configuration file.
+// This is the single source of truth, ensuring the UI always matches the backend.
+const surgeries = Object.values(EVALUATION_CONFIGS).map(config => {
+    const details = getSurgeryDetails(config.name);
+    return {
+        name: config.name,
+        icon: details.icon,
+        shortName: details.shortName
+    };
+});
+
 
 interface Props {
   selected: string;
@@ -81,7 +80,9 @@ const SurgerySelector: React.FC<Props> = ({ selected, setSelected }) => {
                     className="opacity-80"
                   />
                   <div>
+                    {/* Display the shorter name for selection box */}
                     <p className="font-medium text-text-primary">{selectedSurgery.shortName}</p>
+                    {/* Display the full name for clarity */}
                     <p className="text-xs text-text-quaternary">{selectedSurgery.name}</p>
                   </div>
                 </>
@@ -107,7 +108,7 @@ const SurgerySelector: React.FC<Props> = ({ selected, setSelected }) => {
 
         {isExpanded && (
           <div className="absolute top-full left-0 right-0 z-30 mt-2">
-            <GlassCard variant="strong" className="p-2 max-h-64 overflow-y-auto scrollbar-glass dropdown-background">
+            <GlassCard variant="strong" className="p-2 max-h-72 overflow-y-auto scrollbar-glass dropdown-background">
               <div className="space-y-1">
                 {surgeries.map((surgery) => (
                   <div
@@ -127,8 +128,10 @@ const SurgerySelector: React.FC<Props> = ({ selected, setSelected }) => {
                         className="opacity-80"
                       />
                       <div>
+                        {/* Use the shorter, cleaner name in the dropdown list */}
                         <p className="font-medium text-text-primary text-sm">{surgery.shortName}</p>
-                        <p className="text-xs text-text-quaternary">{surgery.name}</p>
+                         {/* Optionally hide the full name in the dropdown if too long */}
+                        {/* <p className="text-xs text-text-quaternary">{surgery.name}</p> */}
                       </div>
                     </div>
                   </div>
