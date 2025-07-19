@@ -36,13 +36,13 @@ export default function Evaluations() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedEvaluations, setSelectedEvaluations] = useState<string[]>([]);
 
   useEffect(() => {
     if (statusFromQuery) {
       setFilterStatus(statusFromQuery as string);
     }
   }, [statusFromQuery]);
-
 
   useEffect(() => {
     const fetchEvaluations = async () => {
@@ -105,6 +105,44 @@ export default function Evaluations() {
     setFilteredEvaluations(filtered);
   }, [evaluations, searchTerm, filterType, filterStatus, selectedResident]);
 
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      const allIds = filteredEvaluations.map(ev => ev.id);
+      setSelectedEvaluations(allIds);
+    } else {
+      setSelectedEvaluations([]);
+    }
+  };
+
+  const handleSelectOne = (id: string) => {
+    setSelectedEvaluations(prev =>
+      prev.includes(id) ? prev.filter(prevId => prevId !== id) : [...prev, id]
+    );
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedEvaluations.length === 0 || !window.confirm(`Are you sure you want to delete ${selectedEvaluations.length} evaluation(s)?`)) {
+      return;
+    }
+    try {
+      const response = await fetch('/api/evaluations/delete-many', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedEvaluations }),
+      });
+      if (response.ok) {
+        setEvaluations(prev => prev.filter(ev => !selectedEvaluations.includes(ev.id)));
+        setSelectedEvaluations([]);
+        alert('Selected evaluations deleted successfully.');
+      } else {
+        throw new Error('Failed to delete evaluations');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Failed to delete selected evaluations');
+    }
+  };
+
   const getTypeIcon = (videoAnalysis: boolean) => (videoAnalysis ? '/images/visualAnalysis.svg' : '/images/audioAnalysis.svg');
   const getStatusBadge = (evaluation: Evaluation) => {
     if (evaluation.isFinalized) {
@@ -158,7 +196,19 @@ export default function Evaluations() {
 
       <GlassCard variant="strong" className="p-6">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="heading-md">Evaluations ({filteredEvaluations.length})</h3>
+          <div className="flex items-center gap-4">
+            <input
+              type="checkbox"
+              onChange={handleSelectAll}
+              checked={selectedEvaluations.length === filteredEvaluations.length && filteredEvaluations.length > 0}
+            />
+            <h3 className="heading-md">Evaluations ({filteredEvaluations.length})</h3>
+          </div>
+          {selectedEvaluations.length > 0 && (
+            <GlassButton variant="ghost" onClick={handleDeleteSelected} className="!text-red-400 hover:!bg-red-500/20">
+              Delete Selected ({selectedEvaluations.length})
+            </GlassButton>
+          )}
           <GlassButton variant="primary" onClick={() => router.push('/')}>New Evaluation</GlassButton>
         </div>
         <div className="space-y-4">
@@ -168,10 +218,16 @@ export default function Evaluations() {
             filteredEvaluations.map((evaluation) => {
               const resident = residents.find(r => r.id === evaluation.residentId);
               return (
-                <GlassCard key={evaluation.id} variant="subtle" hover onClick={() => router.push(`/results/${evaluation.id}`)} className="p-6 cursor-pointer">
+                <GlassCard key={evaluation.id} variant="subtle" hover className="p-6">
                   <div className="flex items-center justify-between space-x-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedEvaluations.includes(evaluation.id)}
+                      onChange={() => handleSelectOne(evaluation.id)}
+                      className="mr-4"
+                    />
                     {/* Left Part */}
-                    <div className="flex items-center space-x-4 flex-1 min-w-0">
+                    <div onClick={() => router.push(`/results/${evaluation.id}`)} className="flex items-center space-x-4 flex-1 min-w-0 cursor-pointer">
                       <Image
                         src={resident?.photoUrl || '/images/default-avatar.svg'}
                         alt={evaluation.residentName || 'Resident'}
