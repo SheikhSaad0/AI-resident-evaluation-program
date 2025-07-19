@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { GlassCard, GlassButton, GlassInput, GlassTextarea } from '../../components/ui';
-// --- FIX: Import shared configurations instead of defining them locally ---
 import { EVALUATION_CONFIGS } from '../../lib/evaluation-configs';
 
 // --- TYPE DEFINITIONS ---
@@ -17,14 +16,15 @@ interface EvaluationStep {
 }
 
 interface EvaluationData {
-  [key: string]: EvaluationStep | number | string | boolean | undefined;
+  [key: string]: EvaluationStep | number | string | boolean | undefined | any; // Use any for flexibility
   id?: string;
   caseDifficulty: number;
   additionalComments: string;
   attendingCaseDifficulty?: number;
   attendingAdditionalComments?: string;
   transcription: string;
-  surgery: string; // This is the full name, e.g., "Laparoscopic Cholecystectomy"
+  liveNotes?: string | any[]; // Can be a stringified JSON array or an actual array
+  surgery: string;
   residentId?: string;
   residentName?: string;
   residentPhotoUrl?: string;
@@ -132,14 +132,12 @@ const PillTabs = ({ tabs, activeTab, setActiveTab }: { tabs: any[], activeTab: s
 // --- FIXED SIDEBAR & TABS ---
 
 const LeftSidebar = ({ evaluation }: { evaluation?: EvaluationData | null }) => {
-    const surgery = evaluation?.surgery;
-    const finalScore = evaluation?.finalScore;
-    const caseDifficulty = evaluation?.attendingCaseDifficulty ?? evaluation?.caseDifficulty;
+    const surgery = evaluation?.surgery as string;
+    const finalScore = evaluation?.finalScore as number;
+    const caseDifficulty = (evaluation?.attendingCaseDifficulty ?? evaluation?.caseDifficulty) as number;
     
     let displayScore = finalScore;
-    // Calculate average score only if no final score is set
     if (finalScore === undefined && evaluation && surgery) {
-        // --- FIX: Find the config by matching the surgery name, not using it as a key ---
         const config = Object.values(EVALUATION_CONFIGS).find(c => c.name === surgery);
         
         if (config) {
@@ -174,29 +172,27 @@ const LeftSidebar = ({ evaluation }: { evaluation?: EvaluationData | null }) => 
 };
 
 const OverviewTab = ({ evaluation }: { evaluation: EvaluationData }) => {
-    // --- FIX: Find the config by matching the surgery name ---
     const config = Object.values(EVALUATION_CONFIGS).find(c => c.name === evaluation.surgery);
 
     if (!config) {
-        return <p>Could not find configuration for {evaluation.surgery}.</p>;
+        return <p>Could not find configuration for {evaluation.surgery as string}.</p>;
     }
 
     return (
         <div className="space-y-6">
             <GlassCard variant="strong" className="p-6">
                 <h3 className="heading-md mb-4">Overall Remarks</h3>
-                <p className="text-text-secondary leading-relaxed">{evaluation.attendingAdditionalComments || evaluation.additionalComments}</p>
+                <p className="text-text-secondary leading-relaxed">{(evaluation.attendingAdditionalComments || evaluation.additionalComments) as string}</p>
                 {evaluation.additionalContext && (
                      <div className="mt-4">
                         <h4 className="font-semibold text-text-tertiary mb-2">Provided Context</h4>
-                        <p className="text-text-quaternary text-sm italic">"{evaluation.additionalContext}"</p>
+                        <p className="text-text-quaternary text-sm italic">"{evaluation.additionalContext as string}"</p>
                     </div>
                 )}
             </GlassCard>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  {config.procedureSteps.map(step => {
                     const stepData = evaluation[step.key] as EvaluationStep | undefined;
-                    // Use a default score of 0 if the step data is missing
                     const displayScore = stepData?.attendingScore ?? stepData?.score ?? 0;
                     const displayComments = stepData?.attendingComments || stepData?.comments || 'No comments available.';
 
@@ -215,7 +211,7 @@ const OverviewTab = ({ evaluation }: { evaluation: EvaluationData }) => {
 };
 
 
-// --- OTHER TABS & MAIN PAGE (LOGIC REMAINS MOSTLY THE SAME) ---
+// --- OTHER TABS & MAIN PAGE ---
 
 const StepAnalysisTab = ({ procedureSteps, editedEvaluation, isFinalized, onEvaluationChange }: { procedureSteps: ProcedureStep[], editedEvaluation: EvaluationData, isFinalized: boolean, onEvaluationChange: Function }) => (
     <div className="space-y-6">
@@ -255,24 +251,100 @@ const StepAnalysisTab = ({ procedureSteps, editedEvaluation, isFinalized, onEval
     </div>
   );
 
-const MediaTab = ({ transcription, mediaUrl, isOriginalFileVideo }: { transcription: string, mediaUrl: string | null, isOriginalFileVideo: boolean }) => (
-    <div className="space-y-6">
-        {mediaUrl && (
-            <GlassCard variant="strong" className="p-6">
-                <h3 className="heading-md mb-4">{isOriginalFileVideo ? 'Video Recording' : 'Audio Recording'}</h3>
-                <div className="glassmorphism-subtle rounded-2xl p-2">
-                    {isOriginalFileVideo ? (<video controls src={mediaUrl} className="w-full rounded-xl" />) : (<audio controls src={mediaUrl} className="w-full" />)}
-                </div>
-            </GlassCard>
-        )}
-        <GlassCard variant="strong" className="p-6">
-            <h3 className="heading-md mb-4">Transcription</h3>
-            <div className="glassmorphism-subtle rounded-2xl p-6 max-h-[60vh] overflow-y-auto scrollbar-glass">
-                <p className="text-text-secondary leading-relaxed whitespace-pre-wrap">{transcription || 'No transcription available.'}</p>
+/**
+ * --- FIX IS HERE ---
+ * This new helper function translates the raw AI action object into a readable string.
+ * It's robust enough to handle different actions and gracefully ignores irrelevant ones.
+ */
+const formatAiNote = (noteObject: any): string | null => {
+    if (typeof noteObject !== 'object' || !noteObject || !noteObject.action) {
+        // If it's not a valid action object, return null to hide it.
+        return null;
+    }
+
+    const { action, payload } = noteObject;
+
+    switch (action) {
+        case 'LOG_SCORE':
+            return `[Score Logged] Rated step "${payload.step}" with a score of ${payload.score}.`;
+        case 'LOG_COMMENT':
+            return `[Comment Logged] Added comment: "${payload.comment}"`;
+        case 'LOG_INTERVENTION':
+            return `[Intervention] Attending took over: "${payload.comment || 'No reason specified'}"`;
+        case 'LOG_SKIPPED_STEP':
+            return `[Step Skipped] The step "${payload.stepKey}" was skipped. Reason: ${payload.reason}`;
+        case 'CHANGE_STEP':
+            return `[Step Change] Procedure moved to: ${payload.stepKey}.`;
+        case 'SPEAK':
+            return `[Veritas Spoke] Said: "${payload}"`;
+        case 'CONFIRM_TIMEOUT':
+            return `[Time-Out] Confirmed the pre-procedure time-out.`;
+        case 'NONE':
+            return null; // Explicitly ignore the "NONE" action.
+        default:
+            // Fallback for any other action types, just in case.
+            return `[System Action] Performed action: ${action}`;
+    }
+};
+
+const MediaTab = ({ transcription, liveNotes, mediaUrl, isOriginalFileVideo }: { transcription: string, liveNotes: string | any[] | undefined, mediaUrl: string | null, isOriginalFileVideo: boolean }) => {
+    let parsedNotes: any[] = [];
+    if (liveNotes) {
+        // This logic handles both stringified JSON and actual arrays from the database.
+        if (typeof liveNotes === 'string') {
+            try {
+                parsedNotes = JSON.parse(liveNotes);
+            } catch (e) {
+                // If it's not a JSON string, it might be newline-separated simple notes.
+                parsedNotes = liveNotes.split('\n');
+            }
+        } else if (Array.isArray(liveNotes)) {
+            parsedNotes = liveNotes;
+        }
+    }
+
+    const formattedNotes = parsedNotes
+        .map(formatAiNote) // Translate each note object into a readable string
+        .filter(Boolean); // Filter out any null entries (like the 'NONE' actions)
+
+    return (
+        <div className="space-y-6">
+            {mediaUrl && (
+                <GlassCard variant="strong" className="p-6">
+                    <h3 className="heading-md mb-4">{isOriginalFileVideo ? 'Video Recording' : 'Audio Recording'}</h3>
+                    <div className="glassmorphism-subtle rounded-2xl p-2">
+                        {isOriginalFileVideo ? (<video controls src={mediaUrl} className="w-full rounded-xl" />) : (<audio controls src={mediaUrl} className="w-full" />)}
+                    </div>
+                </GlassCard>
+            )}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <GlassCard variant="strong" className="p-6">
+                    <h3 className="heading-md mb-4">Transcription</h3>
+                    <div className="glassmorphism-subtle rounded-2xl p-6 max-h-[60vh] overflow-y-auto scrollbar-glass">
+                        <p className="text-text-secondary leading-relaxed whitespace-pre-wrap">{transcription || 'No transcription available.'}</p>
+                    </div>
+                </GlassCard>
+                <GlassCard variant="strong" className="p-6">
+                    <h3 className="heading-md mb-4">Veritas AI Notes</h3>
+                    <div className="glassmorphism-subtle rounded-2xl p-6 max-h-[60vh] overflow-y-auto scrollbar-glass">
+                        {formattedNotes.length > 0 ? (
+                            <div className="space-y-3">
+                                {formattedNotes.map((note, index) => (
+                                    <p key={index} className="text-text-secondary leading-relaxed whitespace-pre-wrap font-mono text-sm">
+                                        {note}
+                                    </p>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-text-tertiary">No AI notes were recorded for this session.</p>
+                        )}
+                    </div>
+                </GlassCard>
             </div>
-        </GlassCard>
-    </div>
-);
+        </div>
+    );
+};
+
 
 const EditTab = ({ editedEvaluation, isFinalized, onOverallChange, onFinalize, onDelete, onEdit }: { editedEvaluation: EvaluationData, isFinalized: boolean, onOverallChange: Function, onFinalize: () => void, onDelete: () => void, onEdit: () => void }) => (
     <div className="space-y-6">
@@ -281,16 +353,16 @@ const EditTab = ({ editedEvaluation, isFinalized, onOverallChange, onFinalize, o
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-text-tertiary mb-2">Case Difficulty Override (1-3)</label>
-              <GlassInput type="number" min={1} max={3} value={editedEvaluation.attendingCaseDifficulty?.toString() ?? ''} onChange={(e) => onOverallChange('attendingCaseDifficulty', e.target.value ? parseInt(e.target.value) : undefined)} disabled={isFinalized} placeholder={`AI rated: ${editedEvaluation.caseDifficulty}`} />
+              <GlassInput type="number" min={1} max={3} value={(editedEvaluation.attendingCaseDifficulty as number)?.toString() ?? ''} onChange={(e) => onOverallChange('attendingCaseDifficulty', e.target.value ? parseInt(e.target.value) : undefined)} disabled={isFinalized} placeholder={`AI rated: ${editedEvaluation.caseDifficulty}`} />
             </div>
             <div>
               <label className="block text-sm font-medium text-text-tertiary mb-2">Final Overall Score (1-5)</label>
-              <GlassInput type="number" min={1} max={5} step="0.1" value={editedEvaluation.finalScore?.toString() ?? ''} onChange={(e) => onOverallChange('finalScore', e.target.value ? parseFloat(e.target.value) : undefined)} disabled={isFinalized} placeholder="Required to finalize" />
+              <GlassInput type="number" min={1} max={5} step="0.1" value={(editedEvaluation.finalScore as number)?.toString() ?? ''} onChange={(e) => onOverallChange('finalScore', e.target.value ? parseFloat(e.target.value) : undefined)} disabled={isFinalized} placeholder="Required to finalize" />
             </div>
           </div>
           <div className="mt-6">
             <label className="block text-sm font-medium text-text-tertiary mb-2">Final Remarks & Recommendations</label>
-            <GlassTextarea value={editedEvaluation.attendingAdditionalComments ?? ''} onChange={(e) => onOverallChange('attendingAdditionalComments', e.target.value)} disabled={isFinalized} placeholder={editedEvaluation.additionalComments as string || 'Enter your final remarks...'} rows={5} />
+            <GlassTextarea value={editedEvaluation.attendingAdditionalComments as string ?? ''} onChange={(e) => onOverallChange('attendingAdditionalComments', e.target.value)} disabled={isFinalized} placeholder={editedEvaluation.additionalComments as string || 'Enter your final remarks...'} rows={5} />
           </div>
       </GlassCard>
       <div className="flex flex-col sm:flex-row gap-4">
@@ -327,11 +399,9 @@ export default function RevampedResultsPage() {
                 const jobData = await response.json();
     
                 if (jobData.status === 'complete' && jobData.result) {
-                    // --- FIX: The result from the API might be a string, ensure it's parsed ---
                     const resultData = typeof jobData.result === 'string' ? JSON.parse(jobData.result) : jobData.result;
 
-                    // Validate that the essential data is present before proceeding
-                    if (!resultData.surgery || !resultData.procedureSteps) {
+                    if (!resultData.surgery) {
                          throw new Error('Incomplete evaluation data received from the server.');
                     }
                     
@@ -355,10 +425,8 @@ export default function RevampedResultsPage() {
                     setStatus('loaded');
                 } else if (jobData.status === 'pending' || jobData.status.startsWith('processing')) {
                     setStatus('polling');
-                    // Continue polling
                     setTimeout(() => fetchEvaluation(jobId), 5000);
                 } else {
-                    // Handle failed or errored jobs
                     throw new Error(jobData.error || 'Evaluation has failed or the job was not found.');
                 }
             } catch (error) {
@@ -371,7 +439,6 @@ export default function RevampedResultsPage() {
         fetchEvaluation(id as string);
     }, [id]);
   
-    // --- HANDLER FUNCTIONS (UNCHANGED) ---
     const handleFinalize = async () => {
         if (!editedEvaluation || !id) return;
         const finalEvaluation = { ...editedEvaluation, isFinalized: true };
@@ -435,8 +502,6 @@ export default function RevampedResultsPage() {
         if (editedEvaluation) setEditedEvaluation({ ...editedEvaluation, [field]: value });
     };
 
-    // --- RENDER LOGIC ---
-
     if (status === 'error') {
         return (
           <div className="min-h-screen flex items-center justify-center text-center">
@@ -450,14 +515,13 @@ export default function RevampedResultsPage() {
         );
     }
     
-    // --- FIX: Find the config by matching the surgery name for tab generation ---
     const config = evaluation ? Object.values(EVALUATION_CONFIGS).find(c => c.name === evaluation.surgery) : null;
     const isFinalizedAndLocked = editedEvaluation?.isFinalized === true;
 
     const tabs = editedEvaluation && config ? [
         { id: 'overview', label: 'Overview', content: <OverviewTab evaluation={editedEvaluation} /> },
         { id: 'step_analysis', label: 'Step Analysis', content: <StepAnalysisTab procedureSteps={config.procedureSteps} editedEvaluation={editedEvaluation} isFinalized={isFinalizedAndLocked} onEvaluationChange={handleEvaluationChange} /> },
-        { id: 'media', label: 'Media & Transcription', content: <MediaTab transcription={editedEvaluation.transcription} mediaUrl={mediaUrl} isOriginalFileVideo={isOriginalFileVideo} /> },
+        { id: 'media', label: 'Media & Transcription', content: <MediaTab transcription={editedEvaluation.transcription as string} liveNotes={editedEvaluation.liveNotes} mediaUrl={mediaUrl} isOriginalFileVideo={isOriginalFileVideo} /> },
         { id: 'edit', label: 'Edit & Finalize', content: <EditTab editedEvaluation={editedEvaluation} isFinalized={isFinalizedAndLocked} onOverallChange={handleOverallChange} onFinalize={handleFinalize} onDelete={handleDelete} onEdit={handleEdit} /> },
     ] : [];
     
@@ -509,8 +573,8 @@ export default function RevampedResultsPage() {
                                 <a className="block glassmorphism p-1 rounded-full hover:shadow-glass-lg transition-shadow">
                                      <div className="w-12 h-12 rounded-full overflow-hidden relative">
                                         <Image 
-                                            src={evaluation.residentPhotoUrl} 
-                                            alt={evaluation.residentName || 'Resident'}
+                                            src={evaluation.residentPhotoUrl as string} 
+                                            alt={evaluation.residentName as string || 'Resident'}
                                             layout="fill"
                                             objectFit="cover"
                                         />
