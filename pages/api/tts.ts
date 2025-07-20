@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 // This is the ID for a standard, clear voice. You can find others in your Eleven Labs account.
-const VOICE_ID = 'XrExE9yKIg1WjnnlVkGX'; 
+const VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; 
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== 'POST') {

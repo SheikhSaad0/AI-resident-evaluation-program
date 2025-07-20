@@ -1,3 +1,5 @@
+// In pages/live.tsx
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
@@ -13,14 +15,13 @@ interface AiResponse { action: string; payload?: any; }
 type ChatEntry = TranscriptEntry | { speaker: 'Veritas'; text:string; };
 
 interface LiveSessionState {
-    isStartOfCase: boolean;
     currentStepIndex: number;
     timeElapsedInSession: number;
     timeElapsedInStep: number;
 }
 
 const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEBSOCKET_URL || "ws://localhost:3001";
-const DEBOUNCE_TIME_MS = 2000; // 2 seconds of silence before calling the AI
+const DEBOUNCE_TIME_MS = 2000;
 
 const LiveEvaluationPage = () => {
     const router = useRouter();
@@ -34,7 +35,6 @@ const LiveEvaluationPage = () => {
     const [isAiThinking, setIsAiThinking] = useState(false);
 
     const [currentState, setCurrentState] = useState<LiveSessionState>({
-        isStartOfCase: true,
         currentStepIndex: 0,
         timeElapsedInSession: 0,
         timeElapsedInStep: 0,
@@ -85,6 +85,7 @@ const LiveEvaluationPage = () => {
 
     const speakText = useCallback(async (text: string) => {
         try {
+            console.log(`[DEBUG] Requesting TTS for: "${text}"`);
             const response = await fetch('/api/tts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -96,80 +97,100 @@ const LiveEvaluationPage = () => {
                 const audio = new Audio(url);
                 audioQueueRef.current.push(audio);
                 playNextInQueue();
+            } else {
+                 console.error("[DEBUG] TTS request failed");
             }
         } catch (error) {
-            console.error("Error fetching TTS audio:", error);
+            console.error("[DEBUG] Error fetching TTS audio:", error);
         }
     }, [playNextInQueue]);
     
     const addVeritasMessage = useCallback((text: string, shouldSpeak: boolean = true) => {
+        console.log(`[DEBUG] Adding Veritas message to chat: "${text}"`);
         setChatHistory(prev => [...prev, { speaker: 'Veritas', text }]);
         fullTranscriptRef.current += `[Veritas] ${text}\n`;
         if (shouldSpeak) {
             speakText(text);
         }
     }, [speakText]);
-    
-    const processTranscriptWithAI = useCallback(async () => {
+
+    const processTranscriptWithAI = useCallback(async (isInitial = false) => {
         setIsAiThinking(true);
+        console.log(`[DEBUG] processTranscriptWithAI called. isInitial: ${isInitial}`);
+        
         const currentLiveState = stateRef.current;
-        if (!selectedSurgery) { setIsAiThinking(false); return; }
+        if (!selectedSurgery) {
+            console.error("[DEBUG] AI call aborted: No surgery selected.");
+            setIsAiThinking(false);
+            return;
+        }
 
         const procedureId = Object.keys(EVALUATION_CONFIGS).find(key => EVALUATION_CONFIGS[key].name === selectedSurgery);
-        if (!procedureId) { setIsAiThinking(false); return; }
+        if (!procedureId) {
+            console.error("[DEBUG] AI call aborted: Could not find procedure ID.");
+            setIsAiThinking(false);
+            return;
+        }
 
         const config = EVALUATION_CONFIGS[procedureId];
         const currentStep = config.procedureSteps[currentLiveState.currentStepIndex];
         
+        const requestBody = {
+            transcript: isInitial ? "SESSION_START" : fullTranscriptRef.current,
+            procedureId,
+            currentState: {
+                ...currentLiveState,
+                currentStepName: currentStep?.name || "End of Procedure",
+            },
+            liveNotes: liveNotesRef.current,
+        };
+
+        console.log("[DEBUG] Sending data to /api/ai:", JSON.stringify(requestBody, null, 2));
+
         try {
             const response = await fetch('/api/ai', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    transcript: fullTranscriptRef.current,
-                    procedureId,
-                    currentState: {
-                        ...currentLiveState,
-                        currentStepName: currentStep?.name || "End of Procedure",
-                    },
-                    liveNotes: liveNotesRef.current,
-                }),
+                body: JSON.stringify(requestBody),
             });
 
-            if (!response.ok) throw new Error('Network response was not ok');
+            console.log(`[DEBUG] /api/ai response status: ${response.status}`);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Network response was not ok. Body: ${errorText}`);
+            }
+
             const aiData: AiResponse = await response.json();
-            if (aiData.action === 'none') return;
+            console.log("[DEBUG] Received AI response:", aiData);
+
+            if (aiData.action === 'NONE') {
+                 console.log("[DEBUG] AI action is NONE. Doing nothing.");
+                 setIsAiThinking(false); // Ensure thinking state is turned off
+                 return;
+            }
 
             liveNotesRef.current.push(aiData);
 
-            if (aiData.action === 'CONFIRM_TIMEOUT' && stateRef.current.isStartOfCase) {
-                setCurrentState(prev => ({ ...prev, isStartOfCase: false }));
+            // *** THIS IS THE CORRECTED LOGIC ***
+            // It now correctly handles all actions that have a spoken payload.
+            const actionsThatSpeak = ['SPEAK', 'ACKNOWLEDGE', 'ACKNOWLEDGE_AND_LISTEN', 'START_TIMEOUT', 'COMPLETE_TIMEOUT', 'SPEAK_AND_LISTEN'];
+            if (aiData.payload && actionsThatSpeak.includes(aiData.action)) {
                 addVeritasMessage(aiData.payload);
-            } else if (aiData.action === 'SPEAK') {
-                addVeritasMessage(aiData.payload);
-            } else if (aiData.action === 'LOG_SCORE' && aiData.payload) {
-                const { step: stepName, score } = aiData.payload;
-                const loggedStepIndex = config.procedureSteps.findIndex(s => s.name.toLowerCase() === stepName.toLowerCase());
-                if (loggedStepIndex !== -1) {
-                    addVeritasMessage(`Noted: Score of ${score} for ${stepName}.`);
-                    if (loggedStepIndex >= stateRef.current.currentStepIndex) {
-                         setCurrentState(prev => ({
-                            ...prev,
-                            currentStepIndex: loggedStepIndex + 1,
-                            timeElapsedInStep: 0,
-                        }));
-                    }
-                }
+            } else {
+                 console.log(`[DEBUG] AI action '${aiData.action}' does not have a spoken payload. Handling silently.`);
             }
+
         } catch (error) { 
-            console.error("Error processing transcript:", error);
+            console.error("[DEBUG] Error in processTranscriptWithAI:", error);
+            addVeritasMessage("I've encountered an error. Please check the developer console for details.", true);
         } finally {
             setIsAiThinking(false);
         }
     }, [selectedSurgery, addVeritasMessage]);
 
     useEffect(() => {
-        if (!isSessionActive || currentState.isStartOfCase) return;
+        if (!isSessionActive) return;
         const timer = setInterval(() => {
             setCurrentState(prev => ({
                 ...prev,
@@ -178,7 +199,7 @@ const LiveEvaluationPage = () => {
             }));
         }, 1000);
         return () => clearInterval(timer);
-    }, [isSessionActive, currentState.isStartOfCase]);
+    }, [isSessionActive]);
 
     const startSession = async () => {
         if (!selectedResident || !selectedSurgery) { alert("Please select a surgery and a resident."); return; }
@@ -188,7 +209,6 @@ const LiveEvaluationPage = () => {
         liveNotesRef.current = [];
         recordedChunksRef.current = [];
         setCurrentState({
-            isStartOfCase: true,
             currentStepIndex: 0,
             timeElapsedInSession: 0,
             timeElapsedInStep: 0,
@@ -204,12 +224,15 @@ const LiveEvaluationPage = () => {
             };
             const wsUrl = `${WEBSOCKET_URL}?residentName=${encodeURIComponent(selectedResident.name)}`;
             socketRef.current = new WebSocket(wsUrl);
+
             socketRef.current.onopen = () => {
+                console.log("[DEBUG] WebSocket connection opened. Starting session.");
                 setStatus('connected');
                 setIsSessionActive(true);
                 micRecorderRef.current?.start(1000);
-                addVeritasMessage("Time-out initiated. Please state your names, roles, and the planned procedure for the record.");
+                processTranscriptWithAI(true);
             };
+
             socketRef.current.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 if (data.type === 'transcript') {
@@ -231,17 +254,22 @@ const LiveEvaluationPage = () => {
                 }
             };
             socketRef.current.onclose = () => {
+                 console.log("[DEBUG] WebSocket connection closed.");
                 setStatus('idle');
                 setIsSessionActive(false);
                 stream.getTracks().forEach(track => track.stop());
             };
-            socketRef.current.onerror = () => setStatus('error');
+            socketRef.current.onerror = (err) => {
+                console.error("[DEBUG] WebSocket error:", err);
+                setStatus('error');
+            }
         } catch (error) {
-            console.error("Failed to start session:", error);
+            console.error("[DEBUG] Failed to start session:", error);
             setStatus('error');
         }
     };
-
+    
+    // ... stopSessionAndAnalyze and the JSX return statement remain the same
     const stopSessionAndAnalyze = async () => {
         setIsProcessing(true);
         micRecorderRef.current?.stop();
