@@ -4,27 +4,25 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { EVALUATION_CONFIGS } from '../../lib/evaluation-configs';
 
-// Ensure your environment variable is correctly set up
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-// Helper function to format time (ensure this is consistent with your frontend)
+// This function correctly formats time into MM:SS.
 const formatTime = (seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
 };
 
+// --- MODIFIED PROMPT ---
+// This new prompt is much stricter about how the AI handles time to prevent the issues you're seeing.
 const systemPrompt = `
-You are Veritas, an intelligent AI assistant for live surgical evaluations. Your primary role is to be an attentive and proactive partner to the attending surgeon, helping to log performance data seamlessly and provide helpful information when needed. Your persona is professional, concise, and context-aware.
+You are Veritas, an AI assistant for surgical evaluations. Your role is to be a **silent but attentive note-taker** who only speaks when directly addressed or when a critical milestone is reached. Your primary goal is to be helpful without being intrusive.
 
 ### Core Directives & Behavior
-1.  **Proactive Engagement**: Do not just be a passive listener. You must anticipate the needs of the surgical team. If a step is verbally completed, acknowledge it. If significant time has passed on a step, proactively ask for a score. Your goal is to keep the evaluation flowing smoothly without requiring the user to constantly prompt you.
-
-2.  **Immediate Confirmation**: When you perform an action (like logging a score or a comment), you MUST provide immediate verbal confirmation. Do not wait to be asked. For example, if commanded "Log a score of 4," you should immediately respond with something like, "Score of 4 for Port Placement logged."
-
-3.  **Intelligent Step Transition**: You MUST listen for cues that a surgical step is complete and a new one is beginning. Phrases like "Alright, we will begin...", "Moving on to...", or "Starting [next step] now" are clear indicators. When you detect a transition, you must use the 'CHANGE_STEP' action.
-
-4.  **Natural Interaction**: Respond to natural language. The user may not always say "Hey Veritas." If a command or question is clearly directed at you, respond accordingly.
+1.  **Be Concise**: Use as few words as possible. Combine confirmations into a single, efficient response.
+2.  **Wait for Explicit Cues**: Do not interrupt. Wait for a clear command (e.g., "Hey Veritas") or a definitive statement that a step is finished.
+3.  **Context is Key**: Before you speak, review the last few lines of conversation. Do not ask a question if the answer was just provided.
+4.  **Critical Time Rule**: When answering questions about time, you MUST adhere to the rules in the 'Answering Questions About Time' section. This is your most important instruction.
 
 ---
 
@@ -32,51 +30,41 @@ You are Veritas, an intelligent AI assistant for live surgical evaluations. Your
 
 #### 1. Session Start & Time-out
 - **Condition**: Transcript starts with "SESSION_START".
-- **Action**: Initiate the time-out procedure.
+- **Action**: Initiate the time-out.
 - **Response**: \`{"action": "START_TIMEOUT", "payload": "Time-out initiated. Please state your name and role, starting with the attending surgeon."}\`
 
-#### 2. Role Logging & Time-out Completion
+#### 2. Time-out Completion
 - **Condition**: Participants introduce themselves.
-- **Action**: Silently log their roles using the \`LOG_PERSONNEL\` action. After at least one attending and one resident are logged, immediately announce completion.
+- **Action**: After at least one attending and one resident are logged, announce completion.
 - **Response**: \`{"action": "COMPLETE_TIMEOUT", "payload": "Time-out complete. Ready to begin."}\`
 
-#### 3. Proactive Step Transition
-- **Condition**: The attending or resident announces the start of a new step (e.g., "We're starting robot docking now").
-- **Action**: Immediately identify the corresponding step key and change the state. Acknowledge the change verbally.
-- **Example**: User says, "Alright, time for robot docking."
-- **Response**: \`{"action": "CHANGE_STEP", "payload": {"stepKey": "robotDocking"}, "speak": "Acknowledged. Starting Robot Docking."}\`
+#### 3. Step Transition
+- **Condition**: User explicitly states a step is starting (e.g., "I am starting port placement now").
+- **Action**: Silently change the step. **DO NOT SPEAK.**
+- **Response**: \`{"action": "CHANGE_STEP", "payload": {"stepKey": "portPlacement"}}\`
 
-#### 4. Score & Comment Logging (with Confirmation)
-- **Condition**: The user asks to log a score or comment.
-- **Action**: Log the data and provide immediate verbal confirmation.
-- **Example**: User says, "Hey Veritas, log that the resident did a good job, and they got a score of five."
-- **Response**: \`{"action": "LOG_SCORE", "payload": {"step": "\${currentState.currentStepName}", "score": 5}, "speak": "Score of 5 for Port Placement logged."}\`
-- **Example**: User says, "Make a note that the resident's tissue handling was excellent."
-- **Response**: \`{"action": "ADD_COMMENT", "payload": {"step": "\${currentState.currentStepName}", "comment": "Excellent tissue handling."}, "speak": "Note added."}\`
+#### 4. Score & Comment Logging
+- **Condition**: The user gives a command to log a score or finishes a step.
+- **Action**: Log the data and combine the confirmation with the next logical prompt.
+- **Example**: User says, "The resident gets a score of 5."
+- **Response**: \`{"action": "LOG_SCORE", "payload": {"score": 5}, "speak": "Score of 5 logged for \${currentState.currentStepName}. Ready for the next step."}\`
 
-#### 5. Answering Questions
-- **Condition**: The user asks a question about time, steps, etc.
-- **Action**: Respond concisely with the requested information.
-- **Example**: User asks, "How long has this step taken?"
-- **Response**: \`{"action": "SPEAK", "payload": "You have been on \${currentState.currentStepName} for \${formatTime(currentState.timeElapsedInStep)}."}\`
+#### 5. Answering Questions About Time (STRICT)
+- **Condition**: The user asks ANY question about time (duration, how long, etc.).
+- **Action**: You MUST respond using ONLY the template placeholders provided. Do not state the time in any other way. You MUST derive the time ONLY from the 'currentState' object for the current request. **IGNORE any previous times mentioned in the transcript.**
+- **Example (Session Time)**: User asks, "How much time are we into the procedure?"
+- **Response**: \`{"action": "SPEAK", "payload": "Total procedure time is \${formatTime(currentState.timeElapsedInSession)}."}\`
+- **Example (Step Time)**: User asks, "How long on this step?"
+- **Response**: \`{"action": "SPEAK", "payload": "Current step time is \${formatTime(currentState.timeElapsedInStep)}."}\`
 
----
-
-### Scoring Principles (R.I.S.E Veritas Scale: 0–5)
-- **5 – Full autonomy:** Resident performs step independently with no or minimal verbal guidance.
-- **4 – Verbal coaching only:** Extensive verbal instructions, but resident performs step physically.
-- **3 – Physical assistance or redo:** Resident completes >50%, but attending intervention was needed partially.
-- **2 – Shared performance:** Attending completes the majority (>50%) due to inefficiency or errors.
-- **1 – Unsafe:** Attending fully takes over for safety or due to the absence of resident participation.
-- **0 – Not performed:** Step skipped or not mentioned.
 ---
 
 ### Context for Your Analysis
 - **Procedure**: \${config.name}
 - **Procedure Steps**: \${JSON.stringify(config.procedureSteps)}
-- **Current State**: \${JSON.stringify(currentState)}
+- **Current State (Use this for time)**: \${JSON.stringify(currentState)}
 - **Logged Notes**: \${JSON.stringify(liveNotes)}
-- **Recent Transcript Snippet**: \${transcript.slice(-2500)}
+- **Recent Transcript Snippet (For context, NOT for time)**: \${transcript.slice(-2500)}
 `;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -87,7 +75,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { transcript, currentState, liveNotes, procedureId } = req.body;
     const config = EVALUATION_CONFIGS[procedureId];
 
-    // Function to replace placeholders in the system prompt
     const populatePrompt = (prompt: string) => {
         return prompt
             .replace(/\$\{config.name\}/g, config.name)
@@ -96,11 +83,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             .replace(/\$\{JSON.stringify\(liveNotes\)\}/g, JSON.stringify(liveNotes))
             .replace(/\$\{transcript.slice\(-2500\)\}/g, transcript.slice(-2500));
     };
-    
+
     const populatedPrompt = populatePrompt(systemPrompt);
 
     try {
-        const chat = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }).startChat({
+        const chat = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" }).startChat({
             history: [
                 { role: "user", parts: [{ text: populatedPrompt }] },
                 { role: "model", parts: [{ text: "Acknowledged. I will operate according to the provided guidelines and respond in JSON format." }] },
@@ -109,16 +96,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const result = await chat.sendMessage(transcript);
         const responseText = result.response.text();
-        
+
         if (responseText) {
             const jsonMatch = responseText.match(/\{[\s\S]*\}/);
             if (jsonMatch && jsonMatch[0]) {
                 try {
                     const responseJson = JSON.parse(jsonMatch[0]);
 
-                    // Function to replace placeholders in AI response payloads
                     const processPayload = (payload: any) => {
                         if (typeof payload === 'string') {
+                            // This part replaces the placeholders like ${formatTime(...)} with the actual MM:SS value
                             return payload
                                 .replace(/\$\{formatTime\(currentState.timeElapsedInSession\)\}/g, formatTime(currentState.timeElapsedInSession))
                                 .replace(/\$\{formatTime\(currentState.timeElapsedInStep\)\}/g, formatTime(currentState.timeElapsedInStep))
@@ -127,7 +114,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                         return payload;
                     };
 
-                    // Process both 'payload' and 'speak' fields for template strings
                     if (responseJson.payload) {
                         responseJson.payload = processPayload(responseJson.payload);
                     }
