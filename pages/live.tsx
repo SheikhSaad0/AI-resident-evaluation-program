@@ -1,4 +1,4 @@
-// pages/live.tsx
+// In pages/live.tsx
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
@@ -11,10 +11,11 @@ import { EVALUATION_CONFIGS } from '../lib/evaluation-configs';
 // --- INTERFACES ---
 interface Resident { id: string; name: string; photoUrl?: string | null; year?: string; }
 interface TranscriptEntry { speaker: string; text: string; isFinal: boolean; }
+// Updated AiResponse type to include the 'speak' property
 interface AiResponse {
     action: string;
     payload?: any;
-    speak?: string; 
+    speak?: string; // AI's spoken response
 }
 type ChatEntry = TranscriptEntry | { speaker: 'Veritas'; text:string; };
 
@@ -22,12 +23,11 @@ interface LiveSessionState {
     currentStepIndex: number;
     timeElapsedInSession: number;
     timeElapsedInStep: number;
-    currentStepName: string;
+    currentStepName: string; // Added for easier access
 }
 
 const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEBSOCKET_URL || "ws://localhost:3001";
-// Increased debounce time to make the AI more patient
-const DEBOUNCE_TIME_MS = 3500;
+const DEBOUNCE_TIME_MS = 2000;
 
 const LiveEvaluationPage = () => {
     const router = useRouter();
@@ -38,7 +38,7 @@ const LiveEvaluationPage = () => {
     const [residents, setResidents] = useState<Resident[]>([]);
     const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
     const [selectedSurgery, setSelectedSurgery] = useState('');
-    const [isAiProcessing, setIsAiProcessing] = useState(false);
+    const [isAiProcessing, setIsAiProcessing] = useState(false); // Changed from isAiThinking for clarity
 
     const [currentState, setCurrentState] = useState<LiveSessionState>({
         currentStepIndex: 0,
@@ -123,7 +123,7 @@ const LiveEvaluationPage = () => {
     }, [speakText]);
 
     const processTranscriptWithAI = useCallback(async (isInitial = false) => {
-        if (isAiProcessing) return;
+        if (isAiProcessing) return; // Prevent concurrent calls
         setIsAiProcessing(true);
         console.log(`[AI] Processing transcript... Initial: ${isInitial}`);
 
@@ -157,18 +157,21 @@ const LiveEvaluationPage = () => {
             const aiData: AiResponse = await response.json();
             console.log("[AI] Received response:", aiData);
 
+            // Determine the text to be spoken. Prioritize 'speak', fall back to 'payload' if it's a string.
             const spokenResponse = aiData.speak || (typeof aiData.payload === 'string' ? aiData.payload : null);
             
+            // Actions that should result in Veritas speaking
             const actionsThatSpeak = [
                 'SPEAK', 'START_TIMEOUT', 'COMPLETE_TIMEOUT', 'CHANGE_STEP', 'LOG_SCORE', 'ADD_COMMENT'
             ];
 
             if (spokenResponse && actionsThatSpeak.includes(aiData.action)) {
-                addVeritasMessage(spokenResponse, true);
+                addVeritasMessage(spokenResponse, true); // Always speak for these actions
             } else {
                 console.log(`[AI] Action '${aiData.action}' has no spoken payload. Handling silently.`);
             }
 
+            // Handle specific actions that modify state
             switch (aiData.action) {
                 case 'CHANGE_STEP':
                     if (aiData.payload?.stepKey) {
@@ -180,7 +183,7 @@ const LiveEvaluationPage = () => {
                             setCurrentState(prev => ({
                                 ...prev,
                                 currentStepIndex: newStepIndex,
-                                timeElapsedInStep: 0,
+                                timeElapsedInStep: 0, // Reset step timer
                                 currentStepName: config.procedureSteps[newStepIndex].name,
                             }));
                         }
@@ -300,6 +303,7 @@ const LiveEvaluationPage = () => {
         socketRef.current?.close();
         if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
 
+        // A short delay to allow the last audio chunk to be processed
         setTimeout(async () => {
             const audioBlob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
             const formData = new FormData();
