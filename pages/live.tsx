@@ -1,9 +1,12 @@
 // In pages/live.tsx
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, ChangeEvent, KeyboardEvent } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
-import { GlassCard, GlassButton } from '../components/ui';
+// Corrected Imports: Removed curly braces for default exports
+import GlassCard from '../components/ui/GlassCard';
+import GlassButton from '../components/ui/GlassButton';
+import GlassInput from '../components/ui/GlassInput';
 import ResidentSelector from '../components/ResidentSelector';
 import SurgerySelector from '../components/SurgerySelector';
 import { EVALUATION_CONFIGS } from '../lib/evaluation-configs';
@@ -11,11 +14,10 @@ import { EVALUATION_CONFIGS } from '../lib/evaluation-configs';
 // --- INTERFACES ---
 interface Resident { id: string; name: string; photoUrl?: string | null; year?: string; }
 interface TranscriptEntry { speaker: string; text: string; isFinal: boolean; }
-// Updated AiResponse type to include the 'speak' property
 interface AiResponse {
     action: string;
     payload?: any;
-    speak?: string; // AI's spoken response
+    speak?: string;
 }
 type ChatEntry = TranscriptEntry | { speaker: 'Veritas'; text:string; };
 
@@ -23,7 +25,7 @@ interface LiveSessionState {
     currentStepIndex: number;
     timeElapsedInSession: number;
     timeElapsedInStep: number;
-    currentStepName: string; // Added for easier access
+    currentStepName: string;
 }
 
 const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEBSOCKET_URL || "ws://localhost:3001";
@@ -38,7 +40,9 @@ const LiveEvaluationPage = () => {
     const [residents, setResidents] = useState<Resident[]>([]);
     const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
     const [selectedSurgery, setSelectedSurgery] = useState('');
-    const [isAiProcessing, setIsAiProcessing] = useState(false); // Changed from isAiThinking for clarity
+    const [isAiProcessing, setIsAiProcessing] = useState(false);
+    const [textInput, setTextInput] = useState('');
+    const [selectedSpeaker, setSelectedSpeaker] = useState('0');
 
     const [currentState, setCurrentState] = useState<LiveSessionState>({
         currentStepIndex: 0,
@@ -93,7 +97,6 @@ const LiveEvaluationPage = () => {
     const speakText = useCallback(async (text: string) => {
         if (!text) return;
         try {
-            console.log(`[TTS] Requesting speech for: "${text}"`);
             const response = await fetch('/api/tts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -114,7 +117,6 @@ const LiveEvaluationPage = () => {
     }, [playNextInQueue]);
 
     const addVeritasMessage = useCallback((text: string, shouldSpeak: boolean = true) => {
-        console.log(`[CHAT] Adding Veritas message: "${text}"`);
         setChatHistory(prev => [...prev, { speaker: 'Veritas', text }]);
         fullTranscriptRef.current += `[Veritas] ${text}\n`;
         if (shouldSpeak) {
@@ -123,13 +125,11 @@ const LiveEvaluationPage = () => {
     }, [speakText]);
 
     const processTranscriptWithAI = useCallback(async (isInitial = false) => {
-        if (isAiProcessing) return; // Prevent concurrent calls
+        if (isAiProcessing) return;
         setIsAiProcessing(true);
-        console.log(`[AI] Processing transcript... Initial: ${isInitial}`);
 
         const procedureId = Object.keys(EVALUATION_CONFIGS).find(key => EVALUATION_CONFIGS[key].name === selectedSurgery);
         if (!procedureId) {
-            console.error("[AI] Aborted: Could not find procedure ID for surgery:", selectedSurgery);
             setIsAiProcessing(false);
             return;
         }
@@ -141,8 +141,6 @@ const LiveEvaluationPage = () => {
             liveNotes: liveNotesRef.current,
         };
 
-        console.log("[AI] Sending request to /api/ai:", JSON.stringify(requestBody, null, 2));
-
         try {
             const response = await fetch('/api/ai', {
                 method: 'POST',
@@ -150,40 +148,26 @@ const LiveEvaluationPage = () => {
                 body: JSON.stringify(requestBody),
             });
 
-            if (!response.ok) {
-                throw new Error(`AI API request failed with status ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`AI API request failed with status ${response.status}`);
 
             const aiData: AiResponse = await response.json();
-            console.log("[AI] Received response:", aiData);
-
-            // Determine the text to be spoken. Prioritize 'speak', fall back to 'payload' if it's a string.
             const spokenResponse = aiData.speak || (typeof aiData.payload === 'string' ? aiData.payload : null);
-            
-            // Actions that should result in Veritas speaking
-            const actionsThatSpeak = [
-                'SPEAK', 'START_TIMEOUT', 'COMPLETE_TIMEOUT', 'CHANGE_STEP', 'LOG_SCORE', 'ADD_COMMENT'
-            ];
+            const actionsThatSpeak = ['SPEAK', 'START_TIMEOUT', 'COMPLETE_TIMEOUT', 'CHANGE_STEP', 'LOG_SCORE', 'ADD_COMMENT'];
 
             if (spokenResponse && actionsThatSpeak.includes(aiData.action)) {
-                addVeritasMessage(spokenResponse, true); // Always speak for these actions
-            } else {
-                console.log(`[AI] Action '${aiData.action}' has no spoken payload. Handling silently.`);
+                addVeritasMessage(spokenResponse, true);
             }
 
-            // Handle specific actions that modify state
             switch (aiData.action) {
                 case 'CHANGE_STEP':
                     if (aiData.payload?.stepKey) {
                         const config = EVALUATION_CONFIGS[procedureId as keyof typeof EVALUATION_CONFIGS];
                         const newStepIndex = config.procedureSteps.findIndex(step => step.key === aiData.payload.stepKey);
-                        
                         if (newStepIndex !== -1 && newStepIndex !== stateRef.current.currentStepIndex) {
-                            console.log(`[STATE] Changing step to: ${config.procedureSteps[newStepIndex].name}`);
                             setCurrentState(prev => ({
                                 ...prev,
                                 currentStepIndex: newStepIndex,
-                                timeElapsedInStep: 0, // Reset step timer
+                                timeElapsedInStep: 0,
                                 currentStepName: config.procedureSteps[newStepIndex].name,
                             }));
                         }
@@ -250,7 +234,6 @@ const LiveEvaluationPage = () => {
             socketRef.current = new WebSocket(wsUrl);
 
             socketRef.current.onopen = () => {
-                console.log("[WS] Connection opened. Starting session.");
                 setStatus('connected');
                 setIsSessionActive(true);
                 micRecorderRef.current?.start(1000);
@@ -281,19 +264,16 @@ const LiveEvaluationPage = () => {
             };
 
             socketRef.current.onclose = () => {
-                console.log("[WS] Connection closed.");
                 setStatus('idle');
                 setIsSessionActive(false);
                 stream.getTracks().forEach(track => track.stop());
             };
             socketRef.current.onerror = (err) => {
-                console.error("[WS] Error:", err);
                 setStatus('error');
             }
         } catch (error) {
             console.error("Failed to start session:", error);
             setStatus('error');
-            alert("Could not start session. Please ensure microphone access is allowed.");
         }
     };
 
@@ -303,7 +283,6 @@ const LiveEvaluationPage = () => {
         socketRef.current?.close();
         if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
 
-        // A short delay to allow the last audio chunk to be processed
         setTimeout(async () => {
             const audioBlob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
             const formData = new FormData();
@@ -323,6 +302,32 @@ const LiveEvaluationPage = () => {
             }
         }, 500);
     };
+
+    const handleTextSubmit = () => {
+        if (!textInput.trim() || !isSessionActive) return;
+
+        const newEntry: TranscriptEntry = {
+            speaker: selectedSpeaker === '0' ? 'Attending' : 'Resident',
+            text: textInput,
+            isFinal: true,
+        };
+
+        setChatHistory(prev => [...prev, newEntry]);
+        fullTranscriptRef.current += `[${newEntry.speaker}] ${newEntry.text}\n`;
+        setTextInput('');
+
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = setTimeout(() => {
+            processTranscriptWithAI();
+        }, 500);
+    };
+    
+    const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            handleTextSubmit();
+        }
+    };
+
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full">
@@ -365,13 +370,15 @@ const LiveEvaluationPage = () => {
                         ) : (
                             <div className="space-y-4">
                                 {chatHistory.map((entry, index) => (
-                                    <div key={index} className={`flex flex-col ${entry.speaker === 'Veritas' ? 'items-center text-center' : 'items-start'}`}>
+                                    <div key={index} className={`flex flex-col ${entry.speaker === 'Veritas' ? 'items-center text-center' : (entry.speaker === 'Attending' ? 'items-start' : 'items-end') }`}>
                                         <div className={`p-3 rounded-2xl max-w-lg ${
                                             entry.speaker === 'Veritas'
                                                 ? 'bg-purple-900 bg-opacity-50'
-                                                : ('isFinal' in entry && entry.isFinal) ? 'bg-gray-700' : 'bg-gray-800 text-gray-400'
+                                                : entry.speaker === 'Attending' ? 'bg-blue-900 bg-opacity-60' : 'bg-gray-700'
                                         }`}>
-                                            <p className="font-semibold text-sm mb-1 text-purple-300">{entry.speaker}</p>
+                                            <p className={`font-semibold text-sm mb-1 ${
+                                                entry.speaker === 'Veritas' ? 'text-purple-300' : entry.speaker === 'Attending' ? 'text-blue-300' : 'text-gray-300'
+                                            }`}>{entry.speaker}</p>
                                             <p className="text-white">{'text' in entry ? entry.text : ''}</p>
                                         </div>
                                     </div>
@@ -387,6 +394,27 @@ const LiveEvaluationPage = () => {
                                 <div ref={transcriptEndRef} />
                             </div>
                         )}
+                    </div>
+                    <div className="mt-4 flex items-center gap-4">
+                        <select
+                            value={selectedSpeaker}
+                            onChange={(e) => setSelectedSpeaker(e.target.value)}
+                            className="bg-black bg-opacity-30 border border-gray-600 text-white p-2 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                            disabled={!isSessionActive}
+                        >
+                            <option value="0">Attending</option>
+                            <option value="1">Resident</option>
+                        </select>
+                        <GlassInput
+                            type="text"
+                            value={textInput}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) => setTextInput(e.target.value)}
+                            placeholder={isSessionActive ? "Type transcript here..." : "Start a session to begin"}
+                            className="flex-grow"
+                            onKeyDown={handleKeyDown}
+                            disabled={!isSessionActive}
+                        />
+                        <GlassButton onClick={handleTextSubmit} disabled={!isSessionActive || !textInput.trim()}>Send</GlassButton>
                     </div>
                 </GlassCard>
             </div>
