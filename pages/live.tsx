@@ -1,6 +1,9 @@
+// In pages/live.tsx
+
 import { useState, useEffect, useRef, useCallback, ChangeEvent, KeyboardEvent } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
+// Corrected Imports: Removed curly braces for default exports
 import GlassCard from '../components/ui/GlassCard';
 import GlassButton from '../components/ui/GlassButton';
 import GlassInput from '../components/ui/GlassInput';
@@ -9,22 +12,24 @@ import SurgerySelector from '../components/SurgerySelector';
 import { EVALUATION_CONFIGS } from '../lib/evaluation-configs';
 
 // --- INTERFACES ---
-interface Resident { id: string; name: string; pgy?: string; }
+interface Resident { id: string; name: string; photoUrl?: string | null; year?: string; }
 interface TranscriptEntry { speaker: string; text: string; isFinal: boolean; }
-interface AiResponse { action: string; payload?: any; speak?: string; }
+interface AiResponse {
+    action: string;
+    payload?: any;
+    speak?: string;
+}
 type ChatEntry = TranscriptEntry | { speaker: 'Veritas'; text:string; };
-type TimeoutState = 'pending' | 'attending_done' | 'complete';
 
 interface LiveSessionState {
     currentStepIndex: number;
     timeElapsedInSession: number;
     timeElapsedInStep: number;
     currentStepName: string;
-    halfwayAlertTriggeredForStep: number | null;
 }
 
 const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEBSOCKET_URL || "ws://localhost:3001";
-const WAKE_WORDS = ["hey veritas", "hey rise"];
+const DEBOUNCE_TIME_MS = 2000;
 
 const LiveEvaluationPage = () => {
     const router = useRouter();
@@ -37,16 +42,13 @@ const LiveEvaluationPage = () => {
     const [selectedSurgery, setSelectedSurgery] = useState('');
     const [isAiProcessing, setIsAiProcessing] = useState(false);
     const [textInput, setTextInput] = useState('');
-    const [selectedSpeaker, setSelectedSpeaker] = useState('0'); // 0: Attending, 1: Resident
-    const [attendingLastName, setAttendingLastName] = useState<string>('');
-    const [timeoutState, setTimeoutState] = useState<TimeoutState>('pending');
+    const [selectedSpeaker, setSelectedSpeaker] = useState('0');
 
     const [currentState, setCurrentState] = useState<LiveSessionState>({
         currentStepIndex: 0,
         timeElapsedInSession: 0,
         timeElapsedInStep: 0,
         currentStepName: '',
-        halfwayAlertTriggeredForStep: null,
     });
 
     const stateRef = useRef(currentState);
@@ -56,6 +58,7 @@ const LiveEvaluationPage = () => {
     const socketRef = useRef<WebSocket | null>(null);
     const transcriptEndRef = useRef<HTMLDivElement>(null);
     const recordedChunksRef = useRef<Blob[]>([]);
+    const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
     const audioQueueRef = useRef<HTMLAudioElement[]>([]);
     const isPlayingAudioRef = useRef(false);
 
@@ -76,6 +79,7 @@ const LiveEvaluationPage = () => {
         return () => {
             socketRef.current?.close();
             micRecorderRef.current?.stop();
+            if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
         };
     }, []);
 
@@ -83,13 +87,11 @@ const LiveEvaluationPage = () => {
         if (isPlayingAudioRef.current || audioQueueRef.current.length === 0) return;
         isPlayingAudioRef.current = true;
         const audio = audioQueueRef.current.shift();
-        if (audio) {
-            audio.play();
-            audio.onended = () => {
-                isPlayingAudioRef.current = false;
-                playNextInQueue();
-            };
-        }
+        audio?.play();
+        audio?.addEventListener('ended', () => {
+            isPlayingAudioRef.current = false;
+            playNextInQueue();
+        });
     }, []);
 
     const speakText = useCallback(async (text: string) => {
@@ -107,7 +109,7 @@ const LiveEvaluationPage = () => {
                 audioQueueRef.current.push(audio);
                 playNextInQueue();
             } else {
-                console.error("[TTS] Request failed");
+                 console.error("[TTS] Request failed");
             }
         } catch (error) {
             console.error("[TTS] Error fetching audio:", error);
@@ -116,12 +118,13 @@ const LiveEvaluationPage = () => {
 
     const addVeritasMessage = useCallback((text: string, shouldSpeak: boolean = true) => {
         setChatHistory(prev => [...prev, { speaker: 'Veritas', text }]);
+        fullTranscriptRef.current += `[Veritas] ${text}\n`;
         if (shouldSpeak) {
             speakText(text);
         }
     }, [speakText]);
 
-    const processTranscriptWithAI = useCallback(async (transcript: string) => {
+    const processTranscriptWithAI = useCallback(async (isInitial = false) => {
         if (isAiProcessing) return;
         setIsAiProcessing(true);
 
@@ -131,24 +134,28 @@ const LiveEvaluationPage = () => {
             return;
         }
 
+        const requestBody = {
+            transcript: isInitial ? "SESSION_START" : fullTranscriptRef.current,
+            procedureId,
+            currentState: stateRef.current,
+            liveNotes: liveNotesRef.current,
+        };
+
         try {
             const response = await fetch('/api/ai', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    transcript,
-                    procedureId,
-                    currentState: stateRef.current,
-                    liveNotes: liveNotesRef.current,
-                    attendingLastName,
-                }),
+                body: JSON.stringify(requestBody),
             });
 
-            if (!response.ok) throw new Error(`AI API request failed`);
+            if (!response.ok) throw new Error(`AI API request failed with status ${response.status}`);
 
             const aiData: AiResponse = await response.json();
-            if (aiData.action !== 'none' && aiData.speak) {
-                addVeritasMessage(aiData.speak, true);
+            const spokenResponse = aiData.speak || (typeof aiData.payload === 'string' ? aiData.payload : null);
+            const actionsThatSpeak = ['SPEAK', 'START_TIMEOUT', 'COMPLETE_TIMEOUT', 'CHANGE_STEP', 'LOG_SCORE', 'ADD_COMMENT'];
+
+            if (spokenResponse && actionsThatSpeak.includes(aiData.action)) {
+                addVeritasMessage(spokenResponse, true);
             }
 
             switch (aiData.action) {
@@ -156,100 +163,52 @@ const LiveEvaluationPage = () => {
                     if (aiData.payload?.stepKey) {
                         const config = EVALUATION_CONFIGS[procedureId as keyof typeof EVALUATION_CONFIGS];
                         const newStepIndex = config.procedureSteps.findIndex(step => step.key === aiData.payload.stepKey);
-                        if (newStepIndex !== -1) {
+                        if (newStepIndex !== -1 && newStepIndex !== stateRef.current.currentStepIndex) {
                             setCurrentState(prev => ({
                                 ...prev,
                                 currentStepIndex: newStepIndex,
                                 timeElapsedInStep: 0,
                                 currentStepName: config.procedureSteps[newStepIndex].name,
-                                halfwayAlertTriggeredForStep: null,
                             }));
                         }
                     }
                     break;
-                case 'LOG_NOTE':
                 case 'LOG_SCORE':
                 case 'ADD_COMMENT':
                     liveNotesRef.current.push({ action: aiData.action, payload: aiData.payload, timestamp: new Date().toISOString() });
                     break;
             }
+
         } catch (error) {
             console.error("[AI] Error processing transcript:", error);
+            addVeritasMessage("I've encountered an error. Please check the console.", true);
         } finally {
             setIsAiProcessing(false);
         }
-    }, [selectedSurgery, isAiProcessing, addVeritasMessage, attendingLastName]);
+    }, [selectedSurgery, isAiProcessing, addVeritasMessage]);
 
-    // Main session timer and halfway alert logic
     useEffect(() => {
-        if (!isSessionActive || timeoutState !== 'complete') return;
-
+        if (!isSessionActive) return;
         const timer = setInterval(() => {
-            const newState = {
-                ...stateRef.current,
-                timeElapsedInSession: stateRef.current.timeElapsedInSession + 1,
-                timeElapsedInStep: stateRef.current.timeElapsedInStep + 1,
-            };
-            setCurrentState(newState);
-
-            const procedureId = Object.keys(EVALUATION_CONFIGS).find(key => EVALUATION_CONFIGS[key].name === selectedSurgery);
-            if (!procedureId) return;
-
-            const currentStepConfig = EVALUATION_CONFIGS[procedureId].procedureSteps[newState.currentStepIndex];
-            if (currentStepConfig?.time && newState.halfwayAlertTriggeredForStep !== newState.currentStepIndex) {
-                const timeParts = currentStepConfig.time.split('-').map(t => parseInt(t, 10));
-                const halfwayPointSeconds = ((timeParts[0] + timeParts[1]) / 2) * 60 * 0.5;
-
-                if (newState.timeElapsedInStep >= halfwayPointSeconds) {
-                    setCurrentState(prev => ({ ...prev, halfwayAlertTriggeredForStep: prev.currentStepIndex }));
-                    const triggerTranscript = `${fullTranscriptRef.current}\n[SYSTEM] TRIGGER_HALFWAY_ALERT`;
-                    processTranscriptWithAI(triggerTranscript);
-                }
-            }
+            setCurrentState(prev => ({
+                ...prev,
+                timeElapsedInSession: prev.timeElapsedInSession + 1,
+                timeElapsedInStep: prev.timeElapsedInStep + 1,
+            }));
         }, 1000);
-
         return () => clearInterval(timer);
-    }, [isSessionActive, selectedSurgery, timeoutState, processTranscriptWithAI]);
-
-    const handleNewTranscript = useCallback((entry: TranscriptEntry) => {
-        const text = entry.text.toLowerCase();
-        fullTranscriptRef.current += `[${entry.speaker}] ${entry.text}\n`;
-
-        // State machine for timeout
-        if (timeoutState === 'pending' && entry.speaker === 'Attending') {
-            const nameMatch = text.match(/dr\.? ([a-z]+)/i);
-            if (nameMatch && nameMatch[1]) {
-                setAttendingLastName(nameMatch[1]);
-            }
-            setTimeoutState('attending_done');
-            return; // Don't process with AI yet
-        }
-
-        if (timeoutState === 'attending_done' && entry.speaker === 'Resident') {
-            setTimeoutState('complete');
-            // Trigger timeout completion with the AI
-            processTranscriptWithAI("[SYSTEM] TRIGGER_TIMEOUT_COMPLETE");
-            return;
-        }
-
-        // Only process with AI if a wake word is detected
-        if (timeoutState === 'complete') {
-             const containsWakeWord = WAKE_WORDS.some(word => text.includes(word));
-             if(containsWakeWord){
-                 processTranscriptWithAI(fullTranscriptRef.current);
-             }
-        }
-
-    }, [timeoutState, processTranscriptWithAI]);
+    }, [isSessionActive]);
 
     const startSession = async () => {
-        if (!selectedResident || !selectedSurgery) return;
+        if (!selectedResident || !selectedSurgery) {
+            alert("Please select a surgery and a resident.");
+            return;
+        }
         setStatus('connecting');
         setChatHistory([]);
         fullTranscriptRef.current = "";
         liveNotesRef.current = [];
         recordedChunksRef.current = [];
-        setTimeoutState('pending');
 
         const procedureId = Object.keys(EVALUATION_CONFIGS).find(key => EVALUATION_CONFIGS[key].name === selectedSurgery);
         const initialStepName = procedureId ? EVALUATION_CONFIGS[procedureId].procedureSteps[0].name : '';
@@ -259,16 +218,11 @@ const LiveEvaluationPage = () => {
             timeElapsedInSession: 0,
             timeElapsedInStep: 0,
             currentStepName: initialStepName,
-            halfwayAlertTriggeredForStep: null,
         });
-
-        // Initial message from Veritas
-        addVeritasMessage("Time-out initiated. Please state your name and role, starting with the attending surgeon.");
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             micRecorderRef.current = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-
             micRecorderRef.current.ondataavailable = (event) => {
                 if (event.data.size > 0) {
                     recordedChunksRef.current.push(event.data);
@@ -283,6 +237,7 @@ const LiveEvaluationPage = () => {
                 setStatus('connected');
                 setIsSessionActive(true);
                 micRecorderRef.current?.start(1000);
+                processTranscriptWithAI(true);
             };
 
             socketRef.current.onmessage = (event) => {
@@ -296,21 +251,26 @@ const LiveEvaluationPage = () => {
                         }
                         return [...prev, newEntry];
                     });
-
                     if (newEntry.isFinal && newEntry.text.trim()) {
-                        handleNewTranscript(newEntry);
+                        fullTranscriptRef.current += `[${newEntry.speaker}] ${newEntry.text}\n`;
+                        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+                        debounceTimerRef.current = setTimeout(() => {
+                            if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                processTranscriptWithAI();
+                            }
+                        }, DEBOUNCE_TIME_MS);
                     }
                 }
             };
+
             socketRef.current.onclose = () => {
                 setStatus('idle');
                 setIsSessionActive(false);
                 stream.getTracks().forEach(track => track.stop());
             };
             socketRef.current.onerror = (err) => {
-                console.error("WebSocket Error:", err);
                 setStatus('error');
-            };
+            }
         } catch (error) {
             console.error("Failed to start session:", error);
             setStatus('error');
@@ -321,6 +281,7 @@ const LiveEvaluationPage = () => {
         setIsProcessing(true);
         micRecorderRef.current?.stop();
         socketRef.current?.close();
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
 
         setTimeout(async () => {
             const audioBlob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
@@ -330,7 +291,6 @@ const LiveEvaluationPage = () => {
             formData.append('surgery', selectedSurgery);
             formData.append('fullTranscript', fullTranscriptRef.current);
             formData.append('liveNotes', JSON.stringify(liveNotesRef.current));
-
             try {
                 const response = await fetch('/api/analyze-full-session', { method: 'POST', body: formData });
                 if (!response.ok) throw new Error((await response.json()).error || 'Analysis failed');
@@ -338,7 +298,6 @@ const LiveEvaluationPage = () => {
                 router.push(`/results/${result.evaluationId}`);
             } catch (error) {
                 alert(`Error during final analysis: ${error instanceof Error ? error.message : 'Unknown error'}`);
-            } finally {
                 setIsProcessing(false);
             }
         }, 500);
@@ -347,23 +306,28 @@ const LiveEvaluationPage = () => {
     const handleTextSubmit = () => {
         if (!textInput.trim() || !isSessionActive) return;
 
-        const speakerName = selectedSpeaker === '0' ? 'Attending' : 'Resident';
         const newEntry: TranscriptEntry = {
-            speaker: speakerName,
+            speaker: selectedSpeaker === '0' ? 'Attending' : 'Resident',
             text: textInput,
             isFinal: true,
         };
 
         setChatHistory(prev => [...prev, newEntry]);
-        handleNewTranscript(newEntry);
+        fullTranscriptRef.current += `[${newEntry.speaker}] ${newEntry.text}\n`;
         setTextInput('');
-    };
 
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = setTimeout(() => {
+            processTranscriptWithAI();
+        }, 500);
+    };
+    
     const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
             handleTextSubmit();
         }
     };
+
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full">
@@ -373,8 +337,8 @@ const LiveEvaluationPage = () => {
                     <p className="text-lg text-gray-300">Real-time analysis powered by R.I.S.E Veritas-Scale</p>
                 </div>
                 <GlassCard variant="strong" className="p-6 space-y-6 flex-grow">
-                    <div className="relative z-30"><SurgerySelector selected={selectedSurgery} setSelected={setSelectedSurgery} disabled={isSessionActive} /></div>
-                    <div className="relative z-20"><ResidentSelector residents={residents} selected={selectedResident} setSelected={setSelectedResident} disabled={isSessionActive}/></div>
+                    <div className="relative z-30"><SurgerySelector selected={selectedSurgery} setSelected={setSelectedSurgery} /></div>
+                    <div className="relative z-20"><ResidentSelector residents={residents} selected={selectedResident} setSelected={setSelectedResident} /></div>
                     <div className="pt-4">
                         <GlassButton
                             variant={isSessionActive ? "secondary" : "primary"}
@@ -406,7 +370,7 @@ const LiveEvaluationPage = () => {
                         ) : (
                             <div className="space-y-4">
                                 {chatHistory.map((entry, index) => (
-                                     <div key={index} className={`flex flex-col ${entry.speaker === 'Veritas' ? 'items-center text-center' : (entry.speaker === 'Attending' ? 'items-start' : 'items-end') }`}>
+                                    <div key={index} className={`flex flex-col ${entry.speaker === 'Veritas' ? 'items-center text-center' : (entry.speaker === 'Attending' ? 'items-start' : 'items-end') }`}>
                                         <div className={`p-3 rounded-2xl max-w-lg ${
                                             entry.speaker === 'Veritas'
                                                 ? 'bg-purple-900 bg-opacity-50'
