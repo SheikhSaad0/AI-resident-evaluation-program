@@ -9,7 +9,6 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 const formatTime = (seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
-    // Use String.padStart to ensure two digits
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
 };
 

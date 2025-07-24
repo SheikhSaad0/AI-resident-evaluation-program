@@ -8,6 +8,9 @@ import { EVALUATION_CONFIGS } from '../lib/evaluation-configs';
 const getSurgeryDetails = (name: string) => {
     const lowerName = name.toLowerCase();
 
+    if (lowerName.includes('debugging')) {
+        return { icon: '/images/warningimage.png', shortName: 'Debugging use ONLY - Robotic Cholecystectomy' };
+    }
     if (lowerName.includes('cholecystectomy')) {
         return { icon: '/images/galbladderArt.png', shortName: name };
     }
@@ -20,7 +23,6 @@ const getSurgeryDetails = (name: string) => {
     // A fallback for any other procedures like Open VHR
     return { icon: '/images/herniaArt.png', shortName: name };
 };
-
 
 // Dynamically generate the list of surgeries from the central configuration file.
 // This is the single source of truth, ensuring the UI always matches the backend.
