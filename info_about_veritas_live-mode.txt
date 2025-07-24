@@ -1,0 +1,19 @@
+Veritas AI Requirements
+
+        - Veritas activation, similar to “hey Siri”, or “hello Jarvis”, you can say something like “Hey Veritas, log that” or something
+                - "Veritas, score that step a 4," or "Veritas, add comment: resident showed excellent tissue handling." This completely eliminates post-op work.
+        - Auto detect where in the procedure the resident is, at around the halfway point for each step, veritas checks in, and this can be customizable, lets say the attending requests more time for that step, veritas will take that into account
+                - Using the time estimates built, the AI can actively prompt for information. For example, at the 15-minute mark of a "Dissection of hernia sac (10-20min)" step, the app could issue a soft audio cue and say: "Dr. Harris, the expected time for sac dissection is more than halfway complete. Please state the resident's score from 1 to 5, or say 'continue' with a time estimate”
+        - Real-time Prompt Injection
+                    - When audio gets fuzzy, the AI can ask the attending (via voice or screen prompt): “Step X unclear. Please confirm: Resident completed independently?” This soft check-in encourages minimal interaction and avoids the AI to hallucinate and make stuff up.
+                    - If a step was skipped due to anatomy, complexity, or time constraint, AI can tag it as “non-applicable” and justify it
+        - Depending on case difficulty, the ai can take it into account, some cases are difficult even for attending
+        - The ai should take LIVE NOTES, these notes can be written later by the attending or resident, similar to the transcript, these live notes will also be used for the final processing of the procedure and be taken into account
+        - The goal of the AI is to be a real time assistant, it should take priority to reply to all comments made directly to “Hey veritas” or “hey rise”
+        - The AI should not be actively responding to every message sent and should only respond to hey veritas commands
+        - The time out should conclude only after the resident and attending are identified/introduce themselves, when the timeout concludes, the AI should confirm timeout concluded and tell that the first step has started, also start the time at this time as well
+        - The ai should be able to time ALL steps and also LOG THESE AS LIVE NOTES, keep these in the AI’s memory, the attending may ask for the total time of the case (total elapsed time) or ask for the time a past step took (they might be on step 5 and the attending asks how long step 1 took, the AI should remember as it stored this data point), steps are recorded from the time the step starts (based on verbal context or my explicit saying) to the time it ends (based on verbal context or explicit saying) it is the AI’s job to estimate when a step might have finished, it is also the AI’s job to remind the attending when a step is taking too long and that they should either take action or let the resident finish, or give the resident more time, what ever they want, let this be adaptable
+
+
+
+        

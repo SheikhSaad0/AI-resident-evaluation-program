@@ -61,6 +61,7 @@ const LiveEvaluationPage = () => {
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
     const audioQueueRef = useRef<HTMLAudioElement[]>([]);
     const isPlayingAudioRef = useRef(false);
+    const checkInTriggeredRef = useRef<boolean>(false);
 
     useEffect(() => { stateRef.current = currentState; }, [currentState]);
     useEffect(() => { transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatHistory, isAiProcessing]);
@@ -164,17 +165,32 @@ const LiveEvaluationPage = () => {
                         const config = EVALUATION_CONFIGS[procedureId as keyof typeof EVALUATION_CONFIGS];
                         const newStepIndex = config.procedureSteps.findIndex(step => step.key === aiData.payload.stepKey);
                         if (newStepIndex !== -1 && newStepIndex !== stateRef.current.currentStepIndex) {
+                            // Log the duration of the previous step
+                            const previousStep = config.procedureSteps[stateRef.current.currentStepIndex];
+                            const durationInSeconds = stateRef.current.timeElapsedInStep;
+                            const durationFormatted = `${Math.floor(durationInSeconds / 60)} minutes and ${durationInSeconds % 60} seconds`;
+                            liveNotesRef.current.push({
+                                action: 'LOG_STEP_DURATION',
+                                payload: {
+                                    step: previousStep.name,
+                                    duration: durationFormatted,
+                                },
+                                timestamp: new Date().toISOString(),
+                            });
+
                             setCurrentState(prev => ({
                                 ...prev,
                                 currentStepIndex: newStepIndex,
                                 timeElapsedInStep: 0,
                                 currentStepName: config.procedureSteps[newStepIndex].name,
                             }));
+                            checkInTriggeredRef.current = false; // Reset check-in trigger for new step
                         }
                     }
                     break;
                 case 'LOG_SCORE':
                 case 'ADD_COMMENT':
+                case 'LOG_STEP_DURATION':
                     liveNotesRef.current.push({ action: aiData.action, payload: aiData.payload, timestamp: new Date().toISOString() });
                     break;
             }
@@ -199,6 +215,29 @@ const LiveEvaluationPage = () => {
         return () => clearInterval(timer);
     }, [isSessionActive]);
 
+    // New useEffect for the 75% check-in logic
+    useEffect(() => {
+        if (!isSessionActive || isAiProcessing || checkInTriggeredRef.current) return;
+
+        const procedureId = Object.keys(EVALUATION_CONFIGS).find(key => EVALUATION_CONFIGS[key].name === selectedSurgery);
+        if (!procedureId) return;
+
+        const currentStepConfig = EVALUATION_CONFIGS[procedureId].procedureSteps[currentState.currentStepIndex];
+        if (!currentStepConfig?.time) return;
+
+        const timeParts = currentStepConfig.time.replace(' min', '').split('-');
+        const maxTimeMinutes = parseInt(timeParts[1], 10);
+        if (isNaN(maxTimeMinutes)) return;
+
+        const checkInTimeSeconds = maxTimeMinutes * 60 * 0.75;
+
+        if (currentState.timeElapsedInStep >= checkInTimeSeconds) {
+            checkInTriggeredRef.current = true; // Set the flag to true to prevent multiple triggers
+            processTranscriptWithAI(); // Trigger the AI for the check-in
+        }
+    }, [currentState.timeElapsedInStep, isSessionActive, isAiProcessing, selectedSurgery, currentState.currentStepIndex, processTranscriptWithAI]);
+
+
     const startSession = async () => {
         if (!selectedResident || !selectedSurgery) {
             alert("Please select a surgery and a resident.");
@@ -209,6 +248,7 @@ const LiveEvaluationPage = () => {
         fullTranscriptRef.current = "";
         liveNotesRef.current = [];
         recordedChunksRef.current = [];
+        checkInTriggeredRef.current = false;
 
         const procedureId = Object.keys(EVALUATION_CONFIGS).find(key => EVALUATION_CONFIGS[key].name === selectedSurgery);
         const initialStepName = procedureId ? EVALUATION_CONFIGS[procedureId].procedureSteps[0].name : '';
@@ -321,7 +361,7 @@ const LiveEvaluationPage = () => {
             processTranscriptWithAI();
         }, 500);
     };
-    
+
     const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
             handleTextSubmit();
