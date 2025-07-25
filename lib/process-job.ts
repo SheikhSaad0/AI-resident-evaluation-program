@@ -57,6 +57,16 @@ const difficultyDescriptions = {
         1: 'Low: Primary, straightforward case with normal anatomy',
         2: 'Moderate: Mild adhesions or anatomical variation',
         3: 'High: Dense adhesions, distorted anatomy, prior surgery, or perforated/complicated appendicitis'
+    },
+    openUmbilical: {
+        1: 'Easy: Small fascial defect (<2 cm), minimal subcutaneous tissue, no prior abdominal surgeries, no incarceration, and straightforward reduction. Excellent exposure with minimal dissection required.',
+        2: 'Moderate: Medium-sized hernia (2–4 cm), presence of moderate subcutaneous fat, minor adhesions or partial incarceration, requiring careful dissection or tension at closure. May involve mild bleeding or minor wound concerns.',
+        3: 'Difficult: Large hernia defect (>4 cm), thickened or scarred sac from prior surgeries, dense adhesions, incarcerated or non-reducible contents, or challenging exposure due to obesity or previous mesh. May require layered closure or drains despite no formal mesh placement.'
+    },
+    openVentralRetrorectus: {
+        1: 'Easy: Defect <5 cm with minimal to no adhesions, good-quality fascia, and no prior mesh or wound infection. Retrorectus space is easily developed, mesh placement is tension-free, and closure is achieved without undue difficulty; may or may not need drains.',
+        2: 'Moderate: Defect 5–10 cm, moderate adhesions requiring careful lysis, prior abdominal surgeries without mesh, or modest scarring. Retrorectus dissection requires moderate effort; mesh placement and fascial closure are feasible but require precision. One or more drains may be placed.',
+        3: 'Difficult: Large or complex defect >10 cm, dense adhesions from multiple prior surgeries or mesh explantation, scarred or attenuated posterior sheath, and need for advanced exposure techniques (e.g., component separation). Retrorectus dissection is challenging, and closure may require reinforcement, advanced techniques, or staged approaches. Significant bleeding risk or compromised soft tissue envelope may be present.'
     }
 };
 
@@ -77,7 +87,7 @@ const EVALUATION_CONFIGS: EvaluationConfigs = {
         caseDifficultyDescriptions: difficultyDescriptions.standard,
     },
     'Robotic Cholecystectomy': {
-        procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'calotTriangleDissection', name: "Dissection of Calot's Triangle" }, { key: 'cysticArteryDuctClipping', name: 'Clipping and division of Cystic Artery and Duct' }, { key: 'gallbladderDissection', name: 'Gallbladder Dissection of the Liver' }, { key: 'specimenRemoval', name: 'Specimen removal' }, { key: 'portClosure', name: 'Port Closure' }, { key: 'skinClosure', name: 'Skin Closure' }, ],
+        procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'robotDocking', name: 'Docking the robot' }, { key: 'instrumentPlacement', name: 'Instrument Placement' }, { key: 'calotTriangleDissection', name: "Dissection of Calot's Triangle" }, { key: 'cysticArteryDuctClipping', name: 'Clipping and division of Cystic Artery and Duct' }, { key: 'gallbladderDissection', name: 'Gallbladder Dissection of the Liver' }, { key: 'specimenRemoval', name: 'Specimen removal' }, { key: 'portClosure', name: 'Port Closure' }, { key: 'skinClosure', name: 'Skin Closure' }, ],
         caseDifficultyDescriptions: difficultyDescriptions.standard,
     },
     'Robotic Assisted Laparoscopic Inguinal Hernia Repair (TAPP)': {
@@ -91,6 +101,30 @@ const EVALUATION_CONFIGS: EvaluationConfigs = {
     'Laparoscopic Appendicectomy': {
         procedureSteps: [ { key: 'portPlacement', name: 'Port Placement' }, { key: 'appendixDissection', name: 'Identification, Dissection & Exposure of Appendix' }, { key: 'mesoappendixDivision', name: 'Division of Mesoappendix and Appendix Base' }, { key: 'specimenExtraction', name: 'Specimen Extraction' }, { key: 'portClosure', name: 'Port Closure' }, { key: 'skinClosure', name: 'Skin Closure' }, ],
         caseDifficultyDescriptions: difficultyDescriptions.lapAppy,
+    },
+    'Open Umbilical Hernia Repair Without Mesh': {
+        procedureSteps: [
+            { key: 'skinIncision', name: 'Skin Incision and Dissection to Hernia Sac' },
+            { key: 'sacIsolation', name: 'Hernia Sac Isolation & Opening' },
+            { key: 'contentReduction', name: 'Reduction of Hernia Contents' },
+            { key: 'fasciaClosure', name: 'Closure of Fascia' },
+            { key: 'subcutaneousClosure', name: 'Subcutaneous tissue Re-approximation' },
+            { key: 'skinClosure', name: 'Skin Closure' },
+        ],
+        caseDifficultyDescriptions: difficultyDescriptions.openUmbilical,
+    },
+    'Open VHR with Retrorectus Mesh': {
+        procedureSteps: [
+            { key: 'midlineIncision', name: 'Midline Incision and Hernia Exposure' },
+            { key: 'adhesiolysis', name: 'Adhesiolysis and Hernia Sac Dissection' },
+            { key: 'retrorectusCreation', name: 'Posterior Rectus Sheath Incision & Retrorectus Space Creation' },
+            { key: 'posteriorClosure', name: 'Posterior Rectus Sheath Closure & Hernia Content Reduction' },
+            { key: 'meshPlacement', name: 'Mesh Placement in Retrorectus Plane' },
+            { key: 'drainPlacement', name: 'Closed Drain Placement' },
+            { key: 'anteriorFascialClosure', name: 'Anterior Fascial Closure' },
+            { key: 'skinClosure', name: 'Skin Closure' },
+        ],
+        caseDifficultyDescriptions: difficultyDescriptions.openVentralRetrorectus,
     },
 };
 
@@ -129,26 +163,21 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
         
         **SCORING SCALE (0–5):**
 
-        **5 – Full autonomy**  
-        Resident completed the step independently, with minimal or no verbal feedback. May include brief confirmation or non-corrective commentary from the attending.
+        **5 – Full autonomy** Resident completed the step independently, with minimal or no verbal feedback. May include brief confirmation or non-corrective commentary from the attending.
 
-        **4 – Verbal coaching only**  
-        Resident completed the full step with moderate to heavy **verbal** instruction.  
+        **4 – Verbal coaching only** Resident completed the full step with moderate to heavy **verbal** instruction.  
         ✅ Extensive coaching is fine — as long as **the attending did not perform the step or intervene physically in a corrective way**.
 
-        **3 – Physical assistance or redo required**  
-        Resident completed >50% of the step, but:
+        **3 – Physical assistance or redo required** Resident completed >50% of the step, but:
         - Required physical help to correct technique (e.g., attending adjusted angle, guided a needle, loaded a clip)
         - Attending gave explicit redo instructions with partial physical involvement
         - Resident performed the task incorrectly at first and attending physically intervened to fix it
 
-        **2 – Shared or corrected performance**  
-        Attending had to co-perform the step due to error or inefficiency:
+        **2 – Shared or corrected performance** Attending had to co-perform the step due to error or inefficiency:
         - Resident could not complete a subtask without attending taking over
         - Attending re-did a portion due to technical error
 
-        **1 – Incomplete or unsafe**  
-        Resident failed to perform the step; attending took over for safety or completion
+        **1 – Incomplete or unsafe** Resident failed to perform the step; attending took over for safety or completion
 
         **0 – Step not done / no info**
 
@@ -156,22 +185,18 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
 
         **SCORING PRINCIPLES**
 
-        - **Verbal guidance ≠ deduction.**  
-        Even step-by-step verbal coaching earns a 4 **if the resident physically performs the task**.
+        - **Verbal guidance ≠ deduction.** Even step-by-step verbal coaching earns a 4 **if the resident physically performs the task**.
 
         - **Physical help ≠ takeover** — unless procedural.  
-        ✅ *Examples of acceptable physical help that **should NOT reduce score**:*  
-        - Handing over instruments  
+        ✅ *Examples of acceptable physical help that **should NOT reduce score**:* - Handing over instruments  
         - Holding tissue briefly to improve visibility  
         - Adjusting camera angle or retraction  
         - Repositioning a tool without performing the task  
         These are considered *facilitative support*, not takeover.
 
-        - **True "taking over" means performing part of the step themselves.**  
-        Only deduct for **procedural actions** — cutting, suturing, dissecting, tying, clipping, etc.
+        - **True "taking over" means performing part of the step themselves.** Only deduct for **procedural actions** — cutting, suturing, dissecting, tying, clipping, etc.
 
-        - **Redo alone doesn’t justify a 3.**  
-        If the resident corrects the mistake on their own, still score a 4.
+        - **Redo alone doesn’t justify a 3.** If the resident corrects the mistake on their own, still score a 4.
 
         - **In unclear situations, lean toward higher score unless the attending did part of the step themselves.**
 
