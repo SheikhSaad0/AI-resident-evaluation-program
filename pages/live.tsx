@@ -62,6 +62,7 @@ const LiveEvaluationPage = () => {
     const audioQueueRef = useRef<HTMLAudioElement[]>([]);
     const isPlayingAudioRef = useRef(false);
     const checkInTriggeredRef = useRef<boolean>(false);
+    const stepExceededTriggeredRef = useRef<boolean>(false);
 
     useEffect(() => { stateRef.current = currentState; }, [currentState]);
     useEffect(() => { transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatHistory, isAiProcessing]);
@@ -184,7 +185,8 @@ const LiveEvaluationPage = () => {
                                 timeElapsedInStep: 0,
                                 currentStepName: config.procedureSteps[newStepIndex].name,
                             }));
-                            checkInTriggeredRef.current = false; // Reset check-in trigger for new step
+                            checkInTriggeredRef.current = false; 
+                            stepExceededTriggeredRef.current = false;
                         }
                     }
                     break;
@@ -215,9 +217,8 @@ const LiveEvaluationPage = () => {
         return () => clearInterval(timer);
     }, [isSessionActive]);
 
-    // New useEffect for the 75% check-in logic
     useEffect(() => {
-        if (!isSessionActive || isAiProcessing || checkInTriggeredRef.current) return;
+        if (!isSessionActive || isAiProcessing) return;
 
         const procedureId = Object.keys(EVALUATION_CONFIGS).find(key => EVALUATION_CONFIGS[key].name === selectedSurgery);
         if (!procedureId) return;
@@ -228,14 +229,24 @@ const LiveEvaluationPage = () => {
         const timeParts = currentStepConfig.time.replace(' min', '').split('-');
         const maxTimeMinutes = parseInt(timeParts[1], 10);
         if (isNaN(maxTimeMinutes)) return;
-
+        
         const checkInTimeSeconds = maxTimeMinutes * 60 * 0.75;
+        const stepExceededTimeSeconds = maxTimeMinutes * 60 * 1.15;
 
-        if (currentState.timeElapsedInStep >= checkInTimeSeconds) {
-            checkInTriggeredRef.current = true; // Set the flag to true to prevent multiple triggers
-            processTranscriptWithAI(); // Trigger the AI for the check-in
+        if (currentState.timeElapsedInStep >= checkInTimeSeconds && !checkInTriggeredRef.current) {
+            checkInTriggeredRef.current = true; 
+            const timeElapsed = stateRef.current.timeElapsedInStep;
+            const stepName = stateRef.current.currentStepName;
+            const message = `We've been on ${stepName} for ${Math.floor(timeElapsed / 60)} minutes and ${timeElapsed % 60} seconds. Attending, how is the resident progressing? Should they continue, or would you like to take over?`;
+            addVeritasMessage(message, true);
         }
-    }, [currentState.timeElapsedInStep, isSessionActive, isAiProcessing, selectedSurgery, currentState.currentStepIndex, processTranscriptWithAI]);
+        
+        if (currentState.timeElapsedInStep >= stepExceededTimeSeconds && !stepExceededTriggeredRef.current) {
+            stepExceededTriggeredRef.current = true;
+            addVeritasMessage("Have we moved on to the next step?", true);
+        }
+
+    }, [currentState.timeElapsedInStep, isSessionActive, isAiProcessing, selectedSurgery, currentState.currentStepIndex, processTranscriptWithAI, addVeritasMessage]);
 
 
     const startSession = async () => {
@@ -249,6 +260,7 @@ const LiveEvaluationPage = () => {
         liveNotesRef.current = [];
         recordedChunksRef.current = [];
         checkInTriggeredRef.current = false;
+        stepExceededTriggeredRef.current = false;
 
         const procedureId = Object.keys(EVALUATION_CONFIGS).find(key => EVALUATION_CONFIGS[key].name === selectedSurgery);
         const initialStepName = procedureId ? EVALUATION_CONFIGS[procedureId].procedureSteps[0].name : '';
