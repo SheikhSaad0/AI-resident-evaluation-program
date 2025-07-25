@@ -252,7 +252,9 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
     }
     
     try {
-        return JSON.parse(responseText) as GeminiEvaluationResult;
+        // Clean the response text to remove potential markdown and whitespace
+        const cleanedText = responseText.trim().replace(/^```json\s*/, '').replace(/```$/, '');
+        return JSON.parse(cleanedText) as GeminiEvaluationResult;
     } catch (error) {
         console.error("Failed to parse JSON from text model. Raw response:", responseText);
         throw new Error("AI model returned invalid JSON.");
@@ -327,7 +329,9 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
     }
 
     try {
-        const parsedResult = JSON.parse(responseText) as GeminiEvaluationResult;
+        // Clean the response text to remove potential markdown and whitespace
+        const cleanedText = responseText.trim().replace(/^```json\s*/, '').replace(/```$/, '');
+        const parsedResult = JSON.parse(cleanedText) as GeminiEvaluationResult;
         parsedResult.transcription = transcription;
         return parsedResult;
     } catch(error) {
