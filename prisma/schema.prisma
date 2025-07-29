@@ -1,5 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// prisma/schema.prisma
 
 generator client {
   provider = "prisma-client-js"
@@ -10,76 +9,94 @@ datasource db {
   url      = env("DATABASE_URL") // This will be dynamically overridden
 }
 
-// Main application models
 model Job {
-  id              String    @id @default(cuid())
-  status          String
-  gcsUrl          String
-  gcsObjectPath   String?
-  surgeryName     String
+  id                String    @id @default(cuid())
+  status            String
+  gcsUrl            String
+  gcsObjectPath     String?
+  surgeryName       String
   additionalContext String?
-  result          Json?
-  error           String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  withVideo       Boolean   @default(false)
-  videoAnalysis   Boolean   @default(false)
-  residentId      String?
-  resident        Resident? @relation(fields: [residentId], references: [id], onDelete: SetNull)
+  result            Json?
+  error             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  withVideo         Boolean   @default(false)
+  videoAnalysis     Boolean   @default(false)
+  residentId        String?
+  resident          Resident? @relation(fields: [residentId], references: [id], onDelete: SetNull)
 }
 
 model Resident {
-  id            String    @id @default(cuid())
+  id            String       @id @default(cuid())
   name          String
   email         String?
   photoUrl      String?
+  // --- THIS FIELD WAS MISSING ---
   company       String?
+  // ------------------------------
   year          String?
   medicalSchool String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
   jobs          Job[]
-  evaluations   Evaluation[] // ADDED: Relation to the new Evaluation model
+  evaluations   Evaluation[]
 }
 
-// NEW: Add this model for managing database settings
+model Attending {
+  id                 String  @id @default(cuid())
+  name               String
+  title              String
+  primaryInstitution String
+  specialty          String
+  residency          String?
+  medicalSchool      String?
+  fellowship         String?
+  photoUrl           String?
+}
+
+model ProgramDirector {
+  id                 String @id @default(cuid())
+  name               String
+  title              String
+  primaryInstitution String
+  specialty          String
+  photoUrl           String?
+}
+
 model Settings {
   id               String @id @default(cuid())
-  activeDatabase   String @default("testing") // 'testing' or 'production'
+  activeDatabase   String @default("testing")
   defaultDatabase  String @default("testing")
   testingDbName    String @default("Testing Database")
   productionDbName String @default("Production Database")
 }
 
-// -- Models for R.I.S.E Veritas-Scale Evaluations --
-
-// Defines the main data model for a single surgical evaluation.
 model Evaluation {
-  id              String @id @default(cuid())
-  procedure       String // e.g., "Laparoscopic Cholecystectomy"
-  overallFeedback String @db.Text
-  transcript      String @db.Text
-
-  // Establishes a many-to-one relationship with the Resident model.
-  resident   Resident @relation(fields: [residentId], references: [id])
-  residentId String
-
-  // An evaluation is composed of multiple steps.
-  steps EvaluationStep[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String           @id @default(cuid())
+  procedure       String
+  overallFeedback String           @db.Text
+  transcript      String           @db.Text
+  resident        Resident         @relation(fields: [residentId], references: [id])
+  residentId      String
+  steps           EvaluationStep[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 }
 
-// Defines the model for a single step within an evaluation.
 model EvaluationStep {
-  id    String @id @default(cuid())
-  name  String // e.g., "Port Placement", "Dissection of Hernia Sac"
-  score Int    // The R.I.S.E. score from 1-5
-  duration String // e.g., "15 minutes"
-  feedback String @db.Text
-
-  // Establishes a many-to-one relationship with the Evaluation model.
+  id           String     @id @default(cuid())
+  name         String
+  score        Int
+  duration     String
+  feedback     String     @db.Text
   evaluation   Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
   evaluationId String
+}
+
+// --- THIS MODEL WAS MISSING ---
+model playing_with_neon {
+  id      Int      @id @default(autoincrement())
+  value   String?
+  // Add other fields from your table here if they exist
+  // For example: createdAt DateTime @default(now())
 }
