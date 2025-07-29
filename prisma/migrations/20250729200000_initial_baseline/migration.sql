@@ -21,15 +21,42 @@ CREATE TABLE "Job" (
 CREATE TABLE "Resident" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "email" TEXT,
     "photoUrl" TEXT,
     "company" TEXT,
     "year" TEXT,
     "medicalSchool" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "email" TEXT,
 
     CONSTRAINT "Resident_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Attending" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "primaryInstitution" TEXT NOT NULL,
+    "specialty" TEXT NOT NULL,
+    "residency" TEXT,
+    "medicalSchool" TEXT,
+    "fellowship" TEXT,
+    "photoUrl" TEXT,
+
+    CONSTRAINT "Attending_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ProgramDirector" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "primaryInstitution" TEXT NOT NULL,
+    "specialty" TEXT NOT NULL,
+    "photoUrl" TEXT,
+
+    CONSTRAINT "ProgramDirector_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable

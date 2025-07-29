@@ -31,9 +31,7 @@ model Resident {
   name          String
   email         String?
   photoUrl      String?
-  // --- THIS FIELD WAS MISSING ---
   company       String?
-  // ------------------------------
   year          String?
   medicalSchool String?
   createdAt     DateTime     @default(now())
@@ -91,12 +89,4 @@ model EvaluationStep {
   feedback     String     @db.Text
   evaluation   Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
   evaluationId String
-}
-
-// --- THIS MODEL WAS MISSING ---
-model playing_with_neon {
-  id      Int      @id @default(autoincrement())
-  value   String?
-  // Add other fields from your table here if they exist
-  // For example: createdAt DateTime @default(now())
 }

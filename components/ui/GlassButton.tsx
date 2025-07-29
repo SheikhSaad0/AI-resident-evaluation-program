@@ -4,7 +4,7 @@ import Image from 'next/image';
 interface GlassButtonProps {
   children: React.ReactNode;
   onClick?: () => void;
-  variant?: 'primary' | 'secondary' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'destructive'; // Added 'destructive'
   size?: 'sm' | 'md' | 'lg';
   disabled?: boolean;
   loading?: boolean;
@@ -29,7 +29,8 @@ export default function GlassButton({
   const variantClasses = {
     primary: 'glass-button-primary',
     secondary: 'glass-button-secondary',
-    ghost: 'glassmorphism-subtle hover:bg-glass-200'
+    ghost: 'glassmorphism-subtle hover:bg-glass-200',
+    destructive: 'glass-button-destructive bg-red-500/20 text-red-300 border-red-500/30 hover:bg-red-500/40 hover:text-red-200' // Added styles
   };
 
   const sizeClasses = {
@@ -38,8 +39,8 @@ export default function GlassButton({
     lg: 'px-8 py-4 text-lg rounded-3xl'
   };
 
-  const disabledClasses = disabled || loading 
-    ? 'opacity-50 cursor-not-allowed hover:scale-100 hover:shadow-glass' 
+  const disabledClasses = disabled || loading
+    ? 'opacity-50 cursor-not-allowed hover:scale-100 hover:shadow-glass'
     : '';
 
   const handleClick = () => {
@@ -54,10 +55,10 @@ export default function GlassButton({
       onClick={handleClick}
       disabled={disabled || loading}
       className={`
-        ${variantClasses[variant]} 
-        ${sizeClasses[size]} 
+        ${variantClasses[variant]}
+        ${sizeClasses[size]}
         ${disabledClasses}
-        font-medium transition-all duration-300 
+        font-medium transition-all duration-300
         hover:shadow-glass-lg hover:scale-105 active:scale-95
         flex items-center justify-center gap-2
         ${className}
@@ -66,13 +67,13 @@ export default function GlassButton({
       {loading && (
         <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
       )}
-      
+
       {icon && iconPosition === 'left' && !loading && (
         <Image src={icon} alt="" width={20} height={20} />
       )}
-      
+
       {children}
-      
+
       {icon && iconPosition === 'right' && !loading && (
         <Image src={icon} alt="" width={20} height={20} />
       )}
