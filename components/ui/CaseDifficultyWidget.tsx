@@ -47,11 +47,11 @@ const CaseDifficultyWidget: React.FC<Props> = ({ averageDifficulty, timeRange, s
                 { id: 'month', label: 'Month' },
                 { id: 'all', label: 'All' },
             ]}
-            defaultSelected={timeRange}
+            value={timeRange}
             onChange={(id) => setTimeRange(id as 'all' | 'month' | 'week')}
           />
       </div>
-      <div 
+      <div
         className="flex-grow flex items-center justify-center rounded-3xl transition-colors duration-500"
         style={{ backgroundColor: averageDifficulty > 0 ? bgColor : 'transparent' }}
        >

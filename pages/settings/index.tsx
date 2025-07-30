@@ -86,7 +86,7 @@ const SettingsPage = () => {
                 { id: 'testing', label: settings.databases.testing.name },
                 { id: 'production', label: settings.databases.production.name },
               ]}
-              defaultSelected={settings.activeDatabase}
+              value={settings.activeDatabase}
               onChange={(id) => setSettings(s => s && { ...s, activeDatabase: id as 'testing' | 'production' })}
             />
             {/* The note about restarting is no longer needed. */}
@@ -121,7 +121,7 @@ const SettingsPage = () => {
                 { id: 'testing', label: settings.databases.testing.name },
                 { id: 'production', label: settings.databases.production.name },
               ]}
-              defaultSelected={settings.defaultDatabase}
+              value={settings.defaultDatabase}
               onChange={(id) => setSettings(s => s && { ...s, defaultDatabase: id as 'testing' | 'production' })}
             />
           </GlassCard>

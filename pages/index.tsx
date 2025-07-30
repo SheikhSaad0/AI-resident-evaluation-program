@@ -158,7 +158,7 @@ export default function Home() {
           </div>
           <div>
             <label className="block mb-3 text-sm font-medium text-text-secondary">Analysis Type</label>
-            <PillToggle options={[{ id: 'audio', label: 'Audio Analysis' }, { id: 'video', label: 'Visual Analysis' }]} defaultSelected={analysisType} onChange={setAnalysisType} />
+            <PillToggle options={[{ id: 'audio', label: 'Audio Analysis' }, { id: 'video', label: 'Visual Analysis' }]} value={analysisType} onChange={setAnalysisType} />
           </div>
           <div>
             <label className="block mb-3 text-sm font-medium text-text-secondary">Upload Recordings</label>
