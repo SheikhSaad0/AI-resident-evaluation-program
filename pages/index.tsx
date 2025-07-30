@@ -109,7 +109,7 @@ export default function Home() {
       }
 
 
-      const analysisResponse = await fetch('/api/submit', {
+      const { jobId } = await apiFetch('/api/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -120,9 +120,6 @@ export default function Home() {
           analysisType
         }),
       });
-
-      if (!analysisResponse.ok) throw new Error('Failed to start analysis');
-      const { jobId } = await analysisResponse.json();
       router.push(`/results/${jobId}`);
 
     } catch (error) {
