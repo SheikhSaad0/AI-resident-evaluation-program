@@ -1,5 +1,5 @@
 // lib/useApi.ts
-import { useContext } from 'react';
+import { useContext, useCallback } from 'react';
 import { AuthContext } from './auth';
 
 /**
@@ -15,7 +15,7 @@ export const useApi = () => {
    * @param options Standard fetch options (method, headers, body, etc.)
    * @returns The JSON response from the API.
    */
-  const apiFetch = async <T = any>(url: string, options: RequestInit = {}): Promise<T> => {
+  const apiFetch = useCallback(async <T = any>(url: string, options: RequestInit = {}): Promise<T> => {
     if (!auth || auth.loading) {
       // This prevents API calls from being made before the auth state is initialized.
       return new Promise(() => {}); // Return a pending promise
@@ -30,6 +30,12 @@ export const useApi = () => {
     headers.set('Pragma', 'no-cache');
     headers.set('Expires', '0');
 
+    if (options.body && typeof options.body === 'object') {
+        headers.set('Content-Type', 'application/json');
+        options.body = JSON.stringify(options.body);
+    }
+
+
     const response = await fetch(apiUrl.toString(), {
       ...options,
       headers,
@@ -42,7 +48,7 @@ export const useApi = () => {
     }
 
     return response.json();
-  };
+  }, [auth]);
 
   return { apiFetch };
 };
