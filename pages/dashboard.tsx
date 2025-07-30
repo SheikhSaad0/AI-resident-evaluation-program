@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { GlassCard, GlassButton, StatCard } from '../components/ui';
+import { useApi } from '../lib/useApi';
 
 interface Resident {
   id: string;
@@ -61,20 +62,17 @@ export default function Dashboard() {
     avgCaseDifficultyTrend: 0,
   });
   const router = useRouter();
+  const { apiFetch } = useApi();
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const residentsResponse = await fetch('/api/residents');
-        if (residentsResponse.ok) {
-          setResidents(await residentsResponse.json());
-        }
+        const residentsData = await apiFetch('/api/residents');
+        setResidents(residentsData);
 
-        const evalsResponse = await fetch('/api/evaluations');
-        if (evalsResponse.ok) {
-          const evalsData: Evaluation[] = await evalsResponse.json();
-          const filteredEvalsData = evalsData.filter(e => !['cmcv3j0zk0001onk7im7zzcvf', 'cmcv3b0x70003on8x81k8nbr4', 'cmculodur0001on12vsinf5gu'].includes(e.id));
-          setEvaluations(filteredEvalsData);
+        const evalsData: Evaluation[] = await apiFetch('/api/evaluations');
+        const filteredEvalsData = evalsData.filter(e => !['cmcv3j0zk0001onk7im7zzcvf', 'cmcv3b0x70003on8x81k8nbr4', 'cmculodur0001on12vsinf5gu'].includes(e.id));
+        setEvaluations(filteredEvalsData);
 
           const finalizedEvals = filteredEvalsData.filter((e) => e.isFinalized && e.score !== undefined && e.score !== null);
           
@@ -133,6 +131,8 @@ export default function Dashboard() {
             needsImprovementTrend: calculateTrend(currentMetrics.needsImprovement, previousMetrics.needsImprovement),
             avgCaseDifficultyTrend: calculateTrend(currentMetrics.avgDifficulty, previousMetrics.avgDifficulty)
           });
+        } else {
+          console.error('No evaluation data received');
         }
       } catch (error: any) {
         console.error('Error fetching dashboard data:', error);
@@ -140,7 +140,7 @@ export default function Dashboard() {
     };
 
     fetchData();
-  }, []);
+  }, [apiFetch]);
 
   return (
     <div className="space-y-8">
