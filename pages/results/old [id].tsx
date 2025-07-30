@@ -334,7 +334,7 @@ const TranscriptionTab = ({ transcription, showTranscription, setShowTranscripti
             <h3 className="heading-sm">Audio Transcription</h3>
             <PillToggle
                 options={[{ id: 'hidden', label: 'Hidden' }, { id: 'visible', label: 'Show Transcription' }]}
-                defaultSelected={showTranscription ? 'visible' : 'hidden'}
+                value={showTranscription ? 'visible' : 'hidden'}
                 onChange={(selected: string) => setShowTranscription(selected === 'visible')}
             />
         </div>
