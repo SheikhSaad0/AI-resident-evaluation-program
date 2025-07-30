@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { GlassCard, GlassButton, GlassInput, GlassTextarea } from '../../components/ui';
 import { EVALUATION_CONFIGS } from '../../lib/evaluation-configs';
+import { useApi } from '../../lib/useApi';
 
 // --- TYPE DEFINITIONS ---
 interface EvaluationStep {
@@ -380,6 +381,7 @@ const EditTab = ({ editedEvaluation, isFinalized, onOverallChange, onFinalize, o
 export default function RevampedResultsPage() {
     const router = useRouter();
     const { id } = router.query;
+    const { apiFetch } = useApi();
     const [evaluation, setEvaluation] = useState<EvaluationData | null>(null);
     const [editedEvaluation, setEditedEvaluation] = useState<EvaluationData | null>(null);
     const [status, setStatus] = useState<'loading' | 'polling' | 'error' | 'loaded'>('loading');
@@ -393,10 +395,7 @@ export default function RevampedResultsPage() {
 
         const fetchEvaluation = async (jobId: string) => {
             try {
-                const response = await fetch(`/api/job-status/${jobId}`);
-                if (!response.ok) throw new Error('Network response was not ok.');
-                
-                const jobData = await response.json();
+                const jobData = await apiFetch(`/api/job-status/${jobId}`);
     
                 if (jobData.status === 'complete' && jobData.result) {
                     const resultData = typeof jobData.result === 'string' ? JSON.parse(jobData.result) : jobData.result;
@@ -405,8 +404,7 @@ export default function RevampedResultsPage() {
                          throw new Error('Incomplete evaluation data received from the server.');
                     }
                     
-                    const residentResponse = await fetch(`/api/residents/${jobData.residentId}`);
-                    const residentData = residentResponse.ok ? await residentResponse.json() : {};
+                    const residentData = await apiFetch(`/api/residents/${jobData.residentId}`);
                     
                     const parsedData: EvaluationData = {
                         ...resultData,
@@ -437,14 +435,13 @@ export default function RevampedResultsPage() {
         };
 
         fetchEvaluation(id as string);
-    }, [id]);
+    }, [id, apiFetch]);
   
     const handleFinalize = async () => {
         if (!editedEvaluation || !id) return;
         const finalEvaluation = { ...editedEvaluation, isFinalized: true };
         try {
-          const response = await fetch(`/api/evaluations/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ updatedEvaluation: finalEvaluation }) });
-          if (!response.ok) throw new Error((await response.json()).message || 'Failed to finalize.');
+          await apiFetch(`/api/evaluations/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ updatedEvaluation: finalEvaluation }) });
           setEvaluation(finalEvaluation);
           setEditedEvaluation(finalEvaluation);
           alert('Evaluation has been finalized!');
@@ -459,13 +456,11 @@ export default function RevampedResultsPage() {
         const unlockedEvaluation = { ...editedEvaluation, isFinalized: false };
     
         try {
-            const response = await fetch(`/api/evaluations/${id}`, {
+            await apiFetch(`/api/evaluations/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ updatedEvaluation: unlockedEvaluation })
             });
-    
-            if (!response.ok) throw new Error((await response.json()).message || 'Failed to unlock.');
     
             setEvaluation(unlockedEvaluation);
             setEditedEvaluation(unlockedEvaluation);
@@ -479,8 +474,7 @@ export default function RevampedResultsPage() {
     const handleDelete = async () => {
         if (!id || !window.confirm('Are you sure you want to delete this evaluation? This action cannot be undone.')) return;
         try {
-          const response = await fetch(`/api/evaluations/${id}`, { method: 'DELETE' });
-          if (!response.ok) throw new Error((await response.json()).message || 'Failed to delete.');
+          await apiFetch(`/api/evaluations/${id}`, { method: 'DELETE' });
           alert('Evaluation deleted successfully.');
           router.push('/evaluations');
         } catch (error) {
