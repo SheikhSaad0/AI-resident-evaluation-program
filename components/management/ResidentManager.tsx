@@ -1,11 +1,10 @@
-// components/management/ResidentManager.tsx
-import React, { useState, useEffect, useContext, useCallback } from 'react'; // Import useCallback
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import { AuthContext } from '../../lib/auth';
+import { useApi } from '../../lib/useApi'; // Import the new useApi hook
 import { Resident } from '@prisma/client';
 import { GlassInput, GlassButton, ImageUpload, GlassCard } from '../ui';
 
-// ... (interface and initialFormData remain the same) ...
+// Interface for the resident form data
 interface ResidentFormData {
     name: string;
     email?: string;
@@ -14,64 +13,60 @@ interface ResidentFormData {
     year?: string;
     medicalSchool?: string;
 }
+
+// Initial state for the form
 const initialFormData: ResidentFormData = { name: '', email: '', photoUrl: null, company: '', year: '', medicalSchool: '' };
 
 const ResidentManager = () => {
     const [residents, setResidents] = useState<Resident[]>([]);
     const [formData, setFormData] = useState<ResidentFormData>(initialFormData);
-    const [loading, setLoading] = useState(true); // Start loading initially
-    const auth = useContext(AuthContext);
+    const [loading, setLoading] = useState(true);
+    const { apiFetch } = useApi(); // Use the apiFetch hook to make authenticated requests
     const router = useRouter();
 
-    // ✅ FIX: Wrap fetchResidents in useCallback to prevent re-creation on every render.
-    // This stops the infinite loop.
+    // Fetches the list of residents from the API.
+    // Wrapped in useCallback to prevent re-creation on every render, avoiding infinite loops.
     const fetchResidents = useCallback(async () => {
-        if (!auth?.database) {
-            // If the auth context isn't ready, don't try to fetch.
-            // This can happen on initial page load.
-            return;
-        }
         setLoading(true);
         try {
-            const res = await fetch(`/api/residents?db=${auth.database}`);
-            if (res.ok) {
-                setResidents(await res.json());
-            }
+            // apiFetch automatically includes the correct 'db' query parameter.
+            const data = await apiFetch('/api/residents');
+            setResidents(data);
         } catch (error) { 
             console.error('Failed to fetch residents:', error); 
         } finally {
             setLoading(false);
         }
-    }, [auth?.database]); // The function only changes if the database context changes.
+    }, [apiFetch]); // Dependency array ensures the function is recreated only if apiFetch changes.
 
+    // useEffect hook to fetch residents when the component mounts or when fetchResidents changes.
     useEffect(() => {
         fetchResidents();
-    }, [fetchResidents]); // Now this effect only runs when the memoized fetchResidents function changes.
+    }, [fetchResidents]);
 
+    // Handles changes in form input fields.
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    // Handles the image URL when an image is successfully uploaded.
     const handleImageUpload = (url: string) => {
         setFormData(prev => ({ ...prev, photoUrl: url }));
     };
 
+    // Handles the form submission to create a new resident.
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         try {
-            const res = await fetch(`/api/residents?db=${auth?.database}`, {
+            // Use apiFetch to send the POST request. It handles the database context.
+            await apiFetch('/api/residents', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData),
             });
-            if (res.ok) {
-                await fetchResidents(); // Re-fetch the list after adding a new one
-                setFormData(initialFormData);
-            } else { 
-                console.error('Failed to create resident'); 
-            }
+            await fetchResidents(); // Re-fetch the list to show the newly added resident.
+            setFormData(initialFormData); // Reset the form.
         } catch (error) { 
             console.error('Failed to submit form:', error); 
         } finally {
@@ -81,8 +76,8 @@ const ResidentManager = () => {
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Form for adding a new resident */}
             <div>
-                {/* Add New Resident Form - no changes here */}
                 <h3 className="heading-lg mb-4">Add New Resident</h3>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <ImageUpload
@@ -100,11 +95,13 @@ const ResidentManager = () => {
                     </GlassButton>
                 </form>
             </div>
+
+            {/* List of current residents */}
             <div>
                 <h3 className="heading-lg mb-4">Current Residents</h3>
                 <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-glass pr-2">
                     {loading ? (
-                        <p className="text-text-secondary">Loading...</p>
+                        <p className="text-text-secondary">Loading residents...</p>
                     ) : residents.length > 0 ? (
                         residents.map(resident => (
                            <GlassCard 
@@ -112,6 +109,8 @@ const ResidentManager = () => {
                                 variant="subtle" 
                                 className="p-3 cursor-pointer"
                                 hover
+                                // Navigate to the resident's detail page on click.
+                                // The database context will persist through the AuthProvider.
                                 onClick={() => router.push(`/residents/${resident.id}`)}
                             >
                                 <div className="flex items-center space-x-4">

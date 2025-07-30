@@ -1,3 +1,4 @@
+// lib/auth.tsx
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/router';
 
@@ -11,7 +12,7 @@ interface UserProfile {
 interface AuthContextType {
   user: UserProfile | null;
   database: 'testing' | 'production';
-  loading: boolean; // ✅ FIX: Add loading state to track auth initialization
+  loading: boolean;
   login: (user: UserProfile, database: 'testing' | 'production') => void;
   logout: () => void;
   switchDatabase: (database: 'testing' | 'production') => void;
@@ -22,11 +23,10 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [database, setDatabase] = useState<'testing' | 'production'>('testing');
-  const [loading, setLoading] = useState(true); // ✅ FIX: Start in loading state
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    // This effect now runs only once on mount to restore the session
     try {
       const savedUser = localStorage.getItem('user');
       const savedDatabase = localStorage.getItem('database');
@@ -40,7 +40,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
         console.error("Failed to load auth state from local storage", error);
     } finally {
-        setLoading(false); // ✅ FIX: Set loading to false after attempting to load session
+        setLoading(false);
     }
   }, []);
 
@@ -54,7 +54,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('user');
-    localStorage.removeItem('database'); // Also clear the database selection
+    localStorage.removeItem('database');
     router.push('/login');
   };
 

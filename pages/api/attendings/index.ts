@@ -1,3 +1,4 @@
+// pages/api/attendings/index.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getPrismaClient } from '../../../lib/prisma';
 
