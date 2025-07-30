@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "npm-run-all --parallel dev:next dev:ws",
     "dev:next": "next dev",
-    "dev:ws": "node --loader ts-node/esm scripts/webSocketServer.ts",
+    "dev:ws": "node --import 'data:text/javascript,import { register } from \"node:module\"; import { pathToFileURL } from \"node:url\"; register(\"ts-node/esm\", pathToFileURL(\"./\"));' scripts/webSocketServer.ts",
     "build": "prisma generate && next build",
     "start": "next start",
     "postinstall": "prisma generate",
