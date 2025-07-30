@@ -47,7 +47,7 @@ const CaseDifficultyWidget: React.FC<Props> = ({ averageDifficulty, timeRange, s
                 { id: 'month', label: 'Month' },
                 { id: 'all', label: 'All' },
             ]}
-            defaultSelected={timeRange}
+            value={timeRange}
             onChange={(id) => setTimeRange(id as 'all' | 'month' | 'week')}
           />
       </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { GlassCard, GlassButton, GlassInput, ImageUpload } from '../../components/ui';
+import { useApi } from '../../lib/useApi';
 
 interface Resident {
   id: string;
@@ -25,17 +26,19 @@ export default function ResidentsPage() {
   });
   const [isAdding, setIsAdding] = useState(false);
   const router = useRouter();
+  const { apiFetch } = useApi();
 
   useEffect(() => {
     const fetchResidents = async () => {
-      const response = await fetch('/api/residents');
-      if (response.ok) {
-        const data = await response.json();
+      try {
+        const data = await apiFetch('/api/residents');
         setResidents(data);
+      } catch (error) {
+        console.error('Error fetching residents:', error);
       }
     };
     fetchResidents();
-  }, []);
+  }, [apiFetch]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -50,18 +53,13 @@ export default function ResidentsPage() {
     e.preventDefault();
     setIsAdding(true);
     try {
-      const response = await fetch('/api/residents', {
+      const addedResident = await apiFetch('/api/residents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newResident),
       });
-      if (response.ok) {
-        const addedResident = await response.json();
-        setResidents(prev => [addedResident, ...prev]);
-        setNewResident({ name: '', photoUrl: '', company: '', year: '', medicalSchool: '', email: '' });
-      } else {
-        throw new Error('Failed to add resident');
-      }
+      setResidents(prev => [addedResident, ...prev]);
+      setNewResident({ name: '', photoUrl: '', company: '', year: '', medicalSchool: '', email: '' });
     } catch (error) {
       console.error(error);
       alert('Failed to add resident');

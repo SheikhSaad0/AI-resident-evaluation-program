@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
+import { useApi } from '../../lib/useApi';
 
 export default function NewResident() {
   const [form, setForm] = useState({ name: '', program: '', year: '', medicalSchool: '', photo: null as File | null });
   const router = useRouter();
+  const { apiFetch } = useApi();
   const handleChange = (e: any) => {
     const { name, value, files } = e.target;
     if (name === 'photo') setForm(f => ({ ...f, photo: files[0] }));
@@ -13,7 +15,7 @@ export default function NewResident() {
     e.preventDefault();
     const formData = new FormData();
     Object.entries(form).forEach(([k, v]) => v && formData.append(k, v));
-    await fetch('/api/residents', { method: 'POST', body: formData });
+    await apiFetch('/api/residents', { method: 'POST', body: formData });
     router.push('/residents');
   };
   return (

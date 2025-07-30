@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { GlassCard, GlassButton, GlassInput, GlassTabs, PillToggle } from '../../components/ui';
+import { useApi } from '../../lib/useApi';
 
 interface DatabaseSettings {
   name: string;
@@ -21,16 +22,13 @@ const SettingsPage = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const { apiFetch } = useApi();
 
   useEffect(() => {
-    fetch('/api/settings')
-      .then(res => {
-        if (!res.ok) throw new Error("Failed to load settings.");
-        return res.json();
-      })
+    apiFetch('/api/settings')
       .then(data => setSettings(data))
       .catch(err => setError(err.message));
-  }, []);
+  }, [apiFetch]);
 
   const handleSave = async () => {
     if (!settings) return;
@@ -38,12 +36,11 @@ const SettingsPage = () => {
     setMessage('');
     setError('');
     try {
-      const response = await fetch('/api/settings', {
+      await apiFetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
       });
-      if (!response.ok) throw new Error('Failed to save settings');
       // Success! The change is now instant.
       setMessage('Settings saved successfully! The active database has been switched.');
     } catch (error) {
@@ -86,7 +83,7 @@ const SettingsPage = () => {
                 { id: 'testing', label: settings.databases.testing.name },
                 { id: 'production', label: settings.databases.production.name },
               ]}
-              defaultSelected={settings.activeDatabase}
+              value={settings.activeDatabase}
               onChange={(id) => setSettings(s => s && { ...s, activeDatabase: id as 'testing' | 'production' })}
             />
             {/* The note about restarting is no longer needed. */}
@@ -121,7 +118,7 @@ const SettingsPage = () => {
                 { id: 'testing', label: settings.databases.testing.name },
                 { id: 'production', label: settings.databases.production.name },
               ]}
-              defaultSelected={settings.defaultDatabase}
+              value={settings.defaultDatabase}
               onChange={(id) => setSettings(s => s && { ...s, defaultDatabase: id as 'testing' | 'production' })}
             />
           </GlassCard>
