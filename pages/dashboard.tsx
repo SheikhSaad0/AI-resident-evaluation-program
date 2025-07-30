@@ -131,9 +131,6 @@ export default function Dashboard() {
             needsImprovementTrend: calculateTrend(currentMetrics.needsImprovement, previousMetrics.needsImprovement),
             avgCaseDifficultyTrend: calculateTrend(currentMetrics.avgDifficulty, previousMetrics.avgDifficulty)
           });
-        } else {
-          console.error('No evaluation data received');
-        }
       } catch (error: any) {
         console.error('Error fetching dashboard data:', error);
       }
