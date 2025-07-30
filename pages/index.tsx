@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import SurgerySelector from '../components/SurgerySelector';
 import ResidentSelector from '../components/ResidentSelector';
 import { GlassCard, GlassButton, GlassTextarea, PillToggle, GlassInput } from '../components/ui';
 import { useApi } from '../lib/useApi';
+import { AuthContext } from '../lib/auth';
 
 interface Resident {
   id: string;
@@ -26,6 +27,7 @@ export default function Home() {
   const [analysisType, setAnalysisType] = useState('audio');
   const router = useRouter();
   const { apiFetch } = useApi();
+  const auth = useContext(AuthContext);
 
   const fetchData = async () => {
     try {
@@ -109,7 +111,9 @@ export default function Home() {
       }
 
 
-      const analysisResponse = await fetch('/api/submit', {
+      const submitUrl = new URL('/api/submit', window.location.origin);
+      submitUrl.searchParams.append('db', auth?.database || 'testing');
+      const analysisResponse = await fetch(submitUrl.toString(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
