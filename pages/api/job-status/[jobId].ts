@@ -22,7 +22,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         
         if (job.status === 'complete' && job.gcsObjectPath) {
             const readableUrl = await generateV4ReadSignedUrl(job.gcsObjectPath);
-            const result = job.result ? JSON.parse(job.result as string) : null;
+            let result = null;
+            if (job.result) {
+                try {
+                    // Try to parse as JSON first
+                    result = JSON.parse(job.result as string);
+                } catch (parseError) {
+                    // If JSON parsing fails, use the raw result
+                    console.warn(`Failed to parse job result as JSON for job ${jobId}:`, parseError);
+                    result = job.result;
+                }
+            }
 
             return res.status(200).json({
                 ...job,
