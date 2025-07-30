@@ -1,5 +1,5 @@
 // scripts/webSocketServer.ts
-import { WebSocketServer, WebSocket, RawData } from 'ws';
+import { WebSocketServer, WebSocket } from 'ws';
 import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
 import { config } from 'dotenv';
 import { URL } from 'url';
@@ -61,7 +61,7 @@ wss.on('connection', (ws, req) => {
         }
     });
 
-    ws.on('message', (message: RawData) => {
+    ws.on('message', (message: Buffer) => {
         if (deepgramLive.getReadyState() === 1 /* OPEN */) {
             deepgramLive.send(message as any);
         }
