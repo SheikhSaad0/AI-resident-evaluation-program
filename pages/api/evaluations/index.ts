@@ -10,11 +10,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (req.method === 'GET') {
         const prisma = getPrismaClient(req);
+        console.log('[Evaluations API] Fetching evaluations using job.findMany()');
+        
         try {
+            // Using job.findMany() to get all evaluations data
+            // Note: We use Job model instead of Evaluation model for compatibility
             const jobs = await prisma.job.findMany({
                 orderBy: { createdAt: 'desc' },
                 include: { resident: true },
             });
+
+            console.log(`[Evaluations API] Successfully fetched ${jobs.length} jobs`);
 
             const evaluations = await Promise.all(jobs.map(async (job) => {
                 let score = undefined;
@@ -61,10 +67,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 };
             }));
 
+            console.log(`[Evaluations API] Successfully processed ${evaluations.length} evaluations`);
             res.status(200).json(evaluations);
         } catch (error) {
-            console.error("Error fetching evaluations:", error);
-            res.status(500).json({ error: 'Failed to fetch evaluations' });
+            console.error("[Evaluations API] Error fetching evaluations:", error);
+            console.error("[Evaluations API] Error details:", {
+                message: error.message,
+                name: error.name,
+                stack: error.stack?.split('\n').slice(0, 5)
+            });
+            res.status(500).json({ 
+                error: 'Failed to fetch evaluations',
+                details: error.message 
+            });
         }
     } else {
         res.setHeader('Allow', ['GET']);

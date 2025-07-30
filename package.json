@@ -10,7 +10,9 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "postinstall": "prisma generate",
-    "lint": "next lint"
+    "lint": "next lint",
+    "clear-cache": "node scripts/clear-cache.js",
+    "dev:clean": "npm run clear-cache && npm run dev"
   },
   "dependencies": {
     "@deepgram/sdk": "^4.9.1",
