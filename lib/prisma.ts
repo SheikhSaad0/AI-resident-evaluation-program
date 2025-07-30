@@ -2,7 +2,7 @@
 import { PrismaClient } from '@prisma/client';
 import { NextApiRequest } from 'next';
 
-// Declare global variables to hold the clients for hot-reloading in development
+// (Keep your prismaTesting and prismaProduction singleton declarations)
 declare global {
   var prismaTesting: PrismaClient | undefined;
   var prismaProduction: PrismaClient | undefined;
@@ -34,9 +34,10 @@ if (process.env.NODE_ENV !== 'production') {
   globalThis.prismaProduction = prismaProduction;
 }
 
+
 // This function now correctly prioritizes the request's query parameter.
-export const getPrismaClient = (req?: NextApiRequest): PrismaClient => {
-  const dbSource = req?.query.db;
+export const getPrismaClient = (req: NextApiRequest): PrismaClient => {
+  const dbSource = req.query.db;
 
   if (dbSource === 'production') {
     console.log("SWITCH: Using Production Database (from query)");
