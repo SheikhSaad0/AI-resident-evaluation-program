@@ -1,11 +1,10 @@
-// components/management/ResidentManager.tsx
-import React, { useState, useEffect, useContext } from 'react';
-import { useRouter } from 'next/router'; // Import useRouter
-import { AuthContext } from '../../lib/auth';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import { Resident } from '@prisma/client';
+import { useApi } from '../../lib/useApi'; // ✅ Import the new hook
 import { GlassInput, GlassButton, ImageUpload, GlassCard } from '../ui';
 
-// ... (interface and initialFormData remain the same) ...
+// ... (interface and initialFormData remain the same)
 interface ResidentFormData {
     name: string;
     email?: string;
@@ -16,28 +15,27 @@ interface ResidentFormData {
 }
 const initialFormData: ResidentFormData = { name: '', email: '', photoUrl: null, company: '', year: '', medicalSchool: '' };
 
-
 const ResidentManager = () => {
     const [residents, setResidents] = useState<Resident[]>([]);
     const [formData, setFormData] = useState<ResidentFormData>(initialFormData);
-    const [loading, setLoading] = useState(false);
-    const auth = useContext(AuthContext);
-    const router = useRouter(); // Initialize router
-
-    // ... (fetchResidents, handleChange, handleImageUpload, handleSubmit functions remain the same) ...
-    const fetchResidents = async () => {
-        if (!auth?.database) return;
-        setLoading(true);
-        try {
-            const res = await fetch(`/api/residents?db=${auth.database}`);
-            if (res.ok) setResidents(await res.json());
-        } catch (error) { console.error('Failed to fetch residents:', error); }
-        setLoading(false);
-    };
+    const [loading, setLoading] = useState(true);
+    const router = useRouter();
+    const { apiFetch } = useApi(); // ✅ Use the new hook
 
     useEffect(() => {
+        const fetchResidents = async () => {
+            setLoading(true);
+            try {
+                // ✅ FIX: Use apiFetch, which handles the db context automatically
+                const data = await apiFetch<Resident[]>('/api/residents');
+                setResidents(data);
+            } catch (error) {
+                console.error('Failed to fetch residents:', error);
+            }
+            setLoading(false);
+        };
         fetchResidents();
-    }, [auth?.database]);
+    }, [apiFetch]); // Dependency array includes apiFetch
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -52,17 +50,26 @@ const ResidentManager = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            const res = await fetch(`/api/residents?db=${auth?.database}`, {
+            // ✅ FIX: Use apiFetch for POST requests too
+            await apiFetch('/api/residents', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData),
             });
-            if (res.ok) {
-                fetchResidents();
-                setFormData(initialFormData);
-            } else { console.error('Failed to create resident'); }
-        } catch (error) { console.error('Failed to submit form:', error); }
+            // Refetch after successful creation
+            const updatedResidents = await apiFetch<Resident[]>('/api/residents');
+            setResidents(updatedResidents);
+            setFormData(initialFormData);
+        } catch (error) {
+            console.error('Failed to submit form:', error);
+        }
         setLoading(false);
+    };
+    
+    // ✅ FIX: Ensure the db query param is passed on navigation
+    const handleCardClick = (residentId: string) => {
+        const db = new URLSearchParams(window.location.search).get('db') || 'testing';
+        router.push(`/residents/${residentId}?db=${db}`);
     };
 
     return (
@@ -71,11 +78,7 @@ const ResidentManager = () => {
                 {/* Add New Resident Form - no changes here */}
                 <h3 className="heading-lg mb-4">Add New Resident</h3>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <ImageUpload
-                        value={formData.photoUrl || undefined}
-                        onChange={handleImageUpload}
-                        placeholder="Click to upload a profile picture"
-                    />
+                    <ImageUpload value={formData.photoUrl || undefined} onChange={handleImageUpload} placeholder="Click to upload profile picture" />
                     <GlassInput name="name" placeholder="Name" value={formData.name} onChange={handleChange} required />
                     <GlassInput name="email" placeholder="Email (Optional)" value={formData.email || ''} onChange={handleChange} />
                     <GlassInput name="year" placeholder="Year (e.g., PGY-1)" value={formData.year || ''} onChange={handleChange} />
@@ -89,14 +92,16 @@ const ResidentManager = () => {
             <div>
                 <h3 className="heading-lg mb-4">Current Residents</h3>
                 <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-glass pr-2">
-                    {residents.length > 0 ? (
+                    {loading ? (
+                         <p className="text-text-secondary">Loading...</p>
+                    ) : residents.length > 0 ? (
                         residents.map(resident => (
                            <GlassCard 
                                 key={resident.id} 
                                 variant="subtle" 
                                 className="p-3 cursor-pointer"
                                 hover
-                                onClick={() => router.push(`/residents/${resident.id}`)} // Add this onClick handler
+                                onClick={() => handleCardClick(resident.id)} // Use the new handler
                             >
                                 <div className="flex items-center space-x-4">
                                     <img src={resident.photoUrl || '/images/default-avatar.svg'} alt={resident.name} className="w-10 h-10 rounded-full object-cover" />

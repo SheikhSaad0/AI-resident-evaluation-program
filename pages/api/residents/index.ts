@@ -1,14 +1,24 @@
 // pages/api/residents/index.ts
-
 import { NextApiRequest, NextApiResponse } from 'next';
-import { getPrismaClient } from '../../../lib/prisma';
+import { prismaTesting, prismaProduction } from '../../../lib/prisma'; // Import the direct client instances
+import { PrismaClient } from '@prisma/client';
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  // Get the correct prisma client for this specific request at runtime
-  const prisma = await getPrismaClient();
+  // ✅ FIX: Explicitly select the Prisma client based on the 'db' query parameter.
+  // This avoids any potential module caching issues with the getPrismaClient helper function.
+  let prisma: PrismaClient;
+  const dbSource = req.query.db;
+
+  if (dbSource === 'production') {
+    console.log("SWITCH (RESIDENTS): Forcing use of Production Database.");
+    prisma = prismaProduction;
+  } else {
+    console.log("SWITCH (RESIDENTS): Forcing use of Testing Database.");
+    prisma = prismaTesting;
+  }
 
   if (req.method === 'GET') {
     try {

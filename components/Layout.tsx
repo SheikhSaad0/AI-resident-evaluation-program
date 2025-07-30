@@ -1,4 +1,3 @@
-// components/Layout.tsx
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -6,7 +5,6 @@ import React, { useContext, useEffect } from 'react';
 import { AuthContext } from '../lib/auth';
 import { GlassButton } from './ui';
 
-// ... (navItems array remains the same) ...
 const navItems = [
   { name: 'Evaluate', href: '/', icon: '/images/evaluate-icon.svg' },
   { name: 'Live Mode', href: '/live', icon: '/images/live-icon.svg' },
@@ -22,34 +20,33 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const publicPages = ['/login', '/manage-profiles'];
 
   useEffect(() => {
-    // Wait until loading is false before checking auth status
+    // ✅ FIX: Wait until loading is false before checking auth and redirecting
     if (!auth?.loading && !auth?.user && !publicPages.includes(router.pathname)) {
       router.push('/login');
     }
   }, [auth?.loading, auth?.user, router.pathname]);
 
-  // Show a loading screen while checking for a user session
+  // ✅ FIX: Show a loading spinner while the auth state is being determined
   if (auth?.loading) {
     return (
-        <div className="min-h-screen flex items-center justify-center">
+        <div className="min-h-screen flex items-center justify-center bg-background-gradient">
             <div className="w-10 h-10 border-2 border-brand-primary border-t-transparent rounded-full animate-spin" />
         </div>
     );
   }
 
-  // If we are on a public page and not logged in, don't render the main layout
+  // If we are on a public page, don't render the main layout with sidebar
   if (!auth?.user && publicPages.includes(router.pathname)) {
-    return <main className="bg-background-gradient">{children}</main>;
+    return <main className="bg-background-gradient min-h-screen">{children}</main>;
   }
   
-  // Render null if user is not available but not loading anymore (during redirect)
+  // Render null during the brief moment a redirect might be happening
   if (!auth?.user) {
     return null; 
   }
 
   return (
     <div className="flex min-h-screen w-full p-4 sm:p-6 gap-6 bg-background-gradient">
-      {/* Sidebar - No changes needed here */}
       <aside className="w-72 flex-shrink-0">
         <div className="h-full glassmorphism-strong rounded-4xl p-6 flex flex-col shadow-glass-lg">
           <div className="flex items-center space-x-4 mb-10">
@@ -91,7 +88,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <main className="flex-grow glassmorphism rounded-4xl shadow-glass-lg overflow-hidden">
         <div className="w-full h-full overflow-y-auto scrollbar-glass p-6 md:p-8">
           {children}

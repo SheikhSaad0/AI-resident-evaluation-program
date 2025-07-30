@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { GlassCard, GlassButton, PillToggle } from '../components/ui';
 import { AuthContext } from '../lib/auth';
@@ -15,31 +15,46 @@ const LoginPage = () => {
   const [residents, setResidents] = useState<Resident[]>([]);
   const [attendings, setAttendings] = useState<Attending[]>([]);
   const [programDirectors, setProgramDirectors] = useState<ProgramDirector[]>([]);
-  
   const [database, setDatabase] = useState<'testing' | 'production'>('testing');
+  const [loading, setLoading] = useState(true);
   const auth = useContext(AuthContext);
   const router = useRouter();
 
+  const fetchProfilesForDb = useCallback(async (db: 'testing' | 'production') => {
+    setLoading(true);
+    setResidents([]);
+    setAttendings([]);
+    setProgramDirectors([]);
+
+    // ✅ **THE FIX: Add a unique timestamp to each request to bypass the browser cache.**
+    const cacheBuster = `&_=${new Date().getTime()}`;
+
+    try {
+      const [resResidents, resAttendings, resProgramDirectors] = await Promise.all([
+        fetch(`/api/residents?db=${db}${cacheBuster}`),
+        fetch(`/api/attendings?db=${db}${cacheBuster}`),
+        fetch(`/api/program-directors?db=${db}${cacheBuster}`),
+      ]);
+
+      if (resResidents.ok) setResidents(await resResidents.json());
+      if (resAttendings.ok) setAttendings(await resAttendings.json());
+      if (resProgramDirectors.ok) setProgramDirectors(await resProgramDirectors.json());
+
+    } catch (error) {
+      console.error(`Failed to fetch profiles for ${db} DB:`, error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    const fetchProfiles = async (db: 'testing' | 'production') => {
-      try {
-        const [resResidents, resAttendings, resProgramDirectors] = await Promise.all([
-          fetch(`/api/residents?db=${db}`),
-          fetch(`/api/attendings?db=${db}`),
-          fetch(`/api/program-directors?db=${db}`)
-        ]);
+    fetchProfilesForDb(database);
+  }, [fetchProfilesForDb]);
 
-        if (resResidents.ok) setResidents(await resResidents.json());
-        if (resAttendings.ok) setAttendings(await resAttendings.json());
-        if (resProgramDirectors.ok) setProgramDirectors(await resProgramDirectors.json());
-
-      } catch (error) {
-        console.error("Failed to fetch profiles:", error);
-      }
-    };
-
-    fetchProfiles(database);
-  }, [database]);
+  const handleDbChange = (newDb: 'testing' | 'production') => {
+    setDatabase(newDb);
+    fetchProfilesForDb(newDb);
+  };
 
   const handleLogin = (profile: UserProfile) => {
     if (auth) {
@@ -84,14 +99,22 @@ const LoginPage = () => {
       <GlassCard variant="strong" className="p-8 space-y-6 max-w-xl w-full">
         <h1 className="heading-xl text-gradient text-center">Select Profile</h1>
         <PillToggle
-          options={[{ id: 'testing', label: 'Testing DB' }, { id: 'production', label: 'Production DB' }]}
           value={database}
-          onChange={(id) => setDatabase(id as 'testing' | 'production')}
+          options={[{ id: 'testing', label: 'Testing DB' }, { id: 'production', label: 'Production DB' }]}
+          onChange={(id) => handleDbChange(id as 'testing' | 'production')}
         />
         <div className="space-y-6 max-h-[60vh] overflow-y-auto scrollbar-glass pr-2">
-          <ProfileList title="Residents" profiles={residents} type="resident" />
-          <ProfileList title="Attendings" profiles={attendings} type="attending" />
-          <ProfileList title="Program Directors" profiles={programDirectors} type="programDirector" />
+          {loading ? (
+            <div className="flex justify-center items-center h-40">
+              <div className="w-8 h-8 border-2 border-brand-primary border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          ) : (
+            <>
+              <ProfileList title="Residents" profiles={residents} type="resident" />
+              <ProfileList title="Attendings" profiles={attendings} type="attending" />
+              <ProfileList title="Program Directors" profiles={programDirectors} type="programDirector" />
+            </>
+          )}
         </div>
         <GlassButton variant="secondary" onClick={() => router.push('/manage-profiles')} className="w-full">
           Manage Profiles
