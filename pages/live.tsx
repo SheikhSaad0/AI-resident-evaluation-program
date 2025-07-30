@@ -10,6 +10,7 @@ import GlassInput from '../components/ui/GlassInput';
 import ResidentSelector from '../components/ResidentSelector';
 import SurgerySelector from '../components/SurgerySelector';
 import { EVALUATION_CONFIGS } from '../lib/evaluation-configs';
+import { useApi } from '../lib/useApi';
 
 // --- INTERFACES ---
 interface Resident { id: string; name: string; photoUrl?: string | null; year?: string; }
@@ -33,6 +34,7 @@ const DEBOUNCE_TIME_MS = 2000;
 
 const LiveEvaluationPage = () => {
     const router = useRouter();
+    const { apiFetch } = useApi();
     const [isSessionActive, setIsSessionActive] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [chatHistory, setChatHistory] = useState<ChatEntry[]>([]);
@@ -70,12 +72,12 @@ const LiveEvaluationPage = () => {
     useEffect(() => {
         const fetchResidents = async () => {
             try {
-                const res = await fetch('/api/residents');
-                if (res.ok) setResidents(await res.json());
+                const residentsData = await apiFetch('/api/residents');
+                setResidents(residentsData);
             } catch (error) { console.error("Failed to fetch residents:", error); }
         };
         fetchResidents();
-    }, []);
+    }, [apiFetch]);
 
     useEffect(() => {
         return () => {

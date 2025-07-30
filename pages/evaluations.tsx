@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { GlassCard, GlassButton, GlassInput, GlassSelect } from '../components/ui';
 import ResidentSelector from '../components/ResidentSelector';
+import { useApi } from '../lib/useApi';
 
 interface Evaluation {
   id: string;
@@ -37,6 +38,7 @@ export default function Evaluations() {
   const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedEvaluations, setSelectedEvaluations] = useState<string[]>([]);
+  const { apiFetch } = useApi();
 
   useEffect(() => {
     if (statusFromQuery) {
@@ -48,33 +50,26 @@ export default function Evaluations() {
     const fetchEvaluations = async () => {
       setLoading(true);
       try {
-        const [evalsRes, residentsRes] = await Promise.all([
-          fetch('/api/evaluations'),
-          fetch('/api/residents'),
+        const [evalsData, residentsData] = await Promise.all([
+          apiFetch('/api/evaluations'),
+          apiFetch('/api/residents'),
         ]);
 
-        if (evalsRes.ok) {
-          const data = await evalsRes.json();
-          const filteredData = data.filter((e: { id: string; }) => !['cmcv3j0zk0001onk7im7zzcvf', 'cmcv3b0x70003on8x81k8nbr4', 'cmculodur0001on12vsinf5gu'].includes(e.id));
-          setEvaluations(filteredData);
-          setFilteredEvaluations(filteredData);
-        } else {
-          console.error("Failed to fetch evaluations");
-          setEvaluations([]);
-          setFilteredEvaluations([]);
-        }
-
-        if (residentsRes.ok) {
-          setResidents(await residentsRes.json());
-        }
+        const filteredData = evalsData.filter((e: { id: string; }) => !['cmcv3j0zk0001onk7im7zzcvf', 'cmcv3b0x70003on8x81k8nbr4', 'cmculodur0001on12vsinf5gu'].includes(e.id));
+        setEvaluations(filteredData);
+        setFilteredEvaluations(filteredData);
+        setResidents(residentsData);
       } catch (error) {
         console.error("Error fetching data:", error);
+        setEvaluations([]);
+        setFilteredEvaluations([]);
+        setResidents([]);
       } finally {
         setLoading(false);
       }
     };
     fetchEvaluations();
-  }, []);
+  }, [apiFetch]);
 
   useEffect(() => {
     let filtered = evaluations;
@@ -125,18 +120,14 @@ export default function Evaluations() {
       return;
     }
     try {
-      const response = await fetch('/api/evaluations/delete-many', {
+      await apiFetch('/api/evaluations/delete-many', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: selectedEvaluations }),
       });
-      if (response.ok) {
-        setEvaluations(prev => prev.filter(ev => !selectedEvaluations.includes(ev.id)));
-        setSelectedEvaluations([]);
-        alert('Selected evaluations deleted successfully.');
-      } else {
-        throw new Error('Failed to delete evaluations');
-      }
+      setEvaluations(prev => prev.filter(ev => !selectedEvaluations.includes(ev.id)));
+      setSelectedEvaluations([]);
+      alert('Selected evaluations deleted successfully.');
     } catch (error) {
       console.error(error);
       alert('Failed to delete selected evaluations');

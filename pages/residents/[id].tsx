@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { GlassCard, GlassButton, PerformanceChart, StatCard, GlassInput, ImageUpload } from '../../components/ui';
+import { useApi } from '../../lib/useApi';
 
 interface Resident {
   id: string;
@@ -74,6 +75,7 @@ const EditResidentModal = ({ resident, onClose, onSave }: EditResidentModalProps
 export default function ResidentProfile() {
   const router = useRouter();
   const { id } = router.query;
+  const { apiFetch } = useApi();
   const [resident, setResident] = useState<Resident | null>(null);
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,14 +89,10 @@ export default function ResidentProfile() {
     const fetchResidentData = async () => {
         setLoading(true);
         try {
-            const residentRes = await fetch(`/api/residents/${id}`);
-            if (!residentRes.ok) throw new Error('Failed to fetch resident data');
-            const residentData = await residentRes.json();
+            const residentData = await apiFetch(`/api/residents/${id}`);
             setResident(residentData);
 
-            const evalsRes = await fetch(`/api/residents/${id}/evaluations`);
-            if (!evalsRes.ok) throw new Error('Failed to fetch evaluations');
-            const evalsData = await evalsRes.json();
+            const evalsData = await apiFetch(`/api/residents/${id}/evaluations`);
             setEvaluations(evalsData);
 
             const finalizedEvals = evalsData.filter((e: Evaluation) => e.isFinalized && e.score !== undefined);
@@ -116,18 +114,16 @@ export default function ResidentProfile() {
     };
 
     fetchResidentData();
-  }, [id]);
+  }, [id, apiFetch]);
 
   const handleSaveResident = async (updatedResident: Resident) => {
     if (!id || typeof id !== 'string') return;
     try {
-        const res = await fetch(`/api/residents/${id}`, {
+        const data = await apiFetch(`/api/residents/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(updatedResident),
         });
-        if (!res.ok) throw new Error('Failed to save resident data');
-        const data = await res.json();
         setResident(data);
     } catch (error) {
         console.error(error);

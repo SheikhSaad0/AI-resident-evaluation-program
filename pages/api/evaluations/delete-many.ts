@@ -8,7 +8,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
 
-    const prisma = await getPrismaClient();
+    const prisma = getPrismaClient(req);
     const { ids } = req.body;
 
     if (!Array.isArray(ids) || ids.length === 0) {

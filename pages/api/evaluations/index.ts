@@ -9,7 +9,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.setHeader('Date', new Date().toUTCString());
 
     if (req.method === 'GET') {
-        const prisma = await getPrismaClient();
+        const prisma = getPrismaClient(req);
         try {
             const jobs = await prisma.job.findMany({
                 orderBy: { createdAt: 'desc' },

@@ -7,7 +7,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const prisma = await getPrismaClient();
+  const prisma = getPrismaClient(req);
   const residentId = req.query.id as string;
 
   if (req.method === 'GET') {

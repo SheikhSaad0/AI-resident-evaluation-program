@@ -4,6 +4,7 @@ import Image from 'next/image';
 import SurgerySelector from '../components/SurgerySelector';
 import ResidentSelector from '../components/ResidentSelector';
 import { GlassCard, GlassButton, GlassTextarea, PillToggle, GlassInput } from '../components/ui';
+import { useApi } from '../lib/useApi';
 
 interface Resident {
   id: string;
@@ -24,16 +25,15 @@ export default function Home() {
   const [pastEvaluations, setPastEvaluations] = useState<PastEvaluation[]>([]);
   const [analysisType, setAnalysisType] = useState('audio');
   const router = useRouter();
+  const { apiFetch } = useApi();
 
   const fetchData = async () => {
     try {
-      const residentsRes = await fetch('/api/residents');
-      if (residentsRes.ok) setResidents(await residentsRes.json());
+      const residentsData = await apiFetch('/api/residents');
+      setResidents(residentsData);
 
-      const evalsRes = await fetch(`/api/evaluations?t=${new Date().getTime()}`);
-      if (evalsRes.ok) {
-        setPastEvaluations(await evalsRes.json());
-      }
+      const evalsData = await apiFetch('/api/evaluations');
+      setPastEvaluations(evalsData);
     } catch (error) {
       console.error("Error fetching initial data:", error);
     }
@@ -53,7 +53,7 @@ export default function Home() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [apiFetch]);
 
   const handleSubmit = async () => {
     if (files.length === 0 && !gcsLink) {
