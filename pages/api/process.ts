@@ -22,7 +22,7 @@ export default async function handler(
   }
 
   // Get the prisma client
-  const prisma = await getPrismaClient();
+  const prisma = getPrismaClient(req);
 
   try {
     const { jobId } = req.body;

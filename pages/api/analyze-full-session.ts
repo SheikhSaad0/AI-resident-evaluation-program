@@ -42,7 +42,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const form = formidable({ keepExtensions: true });
-    const prisma = await getPrismaClient();
+    const prisma = getPrismaClient(req);
 
     try {
         const { fields, files } = await new Promise<{ fields: formidable.Fields; files: formidable.Files }>((resolve, reject) => {

@@ -1,12 +1,11 @@
 // pages/api/evaluations/[id].ts
 
 import { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { getPrismaClient } from '../../../lib/prisma';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     const { id } = req.query;
+    const prisma = getPrismaClient(req);
 
     if (!id || typeof id !== 'string') {
         return res.status(400).json({ message: 'A valid evaluation ID is required.' });
@@ -66,7 +65,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return;
     }
 
+    // --- DELETE Request Handler ---
+    if (req.method === 'DELETE') {
+        try {
+            await prisma.job.delete({
+                where: { id },
+            });
+            res.status(204).end();
+        } catch (error) {
+            console.error('Failed to delete evaluation:', error);
+            res.status(500).json({ message: 'Failed to delete evaluation.' });
+        }
+        return;
+    }
+
     // Handle any other methods
-    res.setHeader('Allow', ['GET', 'PUT']);
+    res.setHeader('Allow', ['GET', 'PUT', 'DELETE']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
 }

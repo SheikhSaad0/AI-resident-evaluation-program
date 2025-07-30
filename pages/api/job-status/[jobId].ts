@@ -9,7 +9,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ error: 'A valid jobId must be provided.' });
     }
     
-    const prisma = await getPrismaClient();
+    const prisma = getPrismaClient(req);
 
     try {
         const job = await prisma.job.findUnique({
