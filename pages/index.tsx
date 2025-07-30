@@ -70,21 +70,32 @@ export default function Home() {
       let gcsPaths = [];
       if (files.length > 0) {
         for (const file of files) {
+          console.log(`Starting upload for file: ${file.name}`);
           const gcsPath = `uploads/${Date.now()}-${file.name.replace(/\s/g, '_')}`;
-          const gcsResponse = await fetch('/api/generate-upload-url', {
+          
+          // Get upload URL using useApi hook for consistency
+          const { uploadUrl, filePath } = await apiFetch('/api/generate-upload-url', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ fileName: gcsPath, fileType: file.type }),
           });
 
-          if (!gcsResponse.ok) throw new Error('Failed to get upload URL');
-          const { uploadUrl, filePath } = await gcsResponse.json();
+          console.log(`Got upload URL for: ${file.name}`);
 
-          await fetch(uploadUrl, {
+          // Upload file to GCS
+          const uploadResponse = await fetch(uploadUrl, {
             method: 'PUT',
             body: file,
             headers: { 'Content-Type': file.type },
           });
+
+          if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text();
+            console.error(`GCS upload failed for ${file.name}:`, uploadResponse.status, errorText);
+            throw new Error(`Failed to upload file ${file.name} to GCS: ${uploadResponse.status} ${uploadResponse.statusText}`);
+          }
+
+          console.log(`Successfully uploaded: ${file.name}`);
           gcsPaths.push({
             url: `gs://${process.env.NEXT_PUBLIC_GCS_BUCKET_NAME || 'ai-surgical-evaluator'}/${filePath}`,
             path: filePath,
@@ -108,7 +119,7 @@ export default function Home() {
         });
       }
 
-
+      console.log(`Submitting analysis with ${gcsPaths.length} files`);
       const { jobId } = await apiFetch('/api/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -120,6 +131,8 @@ export default function Home() {
           analysisType
         }),
       });
+      
+      console.log(`Analysis submitted successfully, jobId: ${jobId}`);
       router.push(`/results/${jobId}`);
 
     } catch (error) {
