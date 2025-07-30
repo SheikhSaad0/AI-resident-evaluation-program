@@ -26,11 +26,14 @@ export default async function handler(
 
   try {
     const { jobId } = req.body;
+    console.log(`[Process API] Received request to process job: ${jobId}`);
 
     if (!jobId) {
+      console.error(`[Process API] No jobId provided in request body`);
       return res.status(400).json({ message: 'Job ID is required.' });
     }
 
+    console.log(`[Process API] Looking up job ${jobId} in database...`);
     // Find the job that needs to be processed
     const jobToProcess = await prisma.job.findUnique({
       where: { id: jobId },
@@ -40,13 +43,25 @@ export default async function handler(
     });
 
     if (!jobToProcess) {
+      console.error(`[Process API] Job ${jobId} not found in database`);
       return res.status(404).json({ message: `Job with ID ${jobId} not found.` });
     }
     
+    console.log(`[Process API] Found job ${jobId}, starting background processing...`);
+    console.log(`[Process API] Job details:`, {
+      id: jobToProcess.id,
+      status: jobToProcess.status,
+      gcsUrl: jobToProcess.gcsUrl,
+      gcsObjectPath: jobToProcess.gcsObjectPath,
+      surgeryName: jobToProcess.surgeryName,
+      residentName: jobToProcess.resident?.name
+    });
+    
     // Don't await this, let it run in the background
-    processJob(jobToProcess as Job & { resident: Resident | null });
+    processJob(jobToProcess as Job & { resident: Resident | null }, prisma);
 
     // Immediately respond to the request
+    console.log(`[Process API] Job ${jobId} accepted for processing`);
     res.status(202).json({
       message: `Accepted job ${jobId} for processing.`,
     });

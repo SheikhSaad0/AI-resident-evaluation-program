@@ -36,8 +36,8 @@ if (process.env.NODE_ENV !== 'production') {
 
 
 // This function now correctly prioritizes the request's query parameter.
-export const getPrismaClient = (req: NextApiRequest): PrismaClient => {
-  const dbSource = req.query.db;
+export const getPrismaClient = (req?: NextApiRequest): PrismaClient => {
+  const dbSource = req?.query?.db;
 
   if (dbSource === 'production') {
     console.log("SWITCH: Using Production Database (from query)");

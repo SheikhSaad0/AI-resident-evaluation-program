@@ -129,11 +129,19 @@ const EVALUATION_CONFIGS: EvaluationConfigs = {
 };
 
 async function transcribeWithDeepgram(urlForTranscription: string): Promise<string> {
-    console.log(`Starting audio transcription with Deepgram...`);
+    console.log(`[Deepgram] Starting audio transcription with URL: ${urlForTranscription}`);
     const { result, error } = await deepgram.listen.prerecorded.transcribeUrl( { url: urlForTranscription }, { model: 'nova-2', diarize: true, punctuate: true, utterances: true } );
-    if (error) throw new DeepgramError(error.message);
+    if (error) {
+        console.error(`[Deepgram] Error during transcription:`, error);
+        throw new DeepgramError(error.message);
+    }
+    console.log(`[Deepgram] Transcription successful, processing utterances...`);
     const utterances = result.results?.utterances;
-    if (!utterances || utterances.length === 0) return "Transcription returned no utterances.";
+    if (!utterances || utterances.length === 0) {
+        console.warn(`[Deepgram] No utterances found in transcription result`);
+        return "Transcription returned no utterances.";
+    }
+    console.log(`[Deepgram] Found ${utterances.length} utterances`);
     return utterances.map(utt => `[Speaker ${utt.speaker}] (${utt.start.toFixed(2)}s): ${utt.transcript}`).join('\n');
 }
 
@@ -341,17 +349,28 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
 }
 
 
-export async function processJob(jobWithDetails: Job & { resident: Resident | null }) {
-    const prisma = await getPrismaClient();
+export async function processJob(jobWithDetails: Job & { resident: Resident | null }, prismaClient?: any) {
+    const prisma = prismaClient || getPrismaClient();
 
-    console.log(`Processing job ${jobWithDetails.id} for surgery: ${jobWithDetails.surgeryName}`);
+    console.log(`[ProcessJob] Starting job ${jobWithDetails.id} for surgery: ${jobWithDetails.surgeryName}`);
+    console.log(`[ProcessJob] Using prisma client: ${prismaClient ? 'provided' : 'default'}`);
     const { id, gcsUrl, gcsObjectPath, surgeryName, additionalContext, withVideo, videoAnalysis, resident } = jobWithDetails;
 
     // The gcsUrl and gcsObjectPath will now point to the first file.
     // In a more advanced implementation, you would loop through all files.
     if (!gcsUrl || !gcsObjectPath) {
+        console.error(`[ProcessJob] Missing required fields - gcsUrl: ${gcsUrl}, gcsObjectPath: ${gcsObjectPath}`);
         throw new Error(`Job ${id} is missing gcsUrl or gcsObjectPath.`);
     }
+
+    console.log(`[ProcessJob] Processing job with:`, {
+        gcsUrl,
+        gcsObjectPath,
+        withVideo,
+        videoAnalysis,
+        surgeryName,
+        residentName: resident?.name
+    });
 
     let evaluationResult: GeminiEvaluationResult;
     let transcription: string | undefined;
@@ -359,33 +378,43 @@ export async function processJob(jobWithDetails: Job & { resident: Resident | nu
     try {
         if (withVideo && videoAnalysis) {
             try {
-                console.log("Visual analysis is enabled. Transcribing audio first...");
+                console.log("[ProcessJob] Visual analysis is enabled. Starting transcription...");
                 await prisma.job.update({ where: { id }, data: { status: 'processing-transcription' } });
+                
+                console.log(`[ProcessJob] Generating signed URL for: ${gcsObjectPath}`);
                 const readableUrl = await generateV4ReadSignedUrl(gcsObjectPath);
+                console.log(`[ProcessJob] Generated signed URL: ${readableUrl}`);
+                
                 transcription = await transcribeWithDeepgram(readableUrl);
 
-                console.log("Transcription complete. Attempting Vertex AI video evaluation with transcript...");
+                console.log("[ProcessJob] Transcription complete. Starting Vertex AI video evaluation...");
                 await prisma.job.update({ where: { id }, data: { status: 'processing-in-gemini' } });
                 const gcsUri = gcsUrl.replace('https://storage.googleapis.com/', 'gs://');
+                console.log(`[ProcessJob] Using GCS URI for video evaluation: ${gcsUri}`);
                 evaluationResult = await evaluateVideo(surgeryName, additionalContext || '', gcsUri, transcription);
 
             } catch (videoError) {
-                console.error("Vertex AI video evaluation failed. Falling back to audio-only analysis.", videoError);
+                console.error("[ProcessJob] Vertex AI video evaluation failed. Falling back to audio-only analysis.", videoError);
                 await prisma.job.update({ where: { id }, data: { status: 'processing-transcription' } });
 
                 if (!transcription) {
+                    console.log("[ProcessJob] Re-generating signed URL for audio-only transcription...");
                     const readableUrl = await generateV4ReadSignedUrl(gcsObjectPath);
                     transcription = await transcribeWithDeepgram(readableUrl);
                 }
+                console.log("[ProcessJob] Starting audio-only evaluation...");
                 evaluationResult = await evaluateTranscript(transcription, surgeryName, additionalContext || '');
             }
         } else {
-            console.log("Visual analysis is disabled or file is audio-only. Using audio analysis path.");
+            console.log("[ProcessJob] Visual analysis disabled or file is audio-only. Using audio analysis path.");
             await prisma.job.update({ where: { id }, data: { status: 'processing-transcription' } });
 
+            console.log(`[ProcessJob] Generating signed URL for audio analysis: ${gcsObjectPath}`);
             const readableUrl = await generateV4ReadSignedUrl(gcsObjectPath);
+            console.log(`[ProcessJob] Generated signed URL: ${readableUrl}`);
             transcription = await transcribeWithDeepgram(readableUrl);
 
+            console.log("[ProcessJob] Starting transcript evaluation...");
             await prisma.job.update({ where: { id }, data: { status: 'processing-evaluation' } });
             evaluationResult = await evaluateTranscript(transcription, surgeryName, additionalContext || '');
         }
@@ -413,7 +442,8 @@ export async function processJob(jobWithDetails: Job & { resident: Resident | nu
 
     } catch(error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error(`[Processing] Job ${id} failed:`, errorMessage);
+        console.error(`[ProcessJob] Job ${id} failed with error:`, error);
+        console.error(`[ProcessJob] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
         await prisma.job.update({
             where: { id },
             data: {
