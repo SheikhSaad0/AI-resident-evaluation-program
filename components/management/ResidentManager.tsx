@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+// components/management/ResidentManager.tsx
+import React, { useState, useEffect, useContext, useCallback } from 'react'; // Import useCallback
 import { useRouter } from 'next/router';
+import { AuthContext } from '../../lib/auth';
 import { Resident } from '@prisma/client';
-import { useApi } from '../../lib/useApi'; // ✅ Import the new hook
 import { GlassInput, GlassButton, ImageUpload, GlassCard } from '../ui';
 
-// ... (interface and initialFormData remain the same)
+// ... (interface and initialFormData remain the same) ...
 interface ResidentFormData {
     name: string;
     email?: string;
@@ -18,24 +19,34 @@ const initialFormData: ResidentFormData = { name: '', email: '', photoUrl: null,
 const ResidentManager = () => {
     const [residents, setResidents] = useState<Resident[]>([]);
     const [formData, setFormData] = useState<ResidentFormData>(initialFormData);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(true); // Start loading initially
+    const auth = useContext(AuthContext);
     const router = useRouter();
-    const { apiFetch } = useApi(); // ✅ Use the new hook
+
+    // ✅ FIX: Wrap fetchResidents in useCallback to prevent re-creation on every render.
+    // This stops the infinite loop.
+    const fetchResidents = useCallback(async () => {
+        if (!auth?.database) {
+            // If the auth context isn't ready, don't try to fetch.
+            // This can happen on initial page load.
+            return;
+        }
+        setLoading(true);
+        try {
+            const res = await fetch(`/api/residents?db=${auth.database}`);
+            if (res.ok) {
+                setResidents(await res.json());
+            }
+        } catch (error) { 
+            console.error('Failed to fetch residents:', error); 
+        } finally {
+            setLoading(false);
+        }
+    }, [auth?.database]); // The function only changes if the database context changes.
 
     useEffect(() => {
-        const fetchResidents = async () => {
-            setLoading(true);
-            try {
-                // ✅ FIX: Use apiFetch, which handles the db context automatically
-                const data = await apiFetch<Resident[]>('/api/residents');
-                setResidents(data);
-            } catch (error) {
-                console.error('Failed to fetch residents:', error);
-            }
-            setLoading(false);
-        };
         fetchResidents();
-    }, [apiFetch]); // Dependency array includes apiFetch
+    }, [fetchResidents]); // Now this effect only runs when the memoized fetchResidents function changes.
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -50,26 +61,22 @@ const ResidentManager = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            // ✅ FIX: Use apiFetch for POST requests too
-            await apiFetch('/api/residents', {
+            const res = await fetch(`/api/residents?db=${auth?.database}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData),
             });
-            // Refetch after successful creation
-            const updatedResidents = await apiFetch<Resident[]>('/api/residents');
-            setResidents(updatedResidents);
-            setFormData(initialFormData);
-        } catch (error) {
-            console.error('Failed to submit form:', error);
+            if (res.ok) {
+                await fetchResidents(); // Re-fetch the list after adding a new one
+                setFormData(initialFormData);
+            } else { 
+                console.error('Failed to create resident'); 
+            }
+        } catch (error) { 
+            console.error('Failed to submit form:', error); 
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
-    };
-    
-    // ✅ FIX: Ensure the db query param is passed on navigation
-    const handleCardClick = (residentId: string) => {
-        const db = new URLSearchParams(window.location.search).get('db') || 'testing';
-        router.push(`/residents/${residentId}?db=${db}`);
     };
 
     return (
@@ -78,7 +85,11 @@ const ResidentManager = () => {
                 {/* Add New Resident Form - no changes here */}
                 <h3 className="heading-lg mb-4">Add New Resident</h3>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <ImageUpload value={formData.photoUrl || undefined} onChange={handleImageUpload} placeholder="Click to upload profile picture" />
+                    <ImageUpload
+                        value={formData.photoUrl || undefined}
+                        onChange={handleImageUpload}
+                        placeholder="Click to upload a profile picture"
+                    />
                     <GlassInput name="name" placeholder="Name" value={formData.name} onChange={handleChange} required />
                     <GlassInput name="email" placeholder="Email (Optional)" value={formData.email || ''} onChange={handleChange} />
                     <GlassInput name="year" placeholder="Year (e.g., PGY-1)" value={formData.year || ''} onChange={handleChange} />
@@ -93,7 +104,7 @@ const ResidentManager = () => {
                 <h3 className="heading-lg mb-4">Current Residents</h3>
                 <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-glass pr-2">
                     {loading ? (
-                         <p className="text-text-secondary">Loading...</p>
+                        <p className="text-text-secondary">Loading...</p>
                     ) : residents.length > 0 ? (
                         residents.map(resident => (
                            <GlassCard 
@@ -101,7 +112,7 @@ const ResidentManager = () => {
                                 variant="subtle" 
                                 className="p-3 cursor-pointer"
                                 hover
-                                onClick={() => handleCardClick(resident.id)} // Use the new handler
+                                onClick={() => router.push(`/residents/${resident.id}`)}
                             >
                                 <div className="flex items-center space-x-4">
                                     <img src={resident.photoUrl || '/images/default-avatar.svg'} alt={resident.name} className="w-10 h-10 rounded-full object-cover" />
