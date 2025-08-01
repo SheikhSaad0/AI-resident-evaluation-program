@@ -407,7 +407,7 @@ export default function RevampedResultsPage() {
             try {
                 const jobData = await apiFetch(`/api/job-status/${jobId}`);
     
-                if (jobData.status === 'complete' && jobData.result) {
+                if ((jobData.status === 'complete' || jobData.status === 'draft') && jobData.result) {
                     const resultData = typeof jobData.result === 'string' ? JSON.parse(jobData.result) : jobData.result;
 
                     if (!resultData.surgery) {
