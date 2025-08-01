@@ -47,7 +47,19 @@ export const useApi = () => {
       throw new Error(`Request failed: ${response.status} ${response.statusText}`);
     }
 
-    return response.json();
+    // Handle responses with no content (e.g., 204 No Content from DELETE requests)
+    if (response.status === 204 || response.headers.get('content-length') === '0') {
+      return {} as T; // Return empty object for successful responses with no content
+    }
+
+    // Check if response has JSON content
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return response.json();
+    }
+
+    // Fallback for non-JSON responses
+    return response.text() as unknown as T;
   }, [auth]);
 
   return { apiFetch };

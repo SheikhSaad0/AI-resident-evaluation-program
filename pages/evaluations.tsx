@@ -40,6 +40,28 @@ export default function Evaluations() {
   const [selectedEvaluations, setSelectedEvaluations] = useState<string[]>([]);
   const { apiFetch } = useApi();
 
+  const fetchEvaluations = async () => {
+    setLoading(true);
+    try {
+      const [evalsData, residentsData] = await Promise.all([
+        apiFetch('/api/evaluations'),
+        apiFetch('/api/residents'),
+      ]);
+
+      const filteredData = evalsData.filter((e: { id: string; }) => !['cmcv3j0zk0001onk7im7zzcvf', 'cmcv3b0x70003on8x81k8nbr4', 'cmculodur0001on12vsinf5gu'].includes(e.id));
+      setEvaluations(filteredData);
+      setFilteredEvaluations(filteredData);
+      setResidents(residentsData);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      setEvaluations([]);
+      setFilteredEvaluations([]);
+      setResidents([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (statusFromQuery) {
       setFilterStatus(statusFromQuery as string);
@@ -47,27 +69,6 @@ export default function Evaluations() {
   }, [statusFromQuery]);
 
   useEffect(() => {
-    const fetchEvaluations = async () => {
-      setLoading(true);
-      try {
-        const [evalsData, residentsData] = await Promise.all([
-          apiFetch('/api/evaluations'),
-          apiFetch('/api/residents'),
-        ]);
-
-        const filteredData = evalsData.filter((e: { id: string; }) => !['cmcv3j0zk0001onk7im7zzcvf', 'cmcv3b0x70003on8x81k8nbr4', 'cmculodur0001on12vsinf5gu'].includes(e.id));
-        setEvaluations(filteredData);
-        setFilteredEvaluations(filteredData);
-        setResidents(residentsData);
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        setEvaluations([]);
-        setFilteredEvaluations([]);
-        setResidents([]);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchEvaluations();
   }, [apiFetch]);
 
@@ -119,18 +120,29 @@ export default function Evaluations() {
     if (selectedEvaluations.length === 0 || !window.confirm(`Are you sure you want to delete ${selectedEvaluations.length} evaluation(s)?`)) {
       return;
     }
+    
     try {
+      console.log('[Delete] Starting deletion process for IDs:', selectedEvaluations);
+      
       await apiFetch('/api/evaluations/delete-many', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: selectedEvaluations }),
       });
+      
+      console.log('[Delete] API call successful, updating frontend state');
+      
+      // Update the local state to remove deleted evaluations
       setEvaluations(prev => prev.filter(ev => !selectedEvaluations.includes(ev.id)));
       setSelectedEvaluations([]);
-      alert('Selected evaluations deleted successfully.');
+      
+      console.log('[Delete] Frontend state updated successfully');
+      alert(`Successfully deleted ${selectedEvaluations.length} evaluation(s).`);
+      
     } catch (error) {
-      console.error(error);
-      alert('Failed to delete selected evaluations');
+      console.error('[Delete] Error during deletion process:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Failed to delete selected evaluations: ${errorMessage}`);
     }
   };
 
@@ -195,12 +207,17 @@ export default function Evaluations() {
             />
             <h3 className="heading-md">Evaluations ({filteredEvaluations.length})</h3>
           </div>
-          {selectedEvaluations.length > 0 && (
-            <GlassButton variant="ghost" onClick={handleDeleteSelected} className="!text-red-400 hover:!bg-red-500/20">
-              Delete Selected ({selectedEvaluations.length})
+          <div className="flex items-center gap-4">
+            {selectedEvaluations.length > 0 && (
+              <GlassButton variant="ghost" onClick={handleDeleteSelected} className="!text-red-400 hover:!bg-red-500/20">
+                Delete Selected ({selectedEvaluations.length})
+              </GlassButton>
+            )}
+            <GlassButton variant="ghost" onClick={fetchEvaluations} disabled={loading}>
+              Refresh
             </GlassButton>
-          )}
-          <GlassButton variant="primary" onClick={() => router.push('/')}>New Evaluation</GlassButton>
+            <GlassButton variant="primary" onClick={() => router.push('/')}>New Evaluation</GlassButton>
+          </div>
         </div>
         <div className="space-y-4">
           {loading ? (

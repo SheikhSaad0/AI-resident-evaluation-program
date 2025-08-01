@@ -429,7 +429,14 @@ export default function RevampedResultsPage() {
                 }
             } catch (error) {
                 console.error("Failed to fetch or process evaluation data:", error);
-                setErrorMessage(error instanceof Error ? error.message : 'An unknown error occurred.');
+                const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+                
+                // Handle 404 errors specifically (evaluation was deleted)
+                if (errorMessage.includes('404') || errorMessage.includes('Not Found')) {
+                    setErrorMessage('This evaluation was not found. It may have been deleted.');
+                } else {
+                    setErrorMessage(errorMessage);
+                }
                 setStatus('error');
             }
         };
