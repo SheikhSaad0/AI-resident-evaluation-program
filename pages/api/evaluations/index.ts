@@ -72,13 +72,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         } catch (error) {
             console.error("[Evaluations API] Error fetching evaluations:", error);
             console.error("[Evaluations API] Error details:", {
-                message: error.message,
-                name: error.name,
-                stack: error.stack?.split('\n').slice(0, 5)
+                
             });
             res.status(500).json({ 
                 error: 'Failed to fetch evaluations',
-                details: error.message 
+            
             });
         }
     } else {
