@@ -1,25 +1,31 @@
-import globals from "globals";
-import pluginJs from "@eslint/js";
-import tseslint from "typescript-eslint";
-import pluginReactConfig from "eslint-plugin-react/configs/recommended.js";
+import next from '@next/eslint-plugin-next';
+import tseslint from 'typescript-eslint';
+import eslint from '@eslint/js';
 
-
-export default [
-  {languageOptions: { globals: globals.browser }},
-  pluginJs.configs.recommended,
+export default tseslint.config(
+  // Globally applies recommended rules
+  eslint.configs.recommended,
   ...tseslint.configs.recommended,
-  pluginReactConfig,
-  // Add this configuration object
   {
+    // Applies Next.js recommended rules
+    plugins: {
+      '@next': next,
+    },
     rules: {
-      "@typescript-eslint/no-unused-vars": [
-        "error",
-        {
-          "argsIgnorePattern": "^_",
-          "varsIgnorePattern": "^_",
-          "caughtErrorsIgnorePattern": "^_"
-        }
-      ]
-    }
+      ...next.configs.recommended.rules,
+      ...next.configs['core-web-vitals'].rules,
+    },
+  },
+  {
+    // Overrides for specific rules
+    rules: {
+      'no-unused-vars': 'off', // Must disable base rule
+      '@typescript-eslint/no-unused-vars': 'warn',
+      '@typescript-eslint/no-explicit-any': 'warn',
+    },
+  },
+  {
+    // Ignores the .next directory
+    ignores: ['.next/**'],
   }
-];
+);
