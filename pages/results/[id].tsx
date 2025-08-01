@@ -96,7 +96,7 @@ const InfoWidget = ({ title, value, icon }: { title: string, value: string | num
     </GlassCard>
 );
 
-const StepAssessmentWidget = ({ stepName, score, comments }: { stepName: string; score: number; comments: string }) => {
+const StepAssessmentWidget = ({ stepName, score, comments, attendingComments }: { stepName: string; score: number; comments: string; attendingComments?: string }) => {
     const wasPerformed = score > 0;
     return (
         <GlassCard variant="subtle" className="p-4">
@@ -104,9 +104,17 @@ const StepAssessmentWidget = ({ stepName, score, comments }: { stepName: string;
                 {wasPerformed && <ScoreRing score={score} />}
                 <div className="flex-1">
                     <h4 className="font-semibold text-text-primary mb-2">{stepName}</h4>
-                    <p className="text-sm text-text-tertiary leading-relaxed">
-                        {wasPerformed ? comments : "This step was not performed or mentioned."}
-                    </p>
+                    <div className="space-y-3">
+                        <p className="text-sm text-text-tertiary leading-relaxed">
+                            {wasPerformed ? comments : "This step was not performed or mentioned."}
+                        </p>
+                        {attendingComments && wasPerformed && (
+                            <div className="border-l-2 border-brand-secondary pl-3">
+                                <p className="text-xs font-medium text-brand-secondary mb-1">Attending Comments:</p>
+                                <p className="text-sm text-text-secondary leading-relaxed">{attendingComments}</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </GlassCard>
@@ -195,14 +203,16 @@ const OverviewTab = ({ evaluation }: { evaluation: EvaluationData }) => {
                  {config.procedureSteps.map(step => {
                     const stepData = evaluation[step.key] as EvaluationStep | undefined;
                     const displayScore = stepData?.attendingScore ?? stepData?.score ?? 0;
-                    const displayComments = stepData?.attendingComments || stepData?.comments || 'No comments available.';
+                    const aiComments = stepData?.comments || 'No comments available.';
+                    const attendingComments = stepData?.attendingComments;
 
                     return (
                         <StepAssessmentWidget 
                             key={step.key}
                             stepName={step.name}
                             score={displayScore}
-                            comments={displayComments}
+                            comments={aiComments}
+                            attendingComments={attendingComments}
                         />
                     );
                  })}
@@ -241,7 +251,7 @@ const StepAnalysisTab = ({ procedureSteps, editedEvaluation, isFinalized, onEval
                             <GlassInput type="text" value={aiData?.attendingTime ?? ''} onChange={(e) => onEvaluationChange(step.key, 'attendingTime', e.target.value)} disabled={isFinalized} placeholder={aiData?.time || 'Enter time'} />
                         </div>
                         <div>
-                            <label className="block text-xs text-text-tertiary mb-1">Comments</label>
+                            <label className="block text-xs text-text-tertiary mb-1">Attending Comments</label>
                             <GlassTextarea value={aiData?.attendingComments ?? ''} onChange={(e) => onEvaluationChange(step.key, 'attendingComments', e.target.value)} disabled={isFinalized} placeholder={aiData?.comments || 'Enter comments...'} rows={3} />
                         </div>
                     </div>
