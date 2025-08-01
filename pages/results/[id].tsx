@@ -108,7 +108,7 @@ const StepAssessmentWidget = ({ stepName, score, comments, attendingComments }: 
                         <p className="text-sm text-text-tertiary leading-relaxed">
                             {wasPerformed ? comments : "This step was not performed or mentioned."}
                         </p>
-                        {attendingComments && wasPerformed && (
+                        {attendingComments && (
                             <div className="border-l-2 border-brand-secondary pl-3">
                                 <p className="text-xs font-medium text-brand-secondary mb-1">Attending Comments:</p>
                                 <p className="text-sm text-text-secondary leading-relaxed">{attendingComments}</p>
@@ -503,8 +503,20 @@ export default function RevampedResultsPage() {
         setEditedEvaluation(prev => {
             if (!prev) return null;
             const currentStep = prev[stepKey] as EvaluationStep | undefined;
-            if (typeof currentStep !== 'object' || currentStep === null) return prev;
-            const updatedStep = { ...currentStep, [field]: value };
+            
+            // If step doesn't exist or is not an object, create a default step object
+            let stepToUpdate: EvaluationStep;
+            if (typeof currentStep !== 'object' || currentStep === null) {
+                stepToUpdate = {
+                    score: 0,
+                    time: 'N/A',
+                    comments: 'This step was not explicitly described or evaluated in the provided transcript for an open procedure.'
+                };
+            } else {
+                stepToUpdate = currentStep;
+            }
+            
+            const updatedStep = { ...stepToUpdate, [field]: value };
             return { ...prev, [stepKey]: updatedStep };
         });
     };
