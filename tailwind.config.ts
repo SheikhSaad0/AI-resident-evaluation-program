@@ -2,13 +2,11 @@ import type { Config } from 'tailwindcss'
 
 const config: Config = {
   darkMode: 'class',
-  // vvv THE FIX IS HERE vvv
   content: [
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
-    './app/**/*.{js,ts,jsx,tsx,mdx}', // Add the app directory
+    './app/**/*.{js,ts,jsx,tsx,mdx}', // Add this line
   ],
-  // ^^^ THE FIX IS HERE ^^^
   theme: {
     extend: {
       // ... (keep all your existing theme extensions)
