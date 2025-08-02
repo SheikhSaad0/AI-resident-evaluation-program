@@ -25,6 +25,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     if (isSidebarOpen) {
       setSidebarOpen(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.pathname]);
 
   // Effect to prevent body scroll when the mobile sidebar is open
@@ -120,11 +121,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </aside>
 
         <div className="flex flex-col flex-1 w-full sm:w-auto">
-          {/* Mobile Header */}
+          {/* Mobile Header - UPDATED */}
           <header className="sm:hidden p-4 flex justify-between items-center sticky top-0 bg-background-gradient/80 backdrop-blur-sm z-10">
-              <Link href="/" className="flex-shrink-0">
-                  <Image src="/images/logo.svg" alt="Logo" width={120} height={28} />
-              </Link>
+              <div className="flex items-center space-x-3">
+                  <img
+                      src={auth.user.photoUrl || '/images/default-avatar.svg'}
+                      alt={auth.user.name}
+                      className="w-10 h-10 rounded-full object-cover border-2 border-primary-accent"
+                  />
+                  <div>
+                      <p className="font-semibold text-base text-text-primary truncate">{auth.user.name}</p>
+                      <p className="text-xs text-text-tertiary capitalize">{auth.user.type}</p>
+                  </div>
+              </div>
               <button onClick={() => setSidebarOpen(true)} className="text-white" aria-label="Open menu">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
               </button>
