@@ -2,6 +2,13 @@
 import { useContext, useCallback } from 'react';
 import { AuthContext } from './auth';
 
+// By defining an interface that extends RequestInit, we can allow 'body' to be a plain object
+// without upsetting TypeScript. This makes calling the API more convenient.
+interface ApiRequestInit extends RequestInit {
+  body?: any;
+}
+
+
 /**
  * Custom hook for making authenticated API calls.
  * It automatically injects the correct database query parameter ('testing' or 'production')
@@ -15,7 +22,7 @@ export const useApi = () => {
    * @param options Standard fetch options (method, headers, body, etc.)
    * @returns The JSON response from the API.
    */
-  const apiFetch = useCallback(async <T = any>(url: string, options: RequestInit = {}): Promise<T> => {
+  const apiFetch = useCallback(async <T = any>(url: string, options: ApiRequestInit = {}): Promise<T> => {
     if (!auth || auth.loading) {
       // This prevents API calls from being made before the auth state is initialized.
       return new Promise(() => {}); // Return a pending promise
@@ -30,7 +37,8 @@ export const useApi = () => {
     headers.set('Pragma', 'no-cache');
     headers.set('Expires', '0');
 
-    if (options.body && typeof options.body === 'object') {
+    // If the body is a plain object (and not something like FormData), stringify it
+    if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
         headers.set('Content-Type', 'application/json');
         options.body = JSON.stringify(options.body);
     }

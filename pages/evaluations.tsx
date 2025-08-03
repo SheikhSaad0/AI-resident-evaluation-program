@@ -111,7 +111,7 @@ export default function Evaluations() {
     try {
       await apiFetch('/api/evaluations/delete-many', {
         method: 'DELETE',
-        body: JSON.stringify({ ids: selectedEvaluations }),
+        body: { ids: selectedEvaluations }, // This is now correct
       });
       setEvaluations(prev => prev.filter(ev => !selectedEvaluations.includes(ev.id)));
       setSelectedEvaluations([]);
