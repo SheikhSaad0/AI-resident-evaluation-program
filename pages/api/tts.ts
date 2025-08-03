@@ -2,14 +2,12 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 
 // --- Google Cloud TTS Setup ---
-// Decode the Base64 service account key from environment variables
 const serviceAccountJson = Buffer.from(
   process.env.GCP_SERVICE_ACCOUNT_B64 || '',
   'base64'
 ).toString('utf-8');
 const credentials = JSON.parse(serviceAccountJson);
 
-// Create a new Text-to-Speech client
 const ttsClient = new TextToSpeechClient({
   credentials,
   projectId: credentials.project_id,
@@ -32,15 +30,15 @@ export default async function handler(
   try {
     const request = {
       input: { text: text },
+      // --- Using Neural2 for speed control ---
       voice: {
         languageCode: 'en-US',
-        name: 'en-US-Chirp-HD-F',
+        name: 'en-US-Neural2-E', // A high-quality, natural-sounding voice
       },
-      // --- AUDIO PERFORMANCE CHANGE HERE ---
-      // Increased the speaking rate to make the voice sound more natural and less robotic.
+      // --- Full control over speed and pitch ---
       audioConfig: {
         audioEncoding: 'MP3' as const,
-        speakingRate: 1.2, // Increase this value to speak faster, decrease to speak slower.
+        speakingRate: 1.4, // Adjust this value to get the perfect speed
       },
     };
 
