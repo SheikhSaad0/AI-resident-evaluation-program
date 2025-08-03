@@ -1,55 +1,60 @@
 import { NextApiRequest, NextApiResponse } from 'next';
+import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
-// This is the ID for a standard, clear voice. You can find others in your Eleven Labs account.
-const VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; 
+// --- Google Cloud TTS Setup ---
+// Decode the Base64 service account key from environment variables
+const serviceAccountJson = Buffer.from(
+  process.env.GCP_SERVICE_ACCOUNT_B64 || '',
+  'base64'
+).toString('utf-8');
+const credentials = JSON.parse(serviceAccountJson);
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-    if (req.method !== 'POST') {
-        return res.status(405).json({ message: 'Method not allowed' });
+// Create a new Text-to-Speech client
+const ttsClient = new TextToSpeechClient({
+  credentials,
+  projectId: credentials.project_id,
+});
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', ['POST']);
+    return res.status(405).end('Method Not Allowed');
+  }
+
+  const { text } = req.body;
+  if (!text) {
+    return res.status(400).json({ message: 'Text is required' });
+  }
+
+  try {
+    const request = {
+      input: { text: text },
+      voice: {
+        languageCode: 'en-US',
+        name: 'en-US-Chirp-HD-F',
+      },
+      // --- AUDIO PERFORMANCE CHANGE HERE ---
+      // Increased the speaking rate to make the voice sound more natural and less robotic.
+      audioConfig: {
+        audioEncoding: 'MP3' as const,
+        speakingRate: 1.2, // Increase this value to speak faster, decrease to speak slower.
+      },
+    };
+
+    const [response] = await ttsClient.synthesizeSpeech(request);
+    const audioContent = response.audioContent;
+
+    if (audioContent) {
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.send(audioContent);
+    } else {
+      throw new Error('No audio content received from Google Cloud TTS.');
     }
-
-    const { text } = req.body;
-    if (!text) {
-        return res.status(400).json({ message: 'Text is required' });
-    }
-    if (!ELEVENLABS_API_KEY) {
-        return res.status(500).json({ message: 'Eleven Labs API key is not configured.' });
-    }
-
-    const elevenLabsUrl = `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`;
-
-    try {
-        const response = await fetch(elevenLabsUrl, {
-            method: 'POST',
-            headers: {
-                'Accept': 'audio/mpeg',
-                'Content-Type': 'application/json',
-                'xi-api-key': ELEVENLABS_API_KEY,
-            },
-            body: JSON.stringify({
-                text: text,
-                model_id: 'eleven_monolingual_v1',
-                voice_settings: {
-                    stability: 0.5,
-                    similarity_boost: 0.5,
-                },
-            }),
-        });
-
-        if (!response.ok) {
-            const errorBody = await response.text();
-            console.error('Eleven Labs API error:', errorBody);
-            return res.status(response.status).json({ message: `Error from Eleven Labs: ${errorBody}` });
-        }
-        
-        // Pipe the audio stream directly to the client
-        res.setHeader('Content-Type', 'audio/mpeg');
-        const buffer = await response.arrayBuffer();
-        res.send(Buffer.from(buffer));
-
-    } catch (error) {
-        console.error('Error calling Eleven Labs API:', error);
-        res.status(500).json({ message: 'Internal server error' });
-    }
+  } catch (error) {
+    console.error('Error calling Google Cloud TTS API:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
 }

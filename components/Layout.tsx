@@ -20,6 +20,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const publicPages = ['/login', '/manage-profiles'];
 
+  useEffect(() => {
+    // Redirect to login page if not authenticated and not on a public page
+    if (!auth?.loading && !auth?.user && !publicPages.includes(router.pathname)) {
+      router.push('/login');
+    }
+  }, [auth?.loading, auth?.user, router.pathname, router, publicPages]);
+
+
   // Effect to close the sidebar on route change
   useEffect(() => {
     if (isSidebarOpen) {
@@ -40,7 +48,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     };
   }, [isSidebarOpen]);
 
-  if (auth?.loading) {
+  if (auth?.loading || (!auth?.user && !publicPages.includes(router.pathname))) {
     return (
         <div className="min-h-screen flex items-center justify-center bg-background-gradient">
             <div className="w-10 h-10 border-2 border-brand-primary border-t-transparent rounded-full animate-spin" />
