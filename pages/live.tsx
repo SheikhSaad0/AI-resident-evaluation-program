@@ -1,6 +1,6 @@
 // In pages/live.tsx
 
-import { useState, useEffect, useRef, useCallback, ChangeEvent, KeyboardEvent } from 'react';
+import { useState, useEffect, useRef, useCallback, ChangeEvent, KeyboardEvent, useContext } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 // Corrected Imports: Removed curly braces for default exports
@@ -11,6 +11,7 @@ import ResidentSelector from '../components/ResidentSelector';
 import SurgerySelector from '../components/SurgerySelector';
 import { EVALUATION_CONFIGS } from '../lib/evaluation-configs';
 import { useApi } from '../lib/useApi';
+import { AuthContext } from '../lib/auth';
 
 // --- INTERFACES ---
 interface Resident { id: string; name: string; photoUrl?: string | null; year?: string; }
@@ -35,6 +36,7 @@ const DEBOUNCE_TIME_MS = 2000;
 const LiveEvaluationPage = () => {
     const router = useRouter();
     const { apiFetch } = useApi();
+    const auth = useContext(AuthContext);
     const [isSessionActive, setIsSessionActive] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [chatHistory, setChatHistory] = useState<ChatEntry[]>([]);
@@ -346,7 +348,8 @@ const LiveEvaluationPage = () => {
             formData.append('fullTranscript', fullTranscriptRef.current);
             formData.append('liveNotes', JSON.stringify(liveNotesRef.current));
             try {
-                const response = await fetch('/api/analyze-full-session', { method: 'POST', body: formData });
+                const database = auth?.database || 'testing';
+                const response = await fetch(`/api/analyze-full-session?db=${database}`, { method: 'POST', body: formData });
                 if (!response.ok) throw new Error((await response.json()).error || 'Analysis failed');
                 const result = await response.json();
                 router.push(`/results/${result.evaluationId}`);
