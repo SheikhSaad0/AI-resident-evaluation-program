@@ -43,11 +43,10 @@ interface ProcedureStep {
 
 // Helper to get the correct surgery icon based on name
 const getSurgeryIcon = (s: string) => {
-    if (!s) return '/images/default-avatar.svg';
-    const lowerCaseSurgery = s.toLowerCase();
-    if (lowerCaseSurgery.includes('cholecyst')) return '/Images/galbladderArt.png';
-    if (lowerCaseSurgery.includes('appendic')) return '/Images/appendectomyArt.png';
-    if (lowerCaseSurgery.includes('hernia')) return '/Images/herniaArt.png';
+    if (s.toLowerCase().includes('cholecyst')) return '/images/galbladderArt.png';
+    if (s.toLowerCase().includes('appendic')) return '/images/appendectomyArt.png';
+    if (s.toLowerCase().includes('inguinal')) return '/images/herniaArt.png';
+    if (s.toLowerCase().includes('ventral')) return '/images/herniaArt.png';
     return '/images/default-avatar.svg';
 };
 
