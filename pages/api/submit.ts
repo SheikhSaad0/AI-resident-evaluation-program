@@ -42,8 +42,6 @@ export default async function handler(
       return res.status(400).json({ message: 'Missing required fields for submission.' });
     }
 
-    // For simplicity, we'll take the first path for the main gcsUrl and gcsObjectPath fields.
-    // The full list is stored in the result for now. A better approach would be to have a separate model for files.
     const job = await prisma.job.create({
       data: {
         status: 'pending',
@@ -59,7 +57,12 @@ export default async function handler(
     });
 
     const apiBaseUrl = getApiBaseUrl();
-    const destinationUrl = `${apiBaseUrl}/api/process`;
+    
+    // --- FIX START ---
+    // Append the database query parameter to the destination URL
+    const db = req.query.db || 'testing';
+    const destinationUrl = `${apiBaseUrl}/api/process?db=${db}`;
+    // --- FIX END ---
 
     console.log(`[Submission] Queuing job ${job.id} for processing at: ${destinationUrl}`);
 
