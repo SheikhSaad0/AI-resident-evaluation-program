@@ -144,7 +144,8 @@ export default function Evaluations() {
         <p className="text-text-tertiary text-lg">Comprehensive view of all surgical assessments and their progress</p>
       </div>
 
-      <GlassCard variant="strong" className="p-4 md:p-6">
+      {/* The fix is applied here by adding `relative z-10` to the className */}
+      <GlassCard variant="strong" className="p-4 md:p-6 relative z-10">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
           <div>
             <label className="block mb-2 text-sm font-medium text-text-secondary">Search Evaluations</label>
