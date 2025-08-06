@@ -22,15 +22,13 @@ model Job {
   updatedAt         DateTime  @updatedAt
   withVideo         Boolean   @default(false)
   videoAnalysis     Boolean   @default(false)
+  audioDuration     Int?      // Add this line to store the recording's length in seconds
   residentId        String?
   resident          Resident? @relation(fields: [residentId], references: [id], onDelete: SetNull)
 
-  // This relation remains for jobs linked to an Attending
   attendingId       String?
   attending         Attending? @relation(fields: [attendingId], references: [id], onDelete: SetNull)
-
-  // --- ADD THIS NEW RELATION ---
-  // This new relation is for jobs linked to a Program Director
+  
   programDirectorId String?
   programDirector   ProgramDirector? @relation(fields: [programDirectorId], references: [id], onDelete: SetNull)
 }
@@ -52,7 +50,7 @@ model Resident {
 model Attending {
   id                 String  @id @default(cuid())
   name               String
-  email              String? // Added email field
+  email              String?
   title              String
   primaryInstitution String
   specialty          String
@@ -66,12 +64,11 @@ model Attending {
 model ProgramDirector {
   id                 String @id @default(cuid())
   name               String
-  email              String? // Added email field
+  email              String?
   title              String
   primaryInstitution String
   specialty          String
   photoUrl           String?
-  // --- ADD THIS BACK-RELATION ---
   jobs               Job[]
 }
 

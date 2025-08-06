@@ -5,7 +5,6 @@ let storage: Storage | null = null;
 let bucket: Bucket | null = null;
 
 function initializeGCS() {
-    // Already initialized
     if (storage && bucket) {
         return;
     }
@@ -28,12 +27,28 @@ function initializeGCS() {
     bucket = storage.bucket(bucketName);
 }
 
+// --- ADD THIS NEW FUNCTION ---
 /**
- * NEW FUNCTION
- * Generates a v4 signed URL for reading/downloading a private file.
- * @param fileName The path to the file in the bucket (e.g., 'uploads/my-file.mp3').
- * @returns A promise that resolves to the signed URL for a GET request.
+ * Downloads a file from GCS and returns its contents as a Buffer.
+ * @param fileName The path to the file in the bucket.
+ * @returns A promise that resolves to a Buffer containing the file's data.
  */
+export async function downloadFileAsBuffer(fileName: string): Promise<Buffer> {
+    initializeGCS();
+    if (!bucket) {
+        throw new Error('GCS Bucket is not initialized.');
+    }
+    try {
+        const [contents] = await bucket.file(fileName).download();
+        return contents;
+    } catch (error) {
+        console.error(`Failed to download file ${fileName}:`, error);
+        throw error;
+    }
+}
+// --- END OF NEW FUNCTION ---
+
+
 export async function generateV4ReadSignedUrl(fileName: string): Promise<string> {
     initializeGCS();
     if (!bucket) {
@@ -43,7 +58,7 @@ export async function generateV4ReadSignedUrl(fileName: string): Promise<string>
     const options = {
         version: 'v4' as const,
         action: 'read' as const,
-        expires: Date.now() + 15 * 60 * 1000, // URL expires in 15 minutes
+        expires: Date.now() + 15 * 60 * 1000, 
         contentDisposition: 'inline',
     };
 
@@ -56,24 +71,15 @@ export async function generateV4ReadSignedUrl(fileName: string): Promise<string>
     }
 }
 
-
-/**
- * Uploads a local file to Google Cloud Storage. (Used by the backend)
- * @param localPath The path to the local file to upload.
- * @param destination The destination path in the GCS bucket.
- * @returns The public URL of the uploaded file.
- */
 export async function uploadFileToGCS(localPath: string, destination: string): Promise<string> {
-    initializeGCS(); // Initialize on first use
+    initializeGCS();
     if (!bucket) {
         throw new Error('GCS Bucket is not initialized. Check your environment variables.');
     }
 
     try {
-        // 👇 THIS IS THE ONLY CHANGE NEEDED 👇
         const options = {
             destination: destination,
-            // public: true,  <- REMOVE OR COMMENT OUT THIS LINE
             metadata: {
                 cacheControl: 'public, max-age=31536000',
             },
@@ -83,7 +89,6 @@ export async function uploadFileToGCS(localPath: string, destination: string): P
     
         console.log(`${localPath} uploaded to ${process.env.GCS_BUCKET_NAME}/${destination}.`);
     
-        // This will now work correctly based on your bucket's permissions
         return `https://storage.googleapis.com/${process.env.GCS_BUCKET_NAME}/${destination}`;
 
     } catch (error) {
@@ -92,9 +97,6 @@ export async function uploadFileToGCS(localPath: string, destination: string): P
     }
 }
 
-/**
- * Gets the public URL for a file in GCS.
- */
 export function getPublicUrl(destination: string): string {
     const bucketName = process.env.GCS_BUCKET_NAME;
     if (!bucketName) {
@@ -103,15 +105,8 @@ export function getPublicUrl(destination: string): string {
     return `https://storage.googleapis.com/${bucketName}/${destination}`;
 }
 
-
-/**
- * Generates a v4 signed URL for uploading a file directly from the client.
- * @param destination The destination path in the GCS bucket (e.g., 'uploads/my-file.mp3').
- * @param contentType The MIME type of the file being uploaded.
- * @returns A promise that resolves to the signed URL for a PUT request.
- */
 export async function generateV4UploadSignedUrl(destination: string, contentType: string): Promise<string> {
-    initializeGCS(); // Ensure GCS is initialized
+    initializeGCS();
     if (!bucket) {
         throw new Error('GCS Bucket is not initialized. Check your environment variables.');
     }
@@ -119,7 +114,7 @@ export async function generateV4UploadSignedUrl(destination: string, contentType
     const options = {
         version: 'v4' as const,
         action: 'write' as const,
-        expires: Date.now() + 15 * 60 * 1000, // URL expires in 15 minutes
+        expires: Date.now() + 15 * 60 * 1000,
         contentType,
     };
 
@@ -130,4 +125,12 @@ export async function generateV4UploadSignedUrl(destination: string, contentType
         console.error('ERROR generating signed GCS URL:', error);
         throw error;
     }
+}
+
+export async function getFileMetadata(fileName: string) {
+    initializeGCS();
+    if (!bucket) {
+        throw new Error('GCS Bucket is not initialized.');
+    }
+    return bucket.file(fileName).getMetadata();
 }
