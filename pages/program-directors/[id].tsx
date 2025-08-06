@@ -3,7 +3,7 @@
 import React, { useState, useEffect, ChangeEvent } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
-import { GlassCard, GlassButton, GlassInput } from '../../components/ui';
+import { GlassCard, GlassButton, GlassInput, ImageUpload } from '../../components/ui';
 import { useApi } from '../../lib/useApi';
 import toast from 'react-hot-toast';
 
@@ -72,6 +72,10 @@ export default function ProgramDirectorProfile() {
     setEditedDirector(prev => prev ? { ...prev, [name]: value } : null);
   };
 
+  const handlePhotoChange = (url: string) => {
+    setEditedDirector(prev => prev ? { ...prev, photoUrl: url } : null);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -115,6 +119,13 @@ export default function ProgramDirectorProfile() {
           <div className="flex-1">
             {isEditing && editedDirector ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                <div className="md:col-span-2">
+                    <p className="text-sm text-text-quaternary mb-1">Profile Photo</p>
+                    <ImageUpload
+                        value={editedDirector.photoUrl || undefined}
+                        onChange={handlePhotoChange}
+                    />
+                </div>
                 <div>
                     <p className="text-sm text-text-quaternary mb-1">Name</p>
                     <GlassInput name="name" value={editedDirector.name} onChange={handleInputChange} />
