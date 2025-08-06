@@ -28,6 +28,7 @@ interface Evaluation {
   status: string;
   isFinalized?: boolean;
   result?: any;
+  audioDuration?: number;
 }
 
 type TimeRange = 'all' | 'week' | 'month';
@@ -75,7 +76,7 @@ export default function ProgramDirectorProfile() {
   const [totalEvaluations, setTotalEvaluations] = useState(0);
   const [avgScore, setAvgScore] = useState(0);
   const [avgCaseDifficulty, setAvgCaseDifficulty] = useState(0);
-  const [averageTimeDifference, setAverageTimeDifference] = useState(0);
+  const [averageCaseTime, setAverageCaseTime] = useState(0);
 
   // Effect to fetch initial data
   useEffect(() => {
@@ -133,33 +134,29 @@ export default function ProgramDirectorProfile() {
     const newAvgDifficulty = difficulties.length > 0 ? difficulties.reduce((a, b) => a + b, 0) / difficulties.length : 0;
     setAvgCaseDifficulty(newAvgDifficulty);
 
-    // Calculate average case time difference
-    let totalDifference = 0;
+    // Calculate average case time
+    let totalCaseTime = 0;
     let caseCount = 0;
     finalizedEvals.forEach(e => {
         const procedureId = Object.keys(EVALUATION_CONFIGS).find(key => EVALUATION_CONFIGS[key].name === e.surgery);
         if (procedureId && e.result) {
             const config = EVALUATION_CONFIGS[procedureId];
-            let procedureTimeDiff = 0;
-            let stepCount = 0;
-            config.procedureSteps.forEach(step => {
-                const stepData = e.result[step.key];
-                if (stepData && stepData.time && step.time) {
-                    const actualTime = parseTimeToMinutes(stepData.time);
-                    const estimatedTime = parseEstimatedTime(step.time);
-                    if (actualTime > 0 && estimatedTime > 0) {
-                        procedureTimeDiff += actualTime - estimatedTime;
-                        stepCount++;
+            let actualTime = e.audioDuration ? e.audioDuration / 60 : 0;
+            if (actualTime === 0) {
+                config.procedureSteps.forEach(step => {
+                    const stepData = e.result[step.key];
+                    if (stepData && stepData.time) {
+                        actualTime += parseTimeToMinutes(stepData.time);
                     }
-                }
-            });
-            if (stepCount > 0) {
-                totalDifference += procedureTimeDiff / stepCount; // Avg difference for the procedure
+                });
+            }
+            if (actualTime > 0) {
+                totalCaseTime += actualTime;
                 caseCount++;
             }
         }
     });
-    setAverageTimeDifference(caseCount > 0 ? totalDifference / caseCount : 0);
+    setAverageCaseTime(caseCount > 0 ? totalCaseTime / caseCount : 0);
 
   }, [evaluations, timeRange]);
 
@@ -288,7 +285,7 @@ export default function ProgramDirectorProfile() {
             <CaseDifficultyWidget averageDifficulty={avgCaseDifficulty} timeRange={timeRange} setTimeRange={setTimeRange} />
         </div>
         <div>
-            <CaseTimeWidget averageTimeDifference={averageTimeDifference} timeRange={timeRange} setTimeRange={setTimeRange} />
+            <CaseTimeWidget averageCaseTime={averageCaseTime} timeRange={timeRange} setTimeRange={setTimeRange} />
         </div>
       </div>
     </div>

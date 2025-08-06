@@ -1,8 +1,10 @@
+// pages/residents/[id].tsx
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
-import { GlassCard, GlassButton, PerformanceChart, StatCard, GlassInput, ImageUpload } from '../../components/ui';
+import { GlassCard, GlassButton, PerformanceChart, StatCard, GlassInput, ImageUpload, CaseTimeWidget } from '../../components/ui';
 import { useApi } from '../../lib/useApi';
+import { EVALUATION_CONFIGS } from '../../lib/evaluation-configs';
 
 interface Resident {
   id: string;
@@ -23,6 +25,8 @@ interface Evaluation {
   type: 'video' | 'audio';
   status: string;
   isFinalized?: boolean;
+  result?: any;
+  audioDuration?: number;
 }
 
 type TimeRange = 'all' |'week' | 'month' | '6M' | '1Y';
@@ -32,6 +36,22 @@ interface EditResidentModalProps {
     onClose: () => void;
     onSave: (resident: Resident) => Promise<void>;
 }
+
+// Helper function to parse time strings like "X minutes Y seconds" into total minutes
+const parseTimeToMinutes = (timeStr: string) => {
+    if (!timeStr || timeStr === 'N/A') return 0;
+    const parts = timeStr.toLowerCase().split(' ');
+    let minutes = 0;
+    for (let i = 0; i < parts.length; i++) {
+        if (parts[i] === 'minutes' || parts[i] === 'minute') {
+            minutes += parseInt(parts[i - 1], 10);
+        }
+        if (parts[i] === 'seconds' || parts[i] === 'second') {
+            minutes += parseInt(parts[i - 1], 10) / 60;
+        }
+    }
+    return minutes;
+};
 
 const EditResidentModal = ({ resident, onClose, onSave }: EditResidentModalProps) => {
     const [editedResident, setEditedResident] = useState(resident);
@@ -79,7 +99,7 @@ export default function ResidentProfile() {
   const [resident, setResident] = useState<Resident | null>(null);
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ totalEvaluations: 0, avgScore: 0, completedEvaluations: 0, improvement: 0 });
+  const [stats, setStats] = useState({ totalEvaluations: 0, avgScore: 0, completedEvaluations: 0, improvement: 0, averageCaseTime: 0 });
   const [timeRange, setTimeRange] = useState<TimeRange>('all');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
@@ -97,12 +117,36 @@ export default function ResidentProfile() {
 
             const finalizedEvals = evalsData.filter((e: Evaluation) => e.isFinalized && e.score !== undefined);
             const avgScore = finalizedEvals.length > 0 ? finalizedEvals.reduce((acc: number, e: Evaluation) => acc + (e.score || 0), 0) / finalizedEvals.length : 0;
-            
+
+            let totalCaseTime = 0;
+            let caseCount = 0;
+            finalizedEvals.forEach((e: Evaluation) => {
+                const procedureId = Object.keys(EVALUATION_CONFIGS).find(key => EVALUATION_CONFIGS[key].name === e.surgery);
+                if (procedureId && e.result) {
+                    const config = EVALUATION_CONFIGS[procedureId];
+                    let actualTime = e.audioDuration ? e.audioDuration / 60 : 0;
+                    if (actualTime === 0) {
+                        config.procedureSteps.forEach(step => {
+                            const stepData = e.result[step.key];
+                            if (stepData && stepData.time) {
+                                actualTime += parseTimeToMinutes(stepData.time);
+                            }
+                        });
+                    }
+                    if (actualTime > 0) {
+                        totalCaseTime += actualTime;
+                        caseCount++;
+                    }
+                }
+            });
+            const averageCaseTime = caseCount > 0 ? totalCaseTime / caseCount : 0;
+
             setStats({
               totalEvaluations: evalsData.length,
               avgScore: avgScore,
               completedEvaluations: finalizedEvals.length,
-              improvement: 0 // Mock improvement percentage for now
+              improvement: 0, // Mock improvement percentage for now
+              averageCaseTime: averageCaseTime,
             });
 
         } catch (error) {
@@ -155,7 +199,7 @@ export default function ResidentProfile() {
     }
     return 'status-info';
   };
-  
+
   const getStatusText = (evaluation: Evaluation) => {
     if (evaluation.isFinalized) return 'Finalized';
     if (evaluation.status === 'complete' || evaluation.status === 'completed') return 'Draft';
@@ -194,7 +238,7 @@ export default function ResidentProfile() {
             <Image src="/images/editBtn.svg" alt="Edit" width={24} height={24} />
         </GlassButton>
         <div className="flex flex-col sm:flex-row items-start space-y-4 sm:space-y-0 sm:space-x-6">
-        
+
         <div className="glassmorphism-subtle p-2 rounded-full">
           <div className="w-[120px] h-[120px] rounded-full overflow-hidden">
             <Image
@@ -210,7 +254,7 @@ export default function ResidentProfile() {
           </div>
        </div>
 
-          
+
           <div className="flex-1">
             <h1 className="heading-xl text-gradient mb-2">{resident.name}</h1>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-text-secondary">
@@ -247,7 +291,10 @@ export default function ResidentProfile() {
             </div>
           </GlassCard>
         </div>
-        <div className="xl:col-span-1"><GlassCard variant="strong" className="p-6"><div className="flex items-center justify-between mb-6"><h3 className="heading-md">Recent Evaluations</h3><GlassButton variant="primary" size="sm" onClick={() => router.push('/')}>New Evaluation</GlassButton></div>
+        <div className="xl:col-span-1">
+            <CaseTimeWidget averageCaseTime={stats.averageCaseTime} timeRange={timeRange} />
+        </div>
+        <div className="xl:col-span-2"><GlassCard variant="strong" className="p-6"><div className="flex items-center justify-between mb-6"><h3 className="heading-md">Recent Evaluations</h3><GlassButton variant="primary" size="sm" onClick={() => router.push('/')}>New Evaluation</GlassButton></div>
             <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-glass">
               {evaluations.length > 0 ? evaluations.map((evaluation) => (
                 <GlassCard key={evaluation.id} variant="subtle" hover onClick={() => router.push(`/results/${evaluation.id}`)} className="p-4 cursor-pointer">
