@@ -13,6 +13,7 @@ CREATE TABLE "Job" (
     "withVideo" BOOLEAN NOT NULL DEFAULT false,
     "videoAnalysis" BOOLEAN NOT NULL DEFAULT false,
     "residentId" TEXT,
+    "attendingId" TEXT,
 
     CONSTRAINT "Job_pkey" PRIMARY KEY ("id")
 );
@@ -21,13 +22,13 @@ CREATE TABLE "Job" (
 CREATE TABLE "Resident" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "email" TEXT,
     "photoUrl" TEXT,
     "company" TEXT,
     "year" TEXT,
     "medicalSchool" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "email" TEXT,
 
     CONSTRAINT "Resident_pkey" PRIMARY KEY ("id")
 );
@@ -97,6 +98,9 @@ CREATE TABLE "EvaluationStep" (
 
 -- AddForeignKey
 ALTER TABLE "Job" ADD CONSTRAINT "Job_residentId_fkey" FOREIGN KEY ("residentId") REFERENCES "Resident"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Job" ADD CONSTRAINT "Job_attendingId_fkey" FOREIGN KEY ("attendingId") REFERENCES "Attending"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Evaluation" ADD CONSTRAINT "Evaluation_residentId_fkey" FOREIGN KEY ("residentId") REFERENCES "Resident"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

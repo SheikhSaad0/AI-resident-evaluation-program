@@ -1,27 +1,29 @@
-// components/AttendingSelector.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { GlassCard } from './ui';
 
-interface Attending {
+// The component now uses the generic 'Supervisor' type
+export interface Supervisor {
   id: string;
   name: string;
   photoUrl?: string | null;
   title?: string;
+  type: 'Attending' | 'Program Director';
 }
 
 interface Props {
-  attendings: Attending[];
-  selected: Attending | null;
-  setSelected: (attending: Attending | null) => void;
+  // Props are renamed for clarity and use the correct type
+  supervisors: Supervisor[];
+  selectedSupervisor: Supervisor | null;
+  setSelectedSupervisor: (supervisor: Supervisor | null) => void;
   disabled?: boolean;
 }
 
-const AttendingSelector: React.FC<Props> = ({ attendings, selected, setSelected, disabled }) => {
+const AttendingSelector: React.FC<Props> = ({ supervisors, selectedSupervisor, setSelectedSupervisor, disabled }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const sortedAttendings = [...attendings].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedSupervisors = [...supervisors].sort((a, b) => a.name.localeCompare(b.name));
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -37,7 +39,7 @@ const AttendingSelector: React.FC<Props> = ({ attendings, selected, setSelected,
   return (
     <div ref={containerRef} className="relative z-10">
       <label className="block mb-3 text-sm font-medium text-text-secondary">
-        Attending Physician
+        Supervisor
       </label>
 
       <div className="relative">
@@ -48,18 +50,18 @@ const AttendingSelector: React.FC<Props> = ({ attendings, selected, setSelected,
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              {selected ? (
+              {selectedSupervisor ? (
                 <>
                   <Image
-                    src={selected.photoUrl || '/images/default-avatar.svg'}
-                    alt={selected.name}
+                    src={selectedSupervisor.photoUrl || '/images/default-avatar.svg'}
+                    alt={selectedSupervisor.name}
                     width={32}
                     height={32}
                     className="rounded-full object-cover w-8 h-8"
                   />
                   <div>
-                    <p className="font-medium text-text-primary">{selected.name}</p>
-                    <p className="text-xs text-text-quaternary">{selected.title || 'N/A'}</p>
+                    <p className="font-medium text-text-primary">{selectedSupervisor.name}</p>
+                    <p className="text-xs text-text-quaternary">{selectedSupervisor.type}</p>
                   </div>
                 </>
               ) : (
@@ -67,7 +69,7 @@ const AttendingSelector: React.FC<Props> = ({ attendings, selected, setSelected,
                   <div className="glassmorphism-subtle p-2 rounded-2xl">
                     <div className="w-8 h-8 bg-glass-300 rounded-full opacity-50" />
                   </div>
-                  <span className="text-text-tertiary">Select an attending</span>
+                  <span className="text-text-tertiary">Select a supervisor</span>
                 </>
               )}
             </div>
@@ -87,26 +89,26 @@ const AttendingSelector: React.FC<Props> = ({ attendings, selected, setSelected,
           <div className="absolute top-full left-0 right-0 z-[9999] mt-2">
             <GlassCard variant="strong" className="p-2 max-h-64 overflow-y-auto scrollbar-glass dropdown-background">
               <div className="space-y-1">
-                {sortedAttendings.map((attending) => (
+                {sortedSupervisors.map((supervisor) => (
                   <div
-                    key={attending.id}
+                    key={supervisor.id}
                     className="p-3 rounded-2xl cursor-pointer transition-all duration-200 hover:bg-glass-200"
                     onClick={() => {
-                      setSelected(attending);
+                      setSelectedSupervisor(supervisor);
                       setIsExpanded(false);
                     }}
                   >
                     <div className="flex items-center space-x-3">
                       <Image
-                        src={attending.photoUrl || '/images/default-avatar.svg'}
-                        alt={attending.name}
+                        src={supervisor.photoUrl || '/images/default-avatar.svg'}
+                        alt={supervisor.name}
                         width={32}
                         height={32}
                         className="rounded-full object-cover w-8 h-8"
                       />
                       <div>
-                        <p className="font-medium text-text-primary text-sm">{attending.name}</p>
-                        <p className="text-xs text-text-quaternary">{attending.title || 'N/A'}</p>
+                        <p className="font-medium text-text-primary text-sm">{supervisor.name}</p>
+                         <p className="text-xs text-text-quaternary">{supervisor.type}</p>
                       </div>
                     </div>
                   </div>

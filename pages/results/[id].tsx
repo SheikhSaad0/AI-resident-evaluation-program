@@ -3,11 +3,12 @@ import React, { useEffect, useState, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { GlassCard, GlassButton, GlassInput, GlassTextarea } from '../../components/ui';
-import AttendingSelector from '../../components/AttendingSelector'; // New Import
+import AttendingSelector, { Supervisor } from '../../components/AttendingSelector';
 import { EVALUATION_CONFIGS } from '../../lib/evaluation-configs';
 import { useApi } from '../../lib/useApi';
 
 // --- TYPE DEFINITIONS ---
+
 interface EvaluationStep {
     score: number;
     time: string;
@@ -17,23 +18,16 @@ interface EvaluationStep {
     attendingTime?: string;
 }
 
-// New Attending Interface
-interface Attending {
-  id: string;
-  name: string;
-  photoUrl?: string | null;
-  title?: string;
-}
-
+// Updated EvaluationData to include both potential supervisor objects
 interface EvaluationData {
-    [key: string]: EvaluationStep | number | string | boolean | undefined | null | any; // Use any for flexibility, allow null
+    [key: string]: any; // Keep for flexibility
     id?: string;
     caseDifficulty: number;
     additionalComments: string;
     attendingCaseDifficulty?: number;
     attendingAdditionalComments?: string;
     transcription: string;
-    liveNotes?: string | any[]; // Can be a stringified JSON array or an actual array
+    liveNotes?: string | any[];
     surgery: string;
     residentId?: string;
     residentName?: string;
@@ -43,7 +37,10 @@ interface EvaluationData {
     isFinalized?: boolean;
     finalScore?: number;
     date: string;
-    attendingId?: string | null; // CORRECTED: Allow null for attendingId
+    attendingId?: string | null;
+    programDirectorId?: string | null;
+    attending?: Supervisor | null;
+    programDirector?: Supervisor | null;
 }
 
 interface ProcedureStep {
@@ -105,18 +102,20 @@ const InfoWidget = ({ title, value, icon }: { title: string, value: string | num
     </GlassCard>
 );
 
-// New Attending Info Component
-const AttendingInfo = ({ attending, onEdit, isEditing }: { attending: Attending | null, onEdit: () => void, isEditing: boolean }) => {
-    if (!attending) {
+// Updated Supervisor Info Component
+const SupervisorInfo = ({ supervisor, onEdit, isEditing }: { supervisor: Supervisor | null, onEdit: () => void, isEditing: boolean }) => {
+    const title = supervisor?.type === 'Program Director' ? 'Program Director' : 'Attending Physician';
+
+    if (!supervisor) {
         return (
             <GlassCard variant="subtle" className="p-4 flex items-center justify-between">
                 <div>
-                    <p className="text-sm text-text-quaternary">Attending Physician</p>
+                    <p className="text-sm text-text-quaternary">Supervisor</p>
                     <p className="font-medium text-text-tertiary">Not Assigned</p>
                 </div>
                 {!isEditing && (
                     <GlassButton size="sm" variant="secondary" onClick={onEdit}>
-                        Assign Attending
+                        Assign Supervisor
                     </GlassButton>
                 )}
             </GlassCard>
@@ -127,15 +126,15 @@ const AttendingInfo = ({ attending, onEdit, isEditing }: { attending: Attending 
         <GlassCard variant="subtle" className="p-4 flex items-center justify-between">
             <div className="flex items-center space-x-3">
                 <Image
-                    src={attending.photoUrl || '/images/default-avatar.svg'}
-                    alt={attending.name}
+                    src={supervisor.photoUrl || '/images/default-avatar.svg'}
+                    alt={supervisor.name}
                     width={40}
                     height={40}
                     className="rounded-full object-cover w-10 h-10"
                 />
                 <div>
-                    <p className="text-sm text-text-quaternary">Attending Physician</p>
-                    <p className="font-semibold text-text-primary">{attending.name}</p>
+                    <p className="text-sm text-text-quaternary">{title}</p>
+                    <p className="font-semibold text-text-primary">{supervisor.name}</p>
                 </div>
             </div>
              {!isEditing && (
@@ -314,28 +313,17 @@ const formatAiNote = (noteObject: any): string | null => {
     if (typeof noteObject !== 'object' || !noteObject || !noteObject.action) {
         return null;
     }
-
     const { action, payload } = noteObject;
-
     switch (action) {
-        case 'LOG_SCORE':
-            return `[Score Logged] Rated step "${payload.step}" with a score of ${payload.score}.`;
-        case 'LOG_COMMENT':
-            return `[Comment Logged] Added comment: "${payload.comment}"`;
-        case 'LOG_INTERVENTION':
-            return `[Intervention] Attending took over: "${payload.comment || 'No reason specified'}"`;
-        case 'LOG_SKIPPED_STEP':
-            return `[Step Skipped] The step "${payload.stepKey}" was skipped. Reason: ${payload.reason}`;
-        case 'CHANGE_STEP':
-            return `[Step Change] Procedure moved to: ${payload.stepKey}.`;
-        case 'SPEAK':
-            return `[Veritas Spoke] Said: "${payload}"`;
-        case 'CONFIRM_TIMEOUT':
-            return `[Time-Out] Confirmed the pre-procedure time-out.`;
-        case 'NONE':
-            return null; // Explicitly ignore the "NONE" action.
-        default:
-            return `[System Action] Performed action: ${action}`;
+        case 'LOG_SCORE': return `[Score Logged] Rated step "${payload.step}" with a score of ${payload.score}.`;
+        case 'LOG_COMMENT': return `[Comment Logged] Added comment: "${payload.comment}"`;
+        case 'LOG_INTERVENTION': return `[Intervention] Attending took over: "${payload.comment || 'No reason specified'}"`;
+        case 'LOG_SKIPPED_STEP': return `[Step Skipped] The step "${payload.stepKey}" was skipped. Reason: ${payload.reason}`;
+        case 'CHANGE_STEP': return `[Step Change] Procedure moved to: ${payload.stepKey}.`;
+        case 'SPEAK': return `[Veritas Spoke] Said: "${payload}"`;
+        case 'CONFIRM_TIMEOUT': return `[Time-Out] Confirmed the pre-procedure time-out.`;
+        case 'NONE': return null;
+        default: return `[System Action] Performed action: ${action}`;
     }
 };
 
@@ -348,7 +336,6 @@ const MediaTab = ({ transcription, liveNotes, mediaUrl, isOriginalFileVideo }: {
             parsedNotes = liveNotes;
         }
     }
-
     const formattedNotes = parsedNotes.map(formatAiNote).filter(Boolean);
 
     return (
@@ -387,7 +374,6 @@ const MediaTab = ({ transcription, liveNotes, mediaUrl, isOriginalFileVideo }: {
     );
 };
 
-// Updated EditTab Component
 const EditTab = ({
     editedEvaluation,
     isFinalized,
@@ -395,10 +381,10 @@ const EditTab = ({
     onFinalize,
     onDelete,
     onEdit,
-    attendings,
-    selectedAttending,
-    setSelectedAttending,
-    onSaveAttending,
+    supervisors,
+    selectedSupervisor,
+    setSelectedSupervisor,
+    onSaveSupervisor,
 }: {
     editedEvaluation: EvaluationData;
     isFinalized: boolean;
@@ -406,28 +392,29 @@ const EditTab = ({
     onFinalize: () => void;
     onDelete: () => void;
     onEdit: () => void;
-    attendings: Attending[];
-    selectedAttending: Attending | null;
-    setSelectedAttending: (attending: Attending | null) => void;
-    onSaveAttending: () => void;
+    supervisors: Supervisor[];
+    selectedSupervisor: Supervisor | null;
+    setSelectedSupervisor: (supervisor: Supervisor | null) => void;
+    onSaveSupervisor: () => void;
 }) => (
     <div className="space-y-6">
         <GlassCard variant="strong" className="p-6">
-            <h3 className="heading-md mb-6">Case Details</h3>
+            <h3 className="heading-md mb-6">Case Supervisor</h3>
             <div className="space-y-4">
+                {/* THIS IS THE FIX: Pass the correct props to the selector */}
                 <AttendingSelector
-                    attendings={attendings}
-                    selected={selectedAttending}
-                    setSelected={setSelectedAttending}
+                    supervisors={supervisors}
+                    selectedSupervisor={selectedSupervisor}
+                    setSelectedSupervisor={setSelectedSupervisor}
                     disabled={isFinalized}
                 />
                 {!isFinalized && (
                     <GlassButton
-                        onClick={onSaveAttending}
+                        onClick={onSaveSupervisor}
                         variant="secondary"
                         className="w-full"
                     >
-                        Save Attending
+                        Save Supervisor
                     </GlassButton>
                 )}
             </div>
@@ -475,98 +462,108 @@ export default function RevampedResultsPage() {
     const [isOriginalFileVideo, setIsOriginalFileVideo] = useState(false);
     const [activeTab, setActiveTab] = useState('overview');
     const [errorMessage, setErrorMessage] = useState('');
-
-    // --- New State for Attendings ---
-    const [attendings, setAttendings] = useState<Attending[]>([]);
-    const [selectedAttending, setSelectedAttending] = useState<Attending | null>(null);
+    const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
+    const [selectedSupervisor, setSelectedSupervisor] = useState<Supervisor | null>(null);
 
     useEffect(() => {
         if (!id || typeof id !== 'string') return;
 
-        const fetchAttendings = async () => {
+        const fetchSupervisors = async () => {
             try {
                 const data = await apiFetch('/api/attendings');
-                setAttendings(data);
+                setSupervisors(data);
             } catch (error) {
-                console.error("Failed to fetch attendings:", error);
+                console.error("Failed to fetch supervisors:", error);
             }
         };
 
         const fetchEvaluation = async (jobId: string) => {
             try {
-                const jobData = await apiFetch(`/api/job-status/${jobId}`);
-
-                if ((jobData.status === 'complete' || jobData.status === 'draft') && jobData.result) {
-                    const resultData = typeof jobData.result === 'string' ? JSON.parse(jobData.result) : jobData.result;
-
-                    if (!resultData.surgery) {
-                         throw new Error('Incomplete evaluation data received from the server.');
-                    }
-
-                    const residentData = await apiFetch(`/api/residents/${jobData.residentId}`);
-
-                    const parsedData: EvaluationData = {
-                        ...resultData,
-                        id: jobData.id,
-                        residentId: jobData.residentId,
-                        residentName: residentData.name,
-                        residentPhotoUrl: residentData.photoUrl,
-                        residentEmail: residentData.email,
-                        date: jobData.createdAt,
-                        attendingId: jobData.attendingId // Fetch attendingId from job
-                    };
-
-                    setEvaluation(parsedData);
-                    setEditedEvaluation(JSON.parse(JSON.stringify(parsedData)));
-                    setIsOriginalFileVideo(jobData.withVideo);
-                    if (jobData.readableUrl) setMediaUrl(jobData.readableUrl);
-                    setStatus('loaded');
-                } else if (jobData.status === 'pending' || jobData.status.startsWith('processing')) {
+                // Use the direct evaluation endpoint now
+                const jobData = await apiFetch(`/api/evaluations/${jobId}`);
+                
+                if (jobData.status === 'pending' || jobData.status.startsWith('processing')) {
                     setStatus('polling');
-                    setTimeout(() => fetchEvaluation(jobId), 5000);
-                } else {
-                    throw new Error(jobData.error || 'Evaluation has failed or the job was not found.');
+                    setTimeout(() => fetchEvaluation(jobId), 5000); // Continue polling if not ready
+                    return;
                 }
+                
+                if (jobData.error) {
+                    throw new Error(jobData.error);
+                }
+
+                const resultData = typeof jobData.result === 'string' ? JSON.parse(jobData.result) : jobData.result;
+                
+                const parsedData: EvaluationData = {
+                    ...resultData,
+                    id: jobData.id,
+                    residentId: jobData.resident?.id,
+                    residentName: jobData.resident?.name,
+                    residentPhotoUrl: jobData.resident?.photoUrl,
+                    residentEmail: jobData.resident?.email,
+                    date: jobData.createdAt,
+                    attending: jobData.attending, // Now populated by the API
+                    programDirector: jobData.programDirector, // Now populated by the API
+                };
+
+                setEvaluation(parsedData);
+                setEditedEvaluation(JSON.parse(JSON.stringify(parsedData)));
+                setIsOriginalFileVideo(jobData.withVideo);
+                if (jobData.readableUrl) setMediaUrl(jobData.readableUrl);
+                setStatus('loaded');
+
             } catch (error) {
                 console.error("Failed to fetch or process evaluation data:", error);
-                const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-                setErrorMessage(errorMessage.includes('404') ? 'This evaluation was not found. It may have been deleted.' : errorMessage);
+                const errorMsg = error instanceof Error ? error.message : 'An unknown error occurred.';
+                setErrorMessage(errorMsg.includes('404') ? 'This evaluation was not found. It may have been deleted.' : errorMsg);
                 setStatus('error');
             }
         };
 
-        fetchAttendings();
+        fetchSupervisors();
         fetchEvaluation(id as string);
     }, [id, apiFetch]);
 
     useEffect(() => {
-        // Set the selected attending once evaluation and attendings are loaded
-        if (evaluation && attendings.length > 0) {
-            const currentAttending = attendings.find(a => a.id === evaluation.attendingId);
-            setSelectedAttending(currentAttending || null);
+        // Set the selected supervisor once evaluation and supervisors list are loaded
+        if (evaluation) {
+            const currentSupervisor = evaluation.attending || evaluation.programDirector;
+            setSelectedSupervisor(currentSupervisor || null);
         }
-    }, [evaluation, attendings]);
+    }, [evaluation]);
 
     // --- Handlers ---
-    const handleSaveAttending = async () => {
+    const handleSaveSupervisor = async () => {
         if (!id || !editedEvaluation) return;
-        const newAttendingId = selectedAttending ? selectedAttending.id : null;
+
+        const supervisor = selectedSupervisor;
+        const supervisorId = supervisor ? supervisor.id : null;
 
         try {
+            console.log(`Saving supervisor... ID: ${supervisorId}, Type: ${supervisor?.type}`);
             await apiFetch(`/api/evaluations/${id}`, {
                 method: 'PUT',
-                body: { attendingId: newAttendingId },
+                body: {
+                    attendingId: supervisorId,
+                    attendingType: supervisor ? supervisor.type : null,
+                },
             });
 
-            // Update local state to reflect the change immediately
-            const updatedEval = { ...editedEvaluation, attendingId: newAttendingId };
+            // Optimistically update local state
+            const updatedEval = { 
+                ...editedEvaluation,
+                attending: supervisor?.type === 'Attending' ? supervisor : null,
+                programDirector: supervisor?.type === 'Program Director' ? supervisor : null,
+            };
             setEditedEvaluation(updatedEval);
             setEvaluation(updatedEval);
 
-            alert('Attending updated successfully!');
+            console.log('Supervisor updated successfully!');
+            // You can add a toast notification here for better UX
         } catch (error) {
-            console.error('Failed to save attending:', error);
-            alert(`Error updating attending: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            console.error('Failed to save supervisor:', error);
+            // Revert UI on error
+            setEditedEvaluation(evaluation); 
         }
     };
 
@@ -577,33 +574,36 @@ export default function RevampedResultsPage() {
           await apiFetch(`/api/evaluations/${id}`, { method: 'PUT', body: { updatedEvaluation: finalEvaluation } });
           setEvaluation(finalEvaluation);
           setEditedEvaluation(finalEvaluation);
-          alert('Evaluation has been finalized!');
         } catch (error) {
-          alert(`Finalization error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          console.error(`Finalization error:`, error);
         }
     };
 
     const handleEdit = async () => {
-        if (!editedEvaluation || !id || !window.confirm('Are you sure you want to unlock this evaluation?')) return;
+        if (!editedEvaluation || !id) return;
+        const confirmation = window.confirm('Are you sure you want to unlock this evaluation?');
+        if (!confirmation) return;
+        
         const unlockedEvaluation = { ...editedEvaluation, isFinalized: false };
         try {
             await apiFetch(`/api/evaluations/${id}`, { method: 'PUT', body: { updatedEvaluation: unlockedEvaluation } });
             setEvaluation(unlockedEvaluation);
             setEditedEvaluation(unlockedEvaluation);
-            alert('Evaluation unlocked for editing.');
         } catch (error) {
-            alert(`Unlocking error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            console.error(`Unlocking error:`, error);
         }
     };
 
     const handleDelete = async () => {
-        if (!id || !window.confirm('Are you sure you want to delete this evaluation? This action cannot be undone.')) return;
+        if (!id) return;
+        const confirmation = window.confirm('Are you sure you want to delete this evaluation? This action cannot be undone.');
+        if (!confirmation) return;
+
         try {
           await apiFetch(`/api/evaluations/${id}`, { method: 'DELETE' });
-          alert('Evaluation deleted successfully.');
           router.push('/evaluations');
         } catch (error) {
-          alert(`Deletion error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          console.error(`Deletion error:`, error);
         }
     };
 
@@ -621,10 +621,10 @@ export default function RevampedResultsPage() {
         if (editedEvaluation) setEditedEvaluation({ ...editedEvaluation, [field]: value });
     };
 
-    const currentAttending = useMemo(() => {
-        if (!evaluation || !attendings) return null;
-        return attendings.find(a => a.id === evaluation.attendingId) || null;
-    }, [evaluation, attendings]);
+    const currentSupervisor = useMemo(() => {
+        if (!evaluation) return null;
+        return evaluation.attending || evaluation.programDirector || null;
+    }, [evaluation]);
 
     if (status === 'error') {
         return (
@@ -654,10 +654,10 @@ export default function RevampedResultsPage() {
                 onFinalize={handleFinalize}
                 onDelete={handleDelete}
                 onEdit={handleEdit}
-                attendings={attendings}
-                selectedAttending={selectedAttending}
-                setSelectedAttending={setSelectedAttending}
-                onSaveAttending={handleSaveAttending}
+                supervisors={supervisors}
+                selectedSupervisor={selectedSupervisor}
+                setSelectedSupervisor={setSelectedSupervisor}
+                onSaveSupervisor={handleSaveSupervisor}
             />
         )},
     ] : [];
@@ -697,8 +697,8 @@ export default function RevampedResultsPage() {
                     </div>
                 </div>
 
-                <AttendingInfo
-                    attending={currentAttending}
+                <SupervisorInfo
+                    supervisor={currentSupervisor}
                     onEdit={() => setActiveTab('edit')}
                     isEditing={activeTab === 'edit'}
                 />

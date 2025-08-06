@@ -6,7 +6,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL") // This will be dynamically overridden
+  url      = env("DATABASE_URL")
 }
 
 model Job {
@@ -25,9 +25,14 @@ model Job {
   residentId        String?
   resident          Resident? @relation(fields: [residentId], references: [id], onDelete: SetNull)
 
-  // Add these lines
+  // This relation remains for jobs linked to an Attending
   attendingId       String?
   attending         Attending? @relation(fields: [attendingId], references: [id], onDelete: SetNull)
+
+  // --- ADD THIS NEW RELATION ---
+  // This new relation is for jobs linked to a Program Director
+  programDirectorId String?
+  programDirector   ProgramDirector? @relation(fields: [programDirectorId], references: [id], onDelete: SetNull)
 }
 
 model Resident {
@@ -54,7 +59,6 @@ model Attending {
   medicalSchool      String?
   fellowship         String?
   photoUrl           String?
-  // Add this line
   jobs               Job[]
 }
 
@@ -65,6 +69,8 @@ model ProgramDirector {
   primaryInstitution String
   specialty          String
   photoUrl           String?
+  // --- ADD THIS BACK-RELATION ---
+  jobs               Job[]
 }
 
 model Settings {
