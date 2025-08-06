@@ -1,3 +1,6 @@
+
+// pages/results/[id].tsx
+
 import { useRouter } from 'next/router';
 import React, { useEffect, useState, useMemo } from 'react';
 import Image from 'next/image';
@@ -88,12 +91,13 @@ const ScoreRing = ({ score, max = 5 }: { score: number; max?: number }) => {
 const InfoWidget = ({ title, value, icon }: { title: string, value: string | number, icon: string }) => (
     <GlassCard variant="subtle" className="p-4 flex-1">
         <div className="flex items-center space-x-4">
-            <div className="relative w-10 h-10">
+            <div className="relative w-10 h-10 flex-shrink-0">
                 <Image src={icon} alt={title} layout="fill" objectFit="contain" />
             </div>
-            <div>
+            {/* FIX: Added min-w-0 to allow text to wrap correctly in a flex container */}
+            <div className="min-w-0">
                 <p className="text-sm text-text-quaternary">{title}</p>
-                <p className="text-2xl font-bold text-text-primary">{value}</p>
+                <p className="text-2xl font-bold text-text-primary truncate">{value}</p>
             </div>
         </div>
     </GlassCard>
@@ -164,12 +168,13 @@ const PillTabs = ({ tabs, activeTab, setActiveTab }: { tabs: any[], activeTab: s
 const TimeWidget = ({ title, value, icon }: { title: string, value: string | number, icon: string }) => (
     <GlassCard variant="subtle" className="p-4 flex-1">
         <div className="flex items-center space-x-4">
-            <div className="relative w-10 h-10">
+            <div className="relative w-10 h-10 flex-shrink-0">
                 <Image src={icon} alt={title} layout="fill" objectFit="contain" />
             </div>
-            <div>
+             {/* FIX: Added min-w-0 to allow text to wrap correctly in a flex container */}
+            <div className="min-w-0">
                 <p className="text-sm text-text-quaternary">{title}</p>
-                <p className="text-2xl font-bold text-text-primary">{value}</p>
+                <p className="text-2xl font-bold text-text-primary truncate">{value}</p>
             </div>
         </div>
     </GlassCard>
@@ -177,7 +182,6 @@ const TimeWidget = ({ title, value, icon }: { title: string, value: string | num
 
 // --- SIDEBAR & TABS ---
 const LeftSidebar = ({ evaluation }: { evaluation?: EvaluationData | null }) => {
-    // --- DEBUG LOG 3 ---
     console.log('[DEBUG] LeftSidebar received evaluation prop:', evaluation);
 
     const surgery = evaluation?.surgery as string;
@@ -205,13 +209,11 @@ const LeftSidebar = ({ evaluation }: { evaluation?: EvaluationData | null }) => 
         const multiplier = difficultyMultiplier[caseDifficulty] || 1;
         const finalTime = (totalEstimatedTime * multiplier) + 10;
 
-        // --- DEBUG LOG 4 ---
         console.log(`[DEBUG] CALC Scheduled Time: ${finalTime} (Base: ${totalEstimatedTime}, Multiplier: ${multiplier})`);
         return finalTime;
     }, [config, caseDifficulty]);
 
     const totalCaseTime = evaluation?.audioDuration ? (evaluation.audioDuration / 60).toFixed(0) : 'N/A';
-    // --- DEBUG LOG 5 ---
     console.log(`[DEBUG] RENDER Total Case Time value: ${totalCaseTime}`);
     console.log(`[DEBUG] RENDER Scheduled Time value: ${scheduledTime}`);
 
@@ -238,6 +240,8 @@ const LeftSidebar = ({ evaluation }: { evaluation?: EvaluationData | null }) => 
         </div>
     );
 };
+
+// ... (The rest of the file remains the same)
 
 const OverviewTab = ({ evaluation }: { evaluation: EvaluationData }) => {
     const config = Object.values(EVALUATION_CONFIGS).find(c => c.name === evaluation.surgery);
@@ -468,7 +472,6 @@ export default function RevampedResultsPage() {
         const fetchEvaluation = async (jobId: string) => {
             try {
                 const jobData = await apiFetch(`/api/evaluations/${jobId}`);
-                // --- DEBUG LOG 1 ---
                 console.log('[DEBUG] Raw data from API:', jobData);
                 
                 if (jobData.status === 'pending' || jobData.status.startsWith('processing')) {
@@ -494,7 +497,6 @@ export default function RevampedResultsPage() {
                     audioDuration: jobData.audioDuration,
                 };
 
-                // --- DEBUG LOG 2 ---
                 console.log('[DEBUG] Parsed data being set to state:', parsedData);
 
                 setEvaluation(parsedData);
@@ -539,7 +541,6 @@ export default function RevampedResultsPage() {
                 },
             });
 
-            // Optimistically update local state
             const updatedEval = { 
                 ...editedEvaluation,
                 attending: supervisor?.type === 'Attending' ? supervisor : null,
@@ -549,10 +550,8 @@ export default function RevampedResultsPage() {
             setEvaluation(updatedEval);
 
             console.log('Supervisor updated successfully!');
-            // You can add a toast notification here for better UX
         } catch (error) {
             console.error('Failed to save supervisor:', error);
-            // Revert UI on error
             setEditedEvaluation(evaluation); 
         }
     };
