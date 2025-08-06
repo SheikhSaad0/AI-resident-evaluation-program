@@ -389,7 +389,7 @@ const EditTab = ({
     onSaveSupervisor: () => void;
 }) => (
     <div className="space-y-6">
-        <GlassCard variant="strong" className="p-6">
+        <GlassCard variant="strong" className="p-6 relative z-10">
             <h3 className="heading-md mb-6">Case Supervisor</h3>
             <div className="space-y-4">
                 <AttendingSelector
