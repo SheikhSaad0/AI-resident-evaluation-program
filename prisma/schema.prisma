@@ -24,6 +24,10 @@ model Job {
   videoAnalysis     Boolean   @default(false)
   residentId        String?
   resident          Resident? @relation(fields: [residentId], references: [id], onDelete: SetNull)
+
+  // Add these lines
+  attendingId       String?
+  attending         Attending? @relation(fields: [attendingId], references: [id], onDelete: SetNull)
 }
 
 model Resident {
@@ -50,6 +54,8 @@ model Attending {
   medicalSchool      String?
   fellowship         String?
   photoUrl           String?
+  // Add this line
+  jobs               Job[]
 }
 
 model ProgramDirector {
