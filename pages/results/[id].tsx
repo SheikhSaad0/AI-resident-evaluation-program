@@ -229,10 +229,10 @@ const LeftSidebar = ({ evaluation }: { evaluation?: EvaluationData | null }) => 
                     <InfoWidget title="Case Difficulty" value={`${caseDifficulty}/3`} icon="/images/difficulty-icon.svg" />
                 )}
                 {scheduledTime > 0 && (
-                    <TimeWidget title="Scheduled Time" value={`${scheduledTime.toFixed(0)} min`} icon="/images/eval-count-icon.svg" />
+                    <TimeWidget title="Scheduled Time" value={`${scheduledTime.toFixed(0)} min`} icon="/images/clock-image.svg" />
                 )}
                 {totalCaseTime !== 'N/A' && (
-                     <TimeWidget title="Total Case Time" value={`${totalCaseTime} min`} icon="/images/eval-count-icon.svg" />
+                     <TimeWidget title="Total Case Time" value={`${totalCaseTime} min`} icon="/images/total-time.svg" />
                 )}
             </div>
         </div>

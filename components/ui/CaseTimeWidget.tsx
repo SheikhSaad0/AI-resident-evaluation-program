@@ -1,5 +1,6 @@
 // components/ui/CaseTimeWidget.tsx
 import React from 'react';
+import Image from 'next/image';
 import { GlassCard, PillToggle } from '.';
 
 type TimeRangeOptions = 'all' | 'month' | 'week';
@@ -10,50 +11,73 @@ interface Props {
   setTimeRange?: (range: TimeRangeOptions) => void;
 }
 
-const getTimeColor = (difference: number) => {
+const getTimeInfo = (difference: number) => {
+  if (difference === 0) {
+    return { color: '#9CA3AF', label: 'On Time' }; // Gray
+  }
+  
   // Green for under time, red for over time.
   const green = { r: 52, g: 199, b: 89 };
   const red = { r: 192, g: 28, b: 40 };
 
-  // if the resident is finishing 10 minutes earlier than the average
-  if (difference <= -10) return `rgb(${green.r}, ${green.g}, ${green.b})`;
-  // if the resident is finishing 5 minutes later than the average
-  return `rgb(${red.r}, ${red.g}, ${red.b})`;
+  const isOver = difference > 0;
+  const absDifference = Math.abs(difference);
+  
+  // Simple linear scale for color, capped at 15 mins for max color intensity
+  const t = Math.min(absDifference / 15, 1); 
+  const color = isOver
+    ? `rgb(${Math.round(255 - (255 - red.r) * t)}, ${Math.round(255 - (255 - red.g) * t)}, ${Math.round(255 - (255 - red.b) * t)})`
+    : `rgb(${Math.round(255 - (255 - green.r) * t)}, ${Math.round(255 - (255 - green.g) * t)}, ${Math.round(255 - (255 - green.b) * t)})`;
+  
+  return {
+    color: color,
+    label: isOver ? 'Over' : 'Under'
+  };
 };
 
 const CaseTimeWidget: React.FC<Props> = ({ averageCaseTime, timeRange, setTimeRange }) => {
-  const bgColor = getTimeColor(averageCaseTime);
+  const { color, label } = getTimeInfo(averageCaseTime);
+
   const timeDifferenceText = averageCaseTime > 0
-    ? `+${averageCaseTime.toFixed(2)} min`
-    : `${averageCaseTime.toFixed(2)} min`;
+    ? `+${averageCaseTime.toFixed(1)} min`
+    : `${averageCaseTime.toFixed(1)} min`;
 
   return (
-    <GlassCard variant="strong" className="p-6 h-full flex flex-col">
-      <div className="flex justify-between items-start mb-4">
-          <h3 className="heading-md">Avg. Case Time</h3>
-          {/* Conditionally render the PillToggle if setTimeRange is provided */}
-          {setTimeRange && (
-            <PillToggle
-              options={[
-                  { id: 'week', label: 'Week' },
-                  { id: 'month', label: 'Month' },
-                  { id: 'all', label: 'All' },
-              ]}
-              value={timeRange}
-              onChange={(id) => setTimeRange(id as TimeRangeOptions)}
-            />
-          )}
-      </div>
-      {/* Centering container for the pill */}
-      <div className="flex-grow flex items-center justify-center">
-        <div
-          className="px-12 py-4 rounded-full transition-colors duration-500"
-          style={{ backgroundColor: averageCaseTime ? bgColor : 'transparent' }}
-        >
-          <p className="text-4xl font-black text-white" style={{textShadow: '2px 2px 8px rgba(0,0,0,0.5)'}}>
-              {averageCaseTime ? timeDifferenceText : 'N/A'}
-          </p>
+    <GlassCard variant="strong" className="p-6 h-full flex flex-col justify-between">
+      <div>
+        <div className="flex justify-between items-start mb-4">
+            <h3 className="heading-md">Avg. Case Time</h3>
+            {setTimeRange && (
+              <PillToggle
+                options={[
+                    { id: 'week', label: 'Week' },
+                    { id: 'month', label: 'Month' },
+                    { id: 'all', label: 'All' },
+                ]}
+                value={timeRange}
+                onChange={(id) => setTimeRange(id as TimeRangeOptions)}
+              />
+            )}
         </div>
+        <div className="flex items-center gap-4 mt-6">
+          <div className="glassmorphism-subtle p-3 rounded-2xl">
+            <Image src="/images/clock-image.svg" alt="Time" width={40} height={40} />
+          </div>
+          <div>
+            <p className="text-5xl font-bold text-white tracking-tight">
+                {averageCaseTime ? timeDifferenceText : 'N/A'}
+            </p>
+            <p className="text-sm text-text-tertiary" style={{ color }}>
+              {averageCaseTime ? label : ''}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div className="w-full bg-glass-200 rounded-full h-2.5 mt-6">
+        <div
+          className="h-2.5 rounded-full transition-all duration-500"
+          style={{ width: `${Math.min(Math.abs(averageCaseTime) / 15, 1) * 100}%`, backgroundColor: color }}
+        />
       </div>
     </GlassCard>
   );
