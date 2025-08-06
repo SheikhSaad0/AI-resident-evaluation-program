@@ -1,8 +1,26 @@
+// pages/api/evaluations/[id].ts
+
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getPrismaClient } from '../../../lib/prisma';
-// FIX: Import the new download function
 import { generateV4ReadSignedUrl, downloadFileAsBuffer } from '../../../lib/gcs';
-import { parseBuffer } from 'music-metadata';
+
+import ffmpeg from 'fluent-ffmpeg';
+import ffprobeStatic from 'ffprobe-static';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+
+// Tell fluent-ffmpeg where to find the ffprobe binary
+ffmpeg.setFfprobePath(ffprobeStatic.path);
+
+// Helper function to parse HH:mm:ss.ss to seconds
+const parseTimemarkToSeconds = (timemark: string): number => {
+    const parts = timemark.split(':');
+    const seconds = parseFloat(parts.pop() || '0');
+    const minutes = parseInt(parts.pop() || '0', 10);
+    const hours = parseInt(parts.pop() || '0', 10);
+    return (hours * 3600) + (minutes * 60) + seconds;
+};
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     const { id } = req.query;
@@ -16,11 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         try {
             const job = await prisma.job.findUnique({
                 where: { id },
-                include: { 
-                    resident: true,
-                    attending: true,
-                    programDirector: true 
-                }
+                include: { resident: true, attending: true, programDirector: true }
             });
 
             if (!job) {
@@ -31,45 +45,68 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             let readableUrl = null;
 
             if ((audioDuration === null || audioDuration === undefined) && job.gcsObjectPath) {
-                console.log(`[API FIX] audioDuration for job ${id} is null. Fetching from GCS.`);
+                console.log(`[API FINAL] Starting DURATION SCAN for job ${id}`);
+                const tempFilePath = path.join(os.tmpdir(), `temp_audio_${id}.webm`);
+
                 try {
-                    // FIX: Use the new download function to get the file contents
                     const fileContents = await downloadFileAsBuffer(job.gcsObjectPath);
-                    const metadataWithDuration = await parseBuffer(fileContents);
-                    
-                    if (metadataWithDuration.format.duration) {
-                        audioDuration = Math.ceil(metadataWithDuration.format.duration); // in seconds
-                        
-                        await prisma.job.update({
-                            where: { id },
-                            data: { audioDuration: audioDuration },
-                        });
-                        console.log(`[API FIX] Fetched and saved audioDuration: ${audioDuration}s for job ${id}.`);
+                    fs.writeFileSync(tempFilePath, fileContents);
+
+                    audioDuration = await new Promise<number | null>((resolve, reject) => {
+                        let lastTimemark = '00:00:00.00';
+
+                        ffmpeg(tempFilePath)
+                            .on('progress', (progress) => {
+                                // Keep updating the last known timemark
+                                lastTimemark = progress.timemark;
+                            })
+                            .on('error', (err) => {
+                                console.error(`[API FINAL] FFmpeg processing error for job ${id}:`, err.message);
+                                reject(err);
+                            })
+                            .on('end', () => {
+                                console.log(`[API FINAL] FFmpeg scan finished. Last timemark: ${lastTimemark}`);
+                                const durationInSeconds = parseTimemarkToSeconds(lastTimemark);
+                                resolve(Math.ceil(durationInSeconds));
+                            })
+                            // Process the file but send the output to null, as we only need the time
+                            .output('/dev/null') // Use /dev/null for Linux-based environments like Vercel
+                            .format('null')
+                            .run();
+                    });
+
+                    if (audioDuration && audioDuration > 0) {
+                        console.log(`[API FINAL] SUCCESS! Duration found: ${audioDuration}s. Updating database.`);
+                        await prisma.job.update({ where: { id }, data: { audioDuration: audioDuration } });
                     } else {
-                         console.log(`[API FIX] Could not determine duration for job ${id}.`);
+                        console.error(`[API FINAL] FAILURE: Scan completed but duration was zero or null for job ${id}.`);
                     }
 
                 } catch (metaError) {
-                    console.error(`[API FIX] Failed to get metadata for ${job.gcsObjectPath}:`, metaError);
+                    console.error(`[API FINAL] A critical error occurred in the try/catch block for job ${id}:`, metaError);
+                } finally {
+                    if (fs.existsSync(tempFilePath)) {
+                        fs.unlinkSync(tempFilePath);
+                    }
                 }
             }
-            
+
             if (job.gcsObjectPath) {
                 readableUrl = await generateV4ReadSignedUrl(job.gcsObjectPath);
             }
 
-            res.status(200).json({
-                ...job,
-                readableUrl,
-                audioDuration,
-            });
+            res.status(200).json({ ...job, readableUrl, audioDuration });
 
         } catch (error) {
-            console.error(`[Evaluation GET] Error fetching evaluation ${id}:`, error);
+            console.error(`[Evaluation GET] Top-level error for job ${id}:`, error);
             res.status(500).json({ message: 'An error occurred while fetching the evaluation.' });
         }
         return;
     }
+    
+    // ... (Your PUT and DELETE methods)
+
+
     
     if (req.method === 'PUT') {
         try {
