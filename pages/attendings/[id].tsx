@@ -137,33 +137,37 @@ export default function AttendingProfile() {
     const newAvgDifficulty = difficulties.length > 0 ? difficulties.reduce((a, b) => a + b, 0) / difficulties.length : 0;
     setAvgCaseDifficulty(newAvgDifficulty);
     
-    // Calculate average case time difference
+    // --- CORRECTED CALCULATION ---
     let totalDifference = 0;
     let caseCount = 0;
     finalizedEvals.forEach(e => {
         const procedureId = Object.keys(EVALUATION_CONFIGS).find(key => EVALUATION_CONFIGS[key].name === e.surgery);
         if (procedureId && e.result) {
             const config = EVALUATION_CONFIGS[procedureId];
-            let procedureTimeDiff = 0;
-            let stepCount = 0;
-            config.procedureSteps.forEach(step => {
-                const stepData = e.result[step.key];
-                if (stepData && stepData.time && step.time) {
-                    const actualTime = parseTimeToMinutes(stepData.time);
-                    const estimatedTime = parseEstimatedTime(step.time);
-                    if (actualTime > 0 && estimatedTime > 0) {
-                        procedureTimeDiff += actualTime - estimatedTime;
-                        stepCount++;
-                    }
-                }
-            });
-            if (stepCount > 0) {
-                totalDifference += procedureTimeDiff / stepCount; // Avg difference for the procedure
+            
+            // Calculate scheduled time
+            const caseDifficulty = e.result?.attendingCaseDifficulty ?? e.result?.caseDifficulty ?? 1;
+            const difficultyMultiplier: { [key: number]: number } = { 1: 0.75, 2: 0.85, 3: 1 };
+            const totalEstimatedTime = config.procedureSteps.reduce((acc, step) => acc + (step.estimatedTime || 0), 0);
+            const scheduledTime = (totalEstimatedTime * (difficultyMultiplier[caseDifficulty] || 1)) + 10;
+
+            // Calculate actual time
+            let actualTime = e.result?.audioDuration ? e.result.audioDuration / 60 : 0;
+            if (!actualTime) {
+                actualTime = config.procedureSteps.reduce((acc, step) => {
+                    const stepData = e.result[step.key];
+                    return acc + (stepData && stepData.time ? parseTimeToMinutes(stepData.time) : 0);
+                }, 0);
+            }
+
+            if (actualTime > 0) {
+                totalDifference += actualTime - scheduledTime;
                 caseCount++;
             }
         }
     });
     setAverageTimeDifference(caseCount > 0 ? totalDifference / caseCount : 0);
+    // --- END CORRECTION ---
 
   }, [evaluations, timeRange]);
 
