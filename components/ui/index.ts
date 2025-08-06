@@ -10,3 +10,4 @@ export { default as PerformanceChart } from './PerformanceChart';
 export { default as ImageUpload } from './ImageUpload';
 export { default as LowestProceduresWidget } from './LowestProceduresWidget';
 export { default as CaseDifficultyWidget } from './CaseDifficultyWidget';
+export { default as CaseTimeWidget } from './CaseTimeWidget';

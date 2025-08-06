@@ -51,13 +51,16 @@ const CaseDifficultyWidget: React.FC<Props> = ({ averageDifficulty, timeRange, s
             onChange={(id) => setTimeRange(id as 'all' | 'month' | 'week')}
           />
       </div>
-      <div
-        className="flex-grow flex items-center justify-center rounded-3xl transition-colors duration-500"
-        style={{ backgroundColor: averageDifficulty > 0 ? bgColor : 'transparent' }}
-       >
-        <p className="text-6xl font-black text-white" style={{textShadow: '2px 2px 8px rgba(0,0,0,0.5)'}}>
-            {averageDifficulty > 0 ? averageDifficulty.toFixed(2) : 'N/A'}
-        </p>
+      {/* Centering container for the pill */}
+      <div className="flex-grow flex items-center justify-center">
+        <div
+          className="px-12 py-4 rounded-full transition-colors duration-500"
+          style={{ backgroundColor: averageDifficulty > 0 ? bgColor : 'transparent' }}
+        >
+          <p className="text-5xl font-black text-white" style={{textShadow: '2px 2px 8px rgba(0,0,0,0.5)'}}>
+              {averageDifficulty > 0 ? averageDifficulty.toFixed(2) : 'N/A'}
+          </p>
+        </div>
       </div>
     </GlassCard>
   );
