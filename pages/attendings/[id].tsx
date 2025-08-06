@@ -298,7 +298,7 @@ export default function AttendingProfile() {
             <CaseDifficultyWidget averageDifficulty={avgCaseDifficulty} timeRange={timeRange} setTimeRange={setTimeRange} />
         </div>
         <div>
-            <CaseTimeWidget averageTimeDifference={averageTimeDifference} timeRange={timeRange} setTimeRange={setTimeRange} />
+            <CaseTimeWidget averageCaseTime={averageTimeDifference} timeRange={timeRange} setTimeRange={setTimeRange} />
         </div>
       </div>
     </div>
