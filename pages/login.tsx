@@ -1,3 +1,4 @@
+// pages/login.tsx
 import { useState, useEffect, useContext, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { GlassCard, GlassButton, PillToggle } from '../components/ui';
@@ -26,13 +27,12 @@ const LoginPage = () => {
     setAttendings([]);
     setProgramDirectors([]);
 
-    // ✅ **THE FIX: Add a unique timestamp to each request to bypass the browser cache.**
     const cacheBuster = `&_=${new Date().getTime()}`;
 
     try {
       const [resResidents, resAttendings, resProgramDirectors] = await Promise.all([
         fetch(`/api/residents?db=${db}${cacheBuster}`),
-        fetch(`/api/attendings?db=${db}${cacheBuster}`),
+        fetch(`/api/attendings?db=${db}&management=true${cacheBuster}`),
         fetch(`/api/program-directors?db=${db}${cacheBuster}`),
       ]);
 
@@ -49,7 +49,7 @@ const LoginPage = () => {
 
   useEffect(() => {
     fetchProfilesForDb(database);
-  }, [fetchProfilesForDb]);
+  }, [database, fetchProfilesForDb]);
 
   const handleDbChange = (newDb: 'testing' | 'production') => {
     setDatabase(newDb);

@@ -28,7 +28,7 @@ const AttendingManager = () => {
         if (!auth?.database) return;
         setLoading(true);
         try {
-            const res = await fetch(`/api/attendings?db=${auth.database}`);
+            const res = await fetch(`/api/attendings?db=${auth.database}&management=true`);
             if (res.ok) {
                 const data = await res.json();
                 setAttendings(data);
