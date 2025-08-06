@@ -1,5 +1,6 @@
 // components/management/AttendingManager.tsx
 import React, { useState, useEffect, useContext } from 'react';
+import { useRouter } from 'next/router';
 import { AuthContext } from '../../lib/auth';
 import { Attending } from '@prisma/client';
 import ProfileForm, { ProfileFormData } from './ProfileForm';
@@ -21,6 +22,7 @@ const AttendingManager = () => {
     const [formData, setFormData] = useState<ProfileFormData>(initialFormData);
     const [loading, setLoading] = useState(false);
     const auth = useContext(AuthContext);
+    const router = useRouter();
 
     const fetchAttendings = async () => {
         if (!auth?.database) return;
@@ -79,7 +81,13 @@ const AttendingManager = () => {
                 <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-glass pr-2">
                     {attendings.length > 0 ? (
                         attendings.map(attending => (
-                            <GlassCard key={attending.id} variant="subtle" className="p-3">
+                            <GlassCard 
+                                key={attending.id} 
+                                variant="subtle" 
+                                className="p-3 cursor-pointer"
+                                hover
+                                onClick={() => router.push(`/attendings/${attending.id}`)}
+                            >
                                 <div className="flex items-center space-x-4">
                                     <img src={attending.photoUrl || '/images/default-avatar.svg'} alt={attending.name} className="w-10 h-10 rounded-full object-cover" />
                                     <div>

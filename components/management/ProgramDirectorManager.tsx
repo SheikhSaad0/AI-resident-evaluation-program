@@ -1,5 +1,6 @@
 // components/management/ProgramDirectorManager.tsx
 import React, { useState, useEffect, useContext } from 'react';
+import { useRouter } from 'next/router';
 import { AuthContext } from '../../lib/auth';
 import { ProgramDirector } from '@prisma/client';
 import ProfileForm, { ProfileFormData } from './ProfileForm';
@@ -18,6 +19,7 @@ const ProgramDirectorManager = () => {
     const [formData, setFormData] = useState<ProfileFormData>(initialFormData);
     const [loading, setLoading] = useState(false);
     const auth = useContext(AuthContext);
+    const router = useRouter();
 
     const fetchDirectors = async () => {
         if (!auth?.database) return;
@@ -79,7 +81,13 @@ const ProgramDirectorManager = () => {
                 <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-glass pr-2">
                     {directors.length > 0 ? (
                         directors.map(director => (
-                            <GlassCard key={director.id} variant="subtle" className="p-3">
+                            <GlassCard 
+                                key={director.id} 
+                                variant="subtle" 
+                                className="p-3 cursor-pointer"
+                                hover
+                                onClick={() => router.push(`/program-directors/${director.id}`)}
+                            >
                                <div className="flex items-center space-x-4">
                                     <img src={director.photoUrl || '/images/default-avatar.svg'} alt={director.name} className="w-10 h-10 rounded-full object-cover" />
                                     <div>
