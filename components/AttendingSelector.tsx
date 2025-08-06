@@ -36,8 +36,10 @@ const AttendingSelector: React.FC<Props> = ({ supervisors, selectedSupervisor, s
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const placeholderText = disabled ? "Unlock to edit supervisor" : "Select a supervisor";
+
   return (
-    <div ref={containerRef} className="relative z-10">
+    <div ref={containerRef} className="relative z-40">
       <label className="block mb-3 text-sm font-medium text-text-secondary">
         Supervisor
       </label>
@@ -69,7 +71,7 @@ const AttendingSelector: React.FC<Props> = ({ supervisors, selectedSupervisor, s
                   <div className="glassmorphism-subtle p-2 rounded-2xl">
                     <div className="w-8 h-8 bg-glass-300 rounded-full opacity-50" />
                   </div>
-                  <span className="text-text-tertiary">Select a supervisor</span>
+                  <span className="text-text-tertiary">{placeholderText}</span>
                 </>
               )}
             </div>

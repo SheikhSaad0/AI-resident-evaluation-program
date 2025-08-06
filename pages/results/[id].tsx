@@ -103,43 +103,34 @@ const InfoWidget = ({ title, value, icon }: { title: string, value: string | num
 );
 
 // Updated Supervisor Info Component
-const SupervisorInfo = ({ supervisor, onEdit, isEditing }: { supervisor: Supervisor | null, onEdit: () => void, isEditing: boolean }) => {
+const SupervisorInfo = ({ supervisor, onEdit, isEditing, isFinalized }: { supervisor: Supervisor | null, onEdit: () => void, isEditing: boolean, isFinalized: boolean }) => {
     const title = supervisor?.type === 'Program Director' ? 'Program Director' : 'Attending Physician';
 
-    if (!supervisor) {
-        return (
-            <GlassCard variant="subtle" className="p-4 flex items-center justify-between">
+    return (
+        <GlassCard variant="subtle" className="p-4 flex items-center justify-between">
+            {supervisor ? (
+                <div className="flex items-center space-x-3">
+                    <Image
+                        src={supervisor.photoUrl || '/images/default-avatar.svg'}
+                        alt={supervisor.name}
+                        width={40}
+                        height={40}
+                        className="rounded-full object-cover w-10 h-10"
+                    />
+                    <div>
+                        <p className="text-sm text-text-quaternary">{title}</p>
+                        <p className="font-semibold text-text-primary">{supervisor.name}</p>
+                    </div>
+                </div>
+            ) : (
                 <div>
                     <p className="text-sm text-text-quaternary">Supervisor</p>
                     <p className="font-medium text-text-tertiary">Not Assigned</p>
                 </div>
-                {!isEditing && (
-                    <GlassButton size="sm" variant="secondary" onClick={onEdit}>
-                        Assign Supervisor
-                    </GlassButton>
-                )}
-            </GlassCard>
-        )
-    }
-
-    return (
-        <GlassCard variant="subtle" className="p-4 flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-                <Image
-                    src={supervisor.photoUrl || '/images/default-avatar.svg'}
-                    alt={supervisor.name}
-                    width={40}
-                    height={40}
-                    className="rounded-full object-cover w-10 h-10"
-                />
-                <div>
-                    <p className="text-sm text-text-quaternary">{title}</p>
-                    <p className="font-semibold text-text-primary">{supervisor.name}</p>
-                </div>
-            </div>
-             {!isEditing && (
+            )}
+            {!isFinalized && !isEditing && (
                 <GlassButton size="sm" variant="secondary" onClick={onEdit}>
-                    Edit
+                    {supervisor ? 'Edit' : 'Assign Supervisor'}
                 </GlassButton>
             )}
         </GlassCard>
@@ -401,7 +392,6 @@ const EditTab = ({
         <GlassCard variant="strong" className="p-6">
             <h3 className="heading-md mb-6">Case Supervisor</h3>
             <div className="space-y-4">
-                {/* THIS IS THE FIX: Pass the correct props to the selector */}
                 <AttendingSelector
                     supervisors={supervisors}
                     selectedSupervisor={selectedSupervisor}
@@ -701,6 +691,7 @@ export default function RevampedResultsPage() {
                     supervisor={currentSupervisor}
                     onEdit={() => setActiveTab('edit')}
                     isEditing={activeTab === 'edit'}
+                    isFinalized={isFinalizedAndLocked}
                 />
 
                 {editedEvaluation && config ? (
