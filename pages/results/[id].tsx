@@ -523,12 +523,94 @@ export default function RevampedResultsPage() {
     }, [evaluation]);
 
     // --- Handlers ---
-    const handleSaveSupervisor = async () => { /* ... Your existing code ... */ };
-    const handleFinalize = async () => { /* ... Your existing code ... */ };
-    const handleEdit = async () => { /* ... Your existing code ... */ };
-    const handleDelete = async () => { /* ... Your existing code ... */ };
-    const handleEvaluationChange = (stepKey: string, field: string, value: string | number | undefined) => { /* ... Your existing code ... */ };
-    const handleOverallChange = (field: string, value: string | number | undefined) => { /* ... Your existing code ... */ };
+    const handleSaveSupervisor = async () => {
+        if (!id || !editedEvaluation) return;
+
+        const supervisor = selectedSupervisor;
+        const supervisorId = supervisor ? supervisor.id : null;
+
+        try {
+            console.log(`Saving supervisor... ID: ${supervisorId}, Type: ${supervisor?.type}`);
+            await apiFetch(`/api/evaluations/${id}`, {
+                method: 'PUT',
+                body: {
+                    attendingId: supervisorId,
+                    attendingType: supervisor ? supervisor.type : null,
+                },
+            });
+
+            // Optimistically update local state
+            const updatedEval = { 
+                ...editedEvaluation,
+                attending: supervisor?.type === 'Attending' ? supervisor : null,
+                programDirector: supervisor?.type === 'Program Director' ? supervisor : null,
+            };
+            setEditedEvaluation(updatedEval);
+            setEvaluation(updatedEval);
+
+            console.log('Supervisor updated successfully!');
+            // You can add a toast notification here for better UX
+        } catch (error) {
+            console.error('Failed to save supervisor:', error);
+            // Revert UI on error
+            setEditedEvaluation(evaluation); 
+        }
+    };
+
+    const handleFinalize = async () => {
+        if (!editedEvaluation || !id) return;
+        const finalEvaluation = { ...editedEvaluation, isFinalized: true };
+        try {
+          await apiFetch(`/api/evaluations/${id}`, { method: 'PUT', body: { updatedEvaluation: finalEvaluation } });
+          setEvaluation(finalEvaluation);
+          setEditedEvaluation(finalEvaluation);
+        } catch (error) {
+          console.error(`Finalization error:`, error);
+        }
+    };
+
+    const handleEdit = async () => {
+        if (!editedEvaluation || !id) return;
+        const confirmation = window.confirm('Are you sure you want to unlock this evaluation?');
+        if (!confirmation) return;
+        
+        const unlockedEvaluation = { ...editedEvaluation, isFinalized: false };
+        try {
+            await apiFetch(`/api/evaluations/${id}`, { method: 'PUT', body: { updatedEvaluation: unlockedEvaluation } });
+            setEvaluation(unlockedEvaluation);
+            setEditedEvaluation(unlockedEvaluation);
+        } catch (error) {
+            console.error(`Unlocking error:`, error);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!id) return;
+        const confirmation = window.confirm('Are you sure you want to delete this evaluation? This action cannot be undone.');
+        if (!confirmation) return;
+
+        try {
+          await apiFetch(`/api/evaluations/${id}`, { method: 'DELETE' });
+          router.push('/evaluations');
+        } catch (error) {
+          console.error(`Deletion error:`, error);
+        }
+    };
+
+    
+    const handleEvaluationChange = (stepKey: string, field: string, value: string | number | undefined) => { 
+        setEditedEvaluation(prev => {
+            if (!prev) return null;
+            const currentStep = prev[stepKey] as EvaluationStep | undefined;
+            const stepToUpdate = (typeof currentStep === 'object' && currentStep !== null) ? currentStep : { score: 0, time: 'N/A', comments: 'N/A' };
+            const updatedStep = { ...stepToUpdate, [field]: value };
+            return { ...prev, [stepKey]: updatedStep };
+        });
+    };
+
+    const handleOverallChange = (field: string, value: string | number | undefined) => {
+        if (editedEvaluation) setEditedEvaluation({ ...editedEvaluation, [field]: value });
+    };
 
     const currentSupervisor = useMemo(() => evaluation?.attending || evaluation?.programDirector || null, [evaluation]);
 
