@@ -7,6 +7,9 @@ interface UserProfile {
   name: string;
   photoUrl?: string | null;
   type: 'resident' | 'attending' | 'programDirector';
+  // FIX: Add title and year to the user profile interface
+  title?: string | null;
+  year?: string | null;
 }
 
 interface AuthContextType {

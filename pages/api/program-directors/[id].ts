@@ -25,13 +25,26 @@ export default async function handler(
     }
   } else if (req.method === 'PUT') {
     try {
+      // Destructure the expected fields from the request body
+      const { name, email, title, primaryInstitution, specialty, photoUrl } = req.body;
       const updatedDirector = await prisma.programDirector.update({
         where: { id: directorId },
-        data: req.body,
+        data: {
+          name,
+          email,
+          title,
+          primaryInstitution,
+          specialty,
+          photoUrl,
+        },
       });
       res.status(200).json(updatedDirector);
     } catch (error) {
       console.error(`Failed to update program director ${directorId}:`, error);
+      // Provide a more specific error message if it's a validation error
+      if ((error as any).code === 'P2025') {
+        return res.status(404).json({ message: `Program director with ID ${directorId} not found.` });
+      }
       res.status(500).json({ message: 'Failed to update program director' });
     }
   } else {

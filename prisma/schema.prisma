@@ -52,6 +52,7 @@ model Resident {
 model Attending {
   id                 String  @id @default(cuid())
   name               String
+  email              String? // Added email field
   title              String
   primaryInstitution String
   specialty          String
@@ -65,6 +66,7 @@ model Attending {
 model ProgramDirector {
   id                 String @id @default(cuid())
   name               String
+  email              String? // Added email field
   title              String
   primaryInstitution String
   specialty          String
