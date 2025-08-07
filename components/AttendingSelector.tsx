@@ -1,9 +1,7 @@
-// components/AttendingSelector.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { GlassCard } from './ui';
 
-// The component now uses the generic 'Supervisor' type
 export interface Supervisor {
   id: string;
   name: string;
@@ -13,7 +11,6 @@ export interface Supervisor {
 }
 
 interface Props {
-  // Props are renamed for clarity and use the correct type
   supervisors: Supervisor[];
   selectedSupervisor: Supervisor | null;
   setSelectedSupervisor: (supervisor: Supervisor | null) => void;
@@ -37,14 +34,13 @@ const AttendingSelector: React.FC<Props> = ({ supervisors, selectedSupervisor, s
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const placeholderText = disabled ? "Unlock to edit supervisor" : "Select a supervisor";
+  const placeholderText = disabled ? "Unlock to edit supervisor" : "Filter by Supervisor";
 
   return (
     <div ref={containerRef} className="relative z-40">
       <label className="block mb-3 text-sm font-medium text-text-secondary">
         Filter by Supervisor
       </label>
-
       <div className="relative">
         <GlassCard
           variant="subtle"
@@ -76,7 +72,22 @@ const AttendingSelector: React.FC<Props> = ({ supervisors, selectedSupervisor, s
                 </>
               )}
             </div>
-            {!disabled && (
+            {/* If a supervisor is selected, show a clear button ('x') */}
+            {selectedSupervisor && !disabled ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevents the dropdown from opening
+                  setSelectedSupervisor(null);
+                  setIsExpanded(false);
+                }}
+                className="p-1 rounded-full hover:bg-glass-200 transition-colors"
+                aria-label="Clear supervisor filter"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" className="text-text-tertiary">
+                  <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+                </svg>
+              </button>
+            ) : !disabled && (
               <Image
                 src="/images/arrow-right-icon.svg"
                 alt="Expand"
@@ -92,9 +103,19 @@ const AttendingSelector: React.FC<Props> = ({ supervisors, selectedSupervisor, s
           <div className="absolute top-full left-0 right-0 z-[9999] mt-2">
             <GlassCard variant="strong" className="p-2 max-h-64 overflow-y-auto scrollbar-glass dropdown-background">
               <div className="space-y-1">
+                {/* Add an "All Supervisors" option to clear the filter */}
+                <div
+                  className="p-3 rounded-2xl cursor-pointer transition-all duration-200 hover:bg-glass-200"
+                  onClick={() => {
+                    setSelectedSupervisor(null);
+                    setIsExpanded(false);
+                  }}
+                >
+                  <p className="font-medium text-text-primary text-sm">All Supervisors</p>
+                </div>
                 {sortedSupervisors.map((supervisor) => (
                   <div
-                    key={supervisor.id}
+                    key={`${supervisor.type}-${supervisor.id}`}
                     className="p-3 rounded-2xl cursor-pointer transition-all duration-200 hover:bg-glass-200"
                     onClick={() => {
                       setSelectedSupervisor(supervisor);
@@ -111,7 +132,7 @@ const AttendingSelector: React.FC<Props> = ({ supervisors, selectedSupervisor, s
                       />
                       <div>
                         <p className="font-medium text-text-primary text-sm">{supervisor.name}</p>
-                         <p className="text-xs text-text-quaternary">{supervisor.type}</p>
+                        <p className="text-xs text-text-quaternary">{supervisor.type}</p>
                       </div>
                     </div>
                   </div>
