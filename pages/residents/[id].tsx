@@ -118,35 +118,71 @@ export default function ResidentProfile() {
             const finalizedEvals = evalsData.filter((e: Evaluation) => e.isFinalized && e.score !== undefined);
             const avgScore = finalizedEvals.length > 0 ? finalizedEvals.reduce((acc: number, e: Evaluation) => acc + (e.score || 0), 0) / finalizedEvals.length : 0;
 
-            let totalCaseTime = 0;
+            // --- DEBUGGING CALCULATION ---
+            console.log("Starting case time calculation for resident:", id);
+            console.log("Finalized evaluations to process:", finalizedEvals);
+
+            let totalDifference = 0;
             let caseCount = 0;
-            finalizedEvals.forEach((e: Evaluation) => {
+            finalizedEvals.forEach((e: Evaluation, index: number) => {
+                console.log(`\n--- Processing Eval #${index + 1} (ID: ${e.id}) ---`);
+                console.log("Evaluation data:", e);
+
                 const procedureId = Object.keys(EVALUATION_CONFIGS).find(key => EVALUATION_CONFIGS[key].name === e.surgery);
+                
                 if (procedureId && e.result) {
+                    console.log("Found procedure config and result object.");
                     const config = EVALUATION_CONFIGS[procedureId];
+                    
+                    const caseDifficulty = e.result?.attendingCaseDifficulty ?? e.result?.caseDifficulty ?? 1;
+                    const difficultyMultiplier: { [key: number]: number } = { 1: 0.75, 2: 0.85, 3: 1 };
+                    const totalEstimatedTime = config.procedureSteps.reduce((acc, step) => acc + (step.estimatedTime || 0), 0);
+                    const scheduledTime = (totalEstimatedTime * (difficultyMultiplier[caseDifficulty] || 1)) + 10;
+                    console.log(`Scheduled Time: ${scheduledTime.toFixed(2)} mins (Estimated: ${totalEstimatedTime}, Difficulty: ${caseDifficulty})`);
+
+
                     let actualTime = e.audioDuration ? e.audioDuration / 60 : 0;
+                    console.log(`Actual time from audioDuration: ${actualTime.toFixed(2)} mins`);
+
                     if (actualTime === 0) {
+                        console.log("audioDuration is zero, falling back to step times.");
                         config.procedureSteps.forEach(step => {
                             const stepData = e.result[step.key];
                             if (stepData && stepData.time) {
-                                actualTime += parseTimeToMinutes(stepData.time);
+                                const stepMinutes = parseTimeToMinutes(stepData.time);
+                                actualTime += stepMinutes;
+                                console.log(`  - Step '${step.key}': ${stepData.time} (${stepMinutes.toFixed(2)} mins) -> Total actualTime now: ${actualTime.toFixed(2)}`);
                             }
                         });
                     }
+
+                    console.log(`Final Actual Time: ${actualTime.toFixed(2)} mins`);
+
                     if (actualTime > 0) {
-                        totalCaseTime += actualTime;
+                        totalDifference += actualTime - scheduledTime;
                         caseCount++;
+                        console.log("SUCCESS: Actual time is > 0. Incrementing caseCount. New count:", caseCount);
+                    } else {
+                        console.log("SKIPPING: Actual time is 0, not counting this evaluation.");
                     }
+
+                } else {
+                    console.log("SKIPPING: Evaluation is missing procedureId or result object.");
                 }
             });
-            const averageCaseTime = caseCount > 0 ? totalCaseTime / caseCount : 0;
+
+            const averageCaseTimeDifference = caseCount > 0 ? totalDifference / caseCount : 0;
+            console.log("\n--- Final Calculation ---");
+            console.log("Total Cases Counted:", caseCount);
+            console.log("Average Case Time Difference:", averageCaseTimeDifference.toFixed(2));
+            // --- END DEBUGGING ---
 
             setStats({
               totalEvaluations: evalsData.length,
               avgScore: avgScore,
               completedEvaluations: finalizedEvals.length,
-              improvement: 0, // Mock improvement percentage for now
-              averageCaseTime: averageCaseTime,
+              improvement: 0, 
+              averageCaseTime: averageCaseTimeDifference,
             });
 
         } catch (error) {
@@ -156,6 +192,7 @@ export default function ResidentProfile() {
             setLoading(false);
         }
     };
+
 
     fetchResidentData();
   }, [id, apiFetch]);

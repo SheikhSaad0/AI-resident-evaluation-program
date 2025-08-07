@@ -1,3 +1,5 @@
+// pages/api/residents/[id]/evaluations.ts
+
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getPrismaClient } from '../../../../lib/prisma';
 
@@ -27,7 +29,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             let score = undefined;
             let isFinalized = false;
 
-            // Check if job.result is a string and parse it, otherwise use it as is.
             let resultData: any;
             if (job.result && typeof job.result === 'string') {
                 try {
@@ -65,7 +66,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 score: score,
                 status: job.status,
                 type: job.withVideo ? 'video' : 'audio',
-                isFinalized: isFinalized
+                isFinalized: isFinalized,
+                audioDuration: job.audioDuration,
+                result: resultData // <-- ADD THIS LINE
             };
         });
 

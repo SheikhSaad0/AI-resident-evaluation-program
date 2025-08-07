@@ -4,7 +4,6 @@ export interface ProcedureStepConfig {
   key: string;
   name: string;
   time?: string; 
-  // FIX: This property is required for time calculations.
   estimatedTime?: number; 
 }
 
