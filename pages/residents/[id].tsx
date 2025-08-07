@@ -2,10 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
-import { GlassCard, GlassButton, PerformanceChart, StatCard, GlassInput, ImageUpload, CaseTimeWidget } from '../../components/ui';
+import { GlassCard, GlassButton, PerformanceChart, StatCard, GlassInput, ImageUpload, CaseTimeWidget, ImprovementWidget } from '../../components/ui';
 import { useApi } from '../../lib/useApi';
 import { EVALUATION_CONFIGS } from '../../lib/evaluation-configs';
 
+// --- TYPE DEFINITIONS ---
 interface Resident {
   id: string;
   name: string;
@@ -36,6 +37,19 @@ interface EditResidentModalProps {
     onClose: () => void;
     onSave: (resident: Resident) => Promise<void>;
 }
+
+// Interfaces for our new calculation to solve TS errors
+interface RecentEvalData {
+    date: number;
+    score: number;
+    difficulty: number;
+}
+
+interface WeightedScoreData {
+    x: number; // date as timestamp
+    y: number; // weighted score
+}
+
 
 // Helper function to parse time strings like "X minutes Y seconds" into total minutes
 const parseTimeToMinutes = (timeStr: string) => {
@@ -129,11 +143,11 @@ export default function ResidentProfile() {
                 console.log("Evaluation data:", e);
 
                 const procedureId = Object.keys(EVALUATION_CONFIGS).find(key => EVALUATION_CONFIGS[key].name === e.surgery);
-                
+
                 if (procedureId && e.result) {
                     console.log("Found procedure config and result object.");
                     const config = EVALUATION_CONFIGS[procedureId];
-                    
+
                     const caseDifficulty = e.result?.attendingCaseDifficulty ?? e.result?.caseDifficulty ?? 1;
                     const difficultyMultiplier: { [key: number]: number } = { 1: 0.75, 2: 0.85, 3: 1 };
                     const totalEstimatedTime = config.procedureSteps.reduce((acc, step) => acc + (step.estimatedTime || 0), 0);
@@ -177,11 +191,62 @@ export default function ResidentProfile() {
             console.log("Average Case Time Difference:", averageCaseTimeDifference.toFixed(2));
             // --- END DEBUGGING ---
 
+            // --- NEW IMPROVEMENT CALCULATION ---
+            const twoWeeksAgo = new Date();
+            twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+            const recentEvals: RecentEvalData[] = finalizedEvals
+                .filter((e: Evaluation) => new Date(e.date) >= twoWeeksAgo)
+                .map((e: Evaluation) => ({
+                    date: new Date(e.date).getTime(),
+                    score: e.score || 0,
+                    difficulty: e.result?.attendingCaseDifficulty || e.result?.caseDifficulty || 2,
+                }))
+                .sort((a: RecentEvalData, b: RecentEvalData) => a.date - b.date); // FIX: Add types for sort
+
+            let improvement = 0;
+            if (recentEvals.length > 1) {
+                const difficultyMultiplier: { [key: number]: number } = { 1: 0.8, 2: 1.0, 3: 1.2 };
+
+                const weightedScores: WeightedScoreData[] = recentEvals.map((e: RecentEvalData) => ({ // FIX: Add type for map
+                    x: e.date,
+                    y: e.score * (difficultyMultiplier[e.difficulty] || 1),
+                }));
+
+                // Simple linear regression
+                let sx = 0, sy = 0, sxy = 0, sxx = 0;
+                const n = weightedScores.length;
+                weightedScores.forEach(({ x, y }: WeightedScoreData) => { // FIX: Add type for forEach
+                    sx += x;
+                    sy += y;
+                    sxy += x * y;
+                    sxx += x * x;
+                });
+
+                const slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+                
+                if (!isNaN(slope)) {
+                    const firstDate = weightedScores[0].x;
+                    const lastDate = weightedScores[n - 1].x;
+                    const timeDiff = lastDate - firstDate;
+
+                    if (timeDiff > 0) {
+                        const predictedChange = slope * timeDiff;
+                        // FIX: Add types for reduce
+                        const avgWeightedScore = weightedScores.reduce((acc: number, p: WeightedScoreData) => acc + p.y, 0) / n;
+                        if (avgWeightedScore > 0) {
+                            improvement = (predictedChange / avgWeightedScore) * 100;
+                        }
+                    }
+                }
+            }
+            // --- END IMPROVEMENT CALCULATION ---
+
             setStats({
               totalEvaluations: evalsData.length,
               avgScore: avgScore,
               completedEvaluations: finalizedEvals.length,
-              improvement: 0, 
+              improvement: improvement, 
               averageCaseTime: averageCaseTimeDifference,
             });
 
@@ -304,11 +369,11 @@ export default function ResidentProfile() {
           </div>
         </div>
       </GlassCard>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard title="Total Evaluations" value={stats.totalEvaluations} icon="/images/eval-count-icon.svg" />
         <StatCard title="Average Score" value={`${stats.avgScore.toFixed(1)}/5.0`} icon="/images/avg-score-icon.svg" />
         <StatCard title="Finalized Evals" value={stats.completedEvaluations} icon="/images/eval-count-icon.svg" />
-        <StatCard title="Improvement" value={`+${stats.improvement}%`} icon="/images/improve-icon.svg" />
+        <ImprovementWidget improvement={stats.improvement} />
       </div>
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-2">
