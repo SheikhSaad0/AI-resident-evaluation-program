@@ -223,7 +223,8 @@ const LeftSidebar = ({ evaluation }: { evaluation?: EvaluationData | null }) => 
             <div className="relative w-56 h-56 my-6">
                 <Image src={getSurgeryIcon(surgery || '')} alt={surgery || 'Loading'} layout="fill" objectFit="contain"/>
             </div>
-            <div className="grid grid-cols-2 gap-4 mt-6 w-full max-w-sm">
+            {/* FIX: Changed grid-cols-2 to grid-cols-1 to create a vertical 1x4 layout */}
+            <div className="grid grid-cols-1 gap-4 mt-6 w-full max-w-sm">
                 {displayScore !== undefined && (
                     <InfoWidget title="Overall Score" value={`${displayScore.toFixed(1)}/5`} icon="/images/eval-image.svg" />
                 )}
@@ -231,7 +232,7 @@ const LeftSidebar = ({ evaluation }: { evaluation?: EvaluationData | null }) => 
                     <InfoWidget title="Case Difficulty" value={`${caseDifficulty}/3`} icon="/images/difficulty-icon.svg" />
                 )}
                 {scheduledTime > 0 && (
-                    <TimeWidget title="Scheduled Time" value={`${scheduledTime.toFixed(0)} min`} icon="/images/clock-image.svg" />
+                    <TimeWidget title="Estimated Scheduled Case Time" value={`${scheduledTime.toFixed(0)} min`} icon="/images/clock-image.svg" />
                 )}
                 {totalCaseTime !== 'N/A' && (
                      <TimeWidget title="Total Case Time" value={`${totalCaseTime} min`} icon="/images/total-time.svg" />
