@@ -13,11 +13,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.log('[Evaluations API] Fetching evaluations using job.findMany()');
         
         try {
-            // Using job.findMany() to get all evaluations data
-            // Note: We use Job model instead of Evaluation model for compatibility
+            // The fix is to include the 'attending' and 'programDirector' relations
+            // in the Prisma query. This makes their data available in the 'job' object.
             const jobs = await prisma.job.findMany({
                 orderBy: { createdAt: 'desc' },
-                include: { resident: true },
+                include: { 
+                    resident: true,
+                    attending: true,        // <-- ADDED
+                    programDirector: true,  // <-- ADDED
+                },
             });
 
             console.log(`[Evaluations API] Successfully fetched ${jobs.length} jobs`);
@@ -52,12 +56,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     }
                 }
 
+                // The second part of the fix is to add the supervisor IDs
+                // to the returned object, making them available to the front end.
                 return {
                     id: job.id,
                     surgery: job.surgeryName,
                     date: new Date(job.createdAt).toLocaleString(),
                     residentName: job.resident?.name,
                     residentId: job.residentId,
+                    attendingId: job.attendingId,            // <-- ADDED
+                    programDirectorId: job.programDirectorId,  // <-- ADDED
                     score: score,
                     status: job.status,
                     type: job.withVideo ? 'video' : 'audio',
@@ -71,12 +79,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             res.status(200).json(evaluations);
         } catch (error) {
             console.error("[Evaluations API] Error fetching evaluations:", error);
-            console.error("[Evaluations API] Error details:", {
-                
-            });
             res.status(500).json({ 
                 error: 'Failed to fetch evaluations',
-            
             });
         }
     } else {

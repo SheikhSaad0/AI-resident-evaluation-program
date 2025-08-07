@@ -285,7 +285,7 @@ export default function AttendingProfile() {
       </GlassCard>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <StatCard title="Total Evaluations" value={totalEvaluations} icon="/images/eval-count-icon.svg" />
+          <StatCard title="Total Evaluations" value={totalEvaluations} icon="/images/eval-count-icon.svg" onClick={() => router.push(`/evaluations?attendingId=${id}`)} />
           <StatCard title="Average Score" value={`${avgScore.toFixed(1)}/5.0`} icon="/images/avg-score-icon.svg" />
       </div>
 

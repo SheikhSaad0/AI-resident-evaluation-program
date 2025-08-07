@@ -1,3 +1,4 @@
+// components/AttendingSelector.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { GlassCard } from './ui';
@@ -41,7 +42,7 @@ const AttendingSelector: React.FC<Props> = ({ supervisors, selectedSupervisor, s
   return (
     <div ref={containerRef} className="relative z-40">
       <label className="block mb-3 text-sm font-medium text-text-secondary">
-        Supervisor
+        Filter by Supervisor
       </label>
 
       <div className="relative">

@@ -27,12 +27,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
             const formattedAttendings = attendings.map(attending => ({
                 ...attending,
-                type: 'Attending'
+                type: 'Attending' as const
             }));
 
             const formattedProgramDirectors = programDirectors.map(pd => ({
                 ...pd,
-                type: 'Program Director'
+                type: 'Program Director' as const
             }));
 
             const supervisors = [...formattedAttendings, ...formattedProgramDirectors];

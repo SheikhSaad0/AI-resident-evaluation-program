@@ -1,17 +1,21 @@
-// pages/evaluations.tsx
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { GlassCard, GlassButton, GlassInput, GlassSelect } from '../components/ui';
 import ResidentSelector from '../components/ResidentSelector';
+import AttendingSelector, { Supervisor } from '../components/AttendingSelector';
 import { useApi } from '../lib/useApi';
 
+// The Evaluation interface is updated to include the supervisor IDs.
+// This is the key fix for the filtering issue.
 interface Evaluation {
   id: string;
   surgery: string;
   date: string;
   residentId?: string;
   residentName?: string;
+  attendingId?: string | null; // <-- ADDED
+  programDirectorId?: string | null; // <-- ADDED
   score?: number;
   type: 'video' | 'audio';
   status: string;
@@ -29,28 +33,43 @@ interface Resident {
 export default function Evaluations() {
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [residents, setResidents] = useState<Resident[]>([]);
+  const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
   const [filteredEvaluations, setFilteredEvaluations] = useState<Evaluation[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const router = useRouter();
-  const { status: statusFromQuery } = router.query;
+  const { status: statusFromQuery, attendingId, programDirectorId } = router.query;
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
+  const [selectedSupervisor, setSelectedSupervisor] = useState<Supervisor | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedEvaluations, setSelectedEvaluations] = useState<string[]>([]);
   const { apiFetch } = useApi();
 
-  const fetchEvaluations = async () => {
+  // This function now fetches evaluations, residents, and supervisors (attendings/PDs)
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const [evalsData, residentsData] = await Promise.all([
+      const [evalsData, residentsData, supervisorsData] = await Promise.all([
         apiFetch('/api/evaluations'),
         apiFetch('/api/residents'),
+        apiFetch('/api/attendings'), // This API now correctly returns all supervisors
       ]);
 
       const filteredData = evalsData.filter((e: { id: string; }) => !['cmcv3j0zk0001onk7im7zzcvf', 'cmcv3b0x70003on8x81k8nbr4', 'cmculodur0001on12vsinf5gu'].includes(e.id));
       setEvaluations(filteredData);
       setResidents(residentsData);
+      setSupervisors(supervisorsData);
+
+      // Pre-selects the supervisor from the URL query parameters
+      if (attendingId) {
+        const supervisor = supervisorsData.find((s: Supervisor) => s.id === attendingId && s.type === 'Attending');
+        if (supervisor) setSelectedSupervisor(supervisor);
+      } else if (programDirectorId) {
+        const supervisor = supervisorsData.find((s: Supervisor) => s.id === programDirectorId && s.type === 'Program Director');
+        if (supervisor) setSelectedSupervisor(supervisor);
+      }
+
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -65,21 +84,25 @@ export default function Evaluations() {
   }, [statusFromQuery]);
 
   useEffect(() => {
-    fetchEvaluations();
+    fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [attendingId, programDirectorId]);
 
+  // This useEffect handles all filtering logic whenever a dependency changes.
   useEffect(() => {
     let filtered = evaluations;
+
     if (searchTerm) {
       filtered = filtered.filter(e =>
         e.surgery.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (e.residentName && e.residentName.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
+
     if (filterType !== 'all') {
         filtered = filtered.filter(e => (filterType === 'video' ? e.videoAnalysis : !e.videoAnalysis));
     }
+
     if (filterStatus !== 'all') {
       filtered = filtered.filter(e => {
         if (filterStatus === 'finalized') return e.isFinalized;
@@ -88,11 +111,23 @@ export default function Evaluations() {
         return e.status === filterStatus;
       });
     }
+
     if (selectedResident) {
       filtered = filtered.filter(e => e.residentId === selectedResident.id);
     }
+
+    // Correct filtering logic for supervisors. This now works because the
+    // Evaluation interface has the necessary properties.
+    if (selectedSupervisor) {
+        if (selectedSupervisor.type === 'Attending') {
+            filtered = filtered.filter(e => e.attendingId === selectedSupervisor.id);
+        } else if (selectedSupervisor.type === 'Program Director') {
+            filtered = filtered.filter(e => e.programDirectorId === selectedSupervisor.id);
+        }
+    }
+
     setFilteredEvaluations(filtered);
-  }, [evaluations, searchTerm, filterType, filterStatus, selectedResident]);
+  }, [evaluations, searchTerm, filterType, filterStatus, selectedResident, selectedSupervisor]);
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSelectedEvaluations(e.target.checked ? filteredEvaluations.map(ev => ev.id) : []);
@@ -111,14 +146,12 @@ export default function Evaluations() {
     try {
       await apiFetch('/api/evaluations/delete-many', {
         method: 'DELETE',
-        body: { ids: selectedEvaluations }, // This is now correct
+        body: { ids: selectedEvaluations },
       });
       setEvaluations(prev => prev.filter(ev => !selectedEvaluations.includes(ev.id)));
       setSelectedEvaluations([]);
-      alert(`Successfully deleted ${selectedEvaluations.length} evaluation(s).`);
     } catch (error) {
       console.error('Failed to delete evaluations', error);
-      alert(`Failed to delete selected evaluations: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -144,15 +177,17 @@ export default function Evaluations() {
         <p className="text-text-tertiary text-lg">Comprehensive view of all surgical assessments and their progress</p>
       </div>
 
-      {/* The fix is applied here by adding `relative z-10` to the className */}
       <GlassCard variant="strong" className="p-4 md:p-6 relative z-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
           <div>
             <label className="block mb-2 text-sm font-medium text-text-secondary">Search Evaluations</label>
-            <GlassInput type="text" placeholder="Search by surgery or resident..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <GlassInput type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          </div>
+          <div className="relative z-50">
+            <ResidentSelector residents={residents} selected={selectedResident} setSelected={setSelectedResident} />
           </div>
           <div className="relative z-40">
-            <ResidentSelector residents={residents} selected={selectedResident} setSelected={setSelectedResident} />
+            <AttendingSelector supervisors={supervisors} selectedSupervisor={selectedSupervisor} setSelectedSupervisor={setSelectedSupervisor} />
           </div>
           <div className="relative z-30">
             <label className="block mb-2 text-sm font-medium text-text-secondary">Filter by Type</label>
@@ -183,7 +218,7 @@ export default function Evaluations() {
                 Delete ({selectedEvaluations.length})
               </GlassButton>
             )}
-            <GlassButton variant="ghost" onClick={fetchEvaluations} disabled={loading}>
+            <GlassButton variant="ghost" onClick={fetchData} disabled={loading}>
               Refresh
             </GlassButton>
             <GlassButton variant="primary" onClick={() => router.push('/')}>New Evaluation</GlassButton>
@@ -207,7 +242,6 @@ export default function Evaluations() {
                       aria-label={`Select evaluation for ${evaluation.surgery}`}
                     />
                     <div className="flex-1 min-w-0">
-                      {/* --- Desktop Layout --- */}
                       <div className="hidden md:flex items-center justify-between gap-4">
                         <div className="flex items-center space-x-4 flex-1 min-w-0 cursor-pointer" onClick={() => router.push(`/results/${evaluation.id}`)}>
                           <Image src={resident?.photoUrl || '/images/default-avatar.svg'} alt={evaluation.residentName || 'Resident'} width={48} height={48} className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
@@ -227,7 +261,6 @@ export default function Evaluations() {
                         </div>
                       </div>
 
-                      {/* --- Mobile Layout --- */}
                       <div className="md:hidden flex flex-col" onClick={() => router.push(`/results/${evaluation.id}`)}>
                         <div className="flex items-center space-x-4 mb-3">
                           <Image src={resident?.photoUrl || '/images/default-avatar.svg'} alt={evaluation.residentName || 'Resident'} width={40} height={40} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
@@ -260,7 +293,7 @@ export default function Evaluations() {
             <div className="text-center py-16">
               <div className="glassmorphism-subtle p-8 rounded-3xl w-fit mx-auto mb-6"><Image src="/images/dashboard-icon.svg" alt="No evaluations" width={48} height={48} className="opacity-50" /></div>
               <h3 className="heading-sm mb-2">No evaluations found</h3>
-              <p className="text-text-tertiary mb-6">{searchTerm || filterType !== 'all' || filterStatus !== 'all' ? 'Try adjusting your filters to see more results' : 'Start your first evaluation to see results here'}</p>
+              <p className="text-text-tertiary mb-6">{searchTerm || filterType !== 'all' || filterStatus !== 'all' || selectedResident || selectedSupervisor ? 'Try adjusting your filters to see more results' : 'Start your first evaluation to see results here'}</p>
               <GlassButton variant="primary" onClick={() => router.push('/')}>Create New Evaluation</GlassButton>
             </div>
           )}
