@@ -151,7 +151,7 @@ export default function ResidentProfile() {
                     const caseDifficulty = e.result?.attendingCaseDifficulty ?? e.result?.caseDifficulty ?? 1;
                     const difficultyMultiplier: { [key: number]: number } = { 1: 0.75, 2: 0.85, 3: 1 };
                     const totalEstimatedTime = config.procedureSteps.reduce((acc, step) => acc + (step.estimatedTime || 0), 0);
-                    const scheduledTime = (totalEstimatedTime * (difficultyMultiplier[caseDifficulty] || 1)) + 10;
+                    const scheduledTime = (totalEstimatedTime * (difficultyMultiplier[caseDifficulty] || 1)) + 20;
                     console.log(`Scheduled Time: ${scheduledTime.toFixed(2)} mins (Estimated: ${totalEstimatedTime}, Difficulty: ${caseDifficulty})`);
 
 

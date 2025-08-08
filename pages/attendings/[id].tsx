@@ -145,13 +145,13 @@ export default function AttendingProfile() {
         if (procedureId && e.result) {
             const config = EVALUATION_CONFIGS[procedureId];
             
-            // Calculate scheduled time
+            // Calculate scheduled time with the new +20 logic
             const caseDifficulty = e.result?.attendingCaseDifficulty ?? e.result?.caseDifficulty ?? 1;
             const difficultyMultiplier: { [key: number]: number } = { 1: 0.75, 2: 0.85, 3: 1 };
             const totalEstimatedTime = config.procedureSteps.reduce((acc, step) => acc + (step.estimatedTime || 0), 0);
-            const scheduledTime = (totalEstimatedTime * (difficultyMultiplier[caseDifficulty] || 1)) + 10;
+            const scheduledTime = (totalEstimatedTime * (difficultyMultiplier[caseDifficulty] || 1)) + 20;
 
-            // Calculate actual time
+            // Calculate actual time from audioDuration if available, otherwise sum step times
             let actualTime = e.result?.audioDuration ? e.result.audioDuration / 60 : 0;
             if (!actualTime) {
                 actualTime = config.procedureSteps.reduce((acc, step) => {

@@ -207,7 +207,7 @@ const LeftSidebar = ({ evaluation }: { evaluation?: EvaluationData | null }) => 
         const difficultyMultiplier: { [key: number]: number } = { 1: 0.75, 2: 0.85, 3: 1 };
         const totalEstimatedTime = config.procedureSteps.reduce((acc, step) => acc + (step.estimatedTime || 0), 0);
         const multiplier = difficultyMultiplier[caseDifficulty] || 1;
-        const finalTime = (totalEstimatedTime * multiplier) + 10;
+        const finalTime = (totalEstimatedTime * multiplier) + 20;
 
         console.log(`[DEBUG] CALC Scheduled Time: ${finalTime} (Base: ${totalEstimatedTime}, Multiplier: ${multiplier})`);
         return finalTime;
