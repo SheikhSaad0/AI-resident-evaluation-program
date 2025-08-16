@@ -257,7 +257,7 @@ const ChatPage = () => {
           </div>
           {messages.map((msg, index) => (
             <div key={index} className={`flex items-start gap-4 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-              {msg.sender === 'gemini' && <Image src="/images/logo.svg" alt="Veritas" width={40} height={40} className="rounded-full mt-1 flex-shrink-0" />}
+              {msg.sender === 'gemini' && <Image src="/images/logo.png" alt="Veritas" width={40} height={40} className="rounded-full mt-1 flex-shrink-0" />}
               <GlassCard variant={msg.sender === 'user' ? 'strong' : 'subtle'} className="p-4 max-w-3xl">
                 {msg.sender === 'user' && msg.context && <MessageContextPills context={msg.context} />}
                 
@@ -271,7 +271,7 @@ const ChatPage = () => {
           ))}
           {isLoading && (
             <div className="flex items-start gap-4 justify-start">
-              <Image src="/images/logo.svg" alt="Veritas" width={40} height={40} className="rounded-full mt-1 flex-shrink-0" />
+              <Image src="/images/logo.png" alt="Veritas" width={40} height={40} className="rounded-full mt-1 flex-shrink-0" />
               <GlassCard variant="subtle" className="p-4 max-w-3xl">
                 <div className="flex items-center gap-2 text-text-tertiary">
                   <div className="w-2 h-2 bg-brand-primary rounded-full animate-pulse" style={{ animationDelay: '0s' }}></div>
