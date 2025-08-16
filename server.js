@@ -26,14 +26,12 @@ const wss = new WebSocketServer({ server });
 wss.on('connection', (ws, req) => {
     console.log('[WebSocket] Client connected.');
 
-    // Create a new Deepgram live transcription connection
+    // Create a new Deepgram live transcription connection with stable options
     const deepgramConnection = deepgram.listen.live({
         model: 'nova-2',
         language: 'en-US',
         smart_format: true,
-        puncutate: 'true',
-        diarize: true,
-        speaker_labels: true,
+        punctuate: true,
         interim_results: true,
     });
 
@@ -44,12 +42,11 @@ wss.on('connection', (ws, req) => {
         deepgramConnection.on('transcript', (data) => {
             const transcript = data.channel.alternatives[0].transcript;
             if (transcript) {
-                const speaker = data.channel.speaker_labels[0]?.speaker_name || (data.channel.speaker === 0 ? 'Attending' : 'Resident');
-
                 const message = {
                     type: 'transcript',
                     entry: {
-                        speaker: speaker,
+                        // Use the simple "Speaker X" format which is more robust
+                        speaker: `Speaker ${data.channel.speaker}`,
                         text: transcript,
                         isFinal: data.is_final,
                     },
