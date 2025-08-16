@@ -10,8 +10,6 @@ env:
   SERVICE: ai-resident-evaluation-program
   REPO_NAME: ai-resident-evaluation-program
   REGION: us-east4
-  service_account: 'residencyeval@gen-lang-client-0549239622.iam.gserviceaccount.com'
-
 
 jobs:
   deploy:
@@ -51,9 +49,12 @@ jobs:
           service: ${{ env.SERVICE }}
           region: ${{ env.REGION }}
           image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE }}:latest
+          
+          # ⬇️ *** THIS LINE IS MISSING FROM YOUR FILE *** ⬇️
+          service_account: 'residencyeval@gen-lang-client-0549239622.iam.gserviceaccount.com'
+          
           allow_unauthenticated: true
-          # ⬇️ *** THE FINAL SYNTAX CORRECTION IS HERE *** ⬇️
-          # Using '=' as the separator between the mount path and the secret name.
+          
           secrets: |
             /secrets/google-credentials-json=google-credentials-json:latest
             
