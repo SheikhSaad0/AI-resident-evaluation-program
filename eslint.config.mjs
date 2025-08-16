@@ -1,31 +1,31 @@
-import next from '@next/eslint-plugin-next';
+import nextPlugin from '@next/eslint-plugin-next';
 import tseslint from 'typescript-eslint';
 import eslint from '@eslint/js';
 
 export default tseslint.config(
-  // Globally applies recommended rules
+  // Apply recommended rules globally
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
+  
+  // Configuration for Next.js
   {
-    // Applies Next.js recommended rules
+    files: ["**/*.{js,jsx,mjs,cjs,ts,tsx}"],
     plugins: {
-      '@next': next,
+      '@next/next': nextPlugin,
     },
     rules: {
-      ...next.configs.recommended.rules,
-      ...next.configs['core-web-vitals'].rules,
-    },
-  },
-  {
-    // Overrides for specific rules
-    rules: {
-      'no-unused-vars': 'off', // Must disable base rule
+      ...nextPlugin.configs.recommended.rules,
+      ...nextPlugin.configs['core-web-vitals'].rules,
+      
+      // Your custom rule overrides
+      'no-unused-vars': 'off', // Disable base rule to use the TypeScript version
       '@typescript-eslint/no-unused-vars': 'warn',
       '@typescript-eslint/no-explicit-any': 'warn',
     },
   },
+  
+  // Global ignores
   {
-    // Ignores the .next directory
-    ignores: ['.next/**'],
+    ignores: ['.next/**', 'node_modules/**'],
   }
 );

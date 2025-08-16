@@ -80,11 +80,11 @@ jobs:
             QSTASH_NEXT_SIGNING_KEY=${{ secrets.QSTASH_NEXT_SIGNING_KEY }}
             DATABASE_URL_PRODUCTION=${{ secrets.DATABASE_URL_PRODUCTION }}
             DATABASE_URL_TESTING=${{ secrets.DATABASE_URL_TESTING }}
-            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            DATABASE_URL=${{ secrets.DATABASE_URL_PRODUCTION }}
             NEXT_PUBLIC_DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}
             GCP_SERVICE_ACCOUNT_B64=${{ secrets.GCP_SERVICE_ACCOUNT_B64 }}
             NEXT_PUBLIC_WEBSOCKET_URL=wss://${{ secrets.CLOUD_RUN_HOSTNAME }}
-            NEXT_PUBLIC_APP_URL=${{ steps.deploy.outputs.url }}
+            NEXT_PUBLIC_APP_URL=https://${{ secrets.CLOUD_RUN_HOSTNAME }}
             
       - name: Show Output URL
         run: echo "Deployment successful. App is available at ${{ steps.deploy.outputs.url }}"

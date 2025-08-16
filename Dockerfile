@@ -1,32 +1,32 @@
-# Use an official Node.js runtime as a parent image
+# Use the official Node.js 20 image as a parent image
 FROM node:20-slim
 
 # Set the working directory in the container
 WORKDIR /app
 
-# Set the PORT environment variable
-ENV PORT 8080
+# Install OpenSSL and other dependencies
+RUN apt-get update -y && apt-get install -y openssl
 
-# Copy package manager files
+# Copy package.json and package-lock.json to the working directory
 COPY package*.json ./
 
-# Copy Prisma schema before installing dependencies
+# Copy the Prisma schema
 COPY prisma ./prisma/
 
-# Install dependencies
+# Install application dependencies
 RUN npm install
 
+# Generate Prisma Client
 RUN npx prisma generate
 
-# Copy the rest of the application's source code
+# Copy the rest of the application code to the working directory
 COPY . .
 
 # Build the Next.js application for production
 RUN npm run build
 
-
 # Expose the port the app runs on
-EXPOSE 8080
+EXPOSE 3000
 
-# Define the command to run your app, using the PORT variable
+# Define the command to run the application
 CMD ["npm", "start"]
