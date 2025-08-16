@@ -78,7 +78,7 @@ const ChatPage = () => {
     setInput('');
     setIsLoading(true);
 
-    // FIX: Create a lightweight summary of the context to avoid large request bodies.
+    // Create a more detailed summary of the context
     const contextSummary = {
       residents: context.residents.map(r => ({
         id: r.resident.id,
@@ -91,12 +91,16 @@ const ChatPage = () => {
         name: a.supervisor.name,
         evaluationCount: a.evaluations.length,
       })),
-      cases: context.cases.map(c => ({
-        id: c.caseData.id,
-        surgeryName: c.caseData.surgeryName,
-        residentName: c.caseData.residentName,
-        finalScore: c.caseData.finalScore,
-      })),
+      cases: context.cases.map(c => {
+        // Include the evaluation result, but without the lengthy transcript
+        const { transcription, ...restOfResult } = c.caseData.result || {};
+        return {
+          id: c.caseData.id,
+          surgeryName: c.caseData.surgeryName,
+          residentName: c.caseData.residentName,
+          evaluation: restOfResult,
+        };
+      }),
     };
 
     try {
@@ -110,7 +114,6 @@ const ChatPage = () => {
       setMessages(prev => [...prev, { text: 'Sorry, I encountered an error.', sender: 'gemini' }]);
     } finally {
       setIsLoading(false);
-      setContext(initialContext);
     }
   };
 
@@ -148,7 +151,6 @@ const ChatPage = () => {
       contextMessage = `Added for analysis: Case #${item.id} (${caseData.surgeryName})`;
     }
     
-    // FIX: Only add the "Added for analysis" message if it's not a duplicate of the last message
     setMessages(prev => {
         if (prev.length > 0 && prev[prev.length - 1].text === contextMessage) {
             return prev;
