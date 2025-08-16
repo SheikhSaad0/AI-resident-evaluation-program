@@ -97,12 +97,27 @@ const ChatPage = () => {
           evaluations: detailedEvaluations,
         };
       }),
-      attendings: context.attendings.map(a => ({
-        id: a.supervisor.id,
-        name: a.supervisor.name,
-        type: a.supervisor.type, // Pass the type to the AI
-        evaluationCount: a.evaluations.length,
-      })),
+      attendings: context.attendings.map(a => {
+        // ** THE FIX IS HERE **
+        // For each supervisor, map over their evaluations and include the detailed results
+        const detailedEvaluations = a.evaluations.map(evaluation => {
+            const { transcription, ...restOfResult } = evaluation.result || {};
+            return {
+                id: evaluation.id,
+                surgeryName: evaluation.surgeryName,
+                residentName: evaluation.residentName,
+                finalScore: evaluation.finalScore,
+                evaluation: restOfResult,
+            };
+        });
+
+        return {
+            id: a.supervisor.id,
+            name: a.supervisor.name,
+            type: a.supervisor.type,
+            evaluations: detailedEvaluations, // Send the detailed evaluations
+        };
+      }),
       cases: context.cases.map(c => {
         const { transcription, ...restOfResult } = c.caseData.result || {};
         return {
@@ -155,11 +170,10 @@ const ChatPage = () => {
       let supervisor;
       let evaluations;
       
-      // Check if the selected item is a Program Director or an Attending and call the correct API
       if (item.type === 'Program Director') {
         supervisor = await apiFetch(`/api/program-directors/${item.id}`);
         evaluations = await apiFetch(`/api/program-directors/evaluations?id=${item.id}`);
-      } else { // Default to 'Attending'
+      } else {
         supervisor = await apiFetch(`/api/attendings/${item.id}`);
         evaluations = await apiFetch(`/api/attendings/evaluations?id=${item.id}`);
       }
