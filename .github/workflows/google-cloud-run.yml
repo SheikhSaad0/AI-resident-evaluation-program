@@ -15,6 +15,7 @@ env:
   # The GCP region for your service and Artifact Registry
   REGION: us-east4
 
+  
 jobs:
   deploy:
     name: Deploy to Cloud Run
