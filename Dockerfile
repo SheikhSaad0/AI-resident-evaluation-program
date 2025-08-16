@@ -4,14 +4,16 @@ FROM node:20-slim
 # Set the working directory in the container
 WORKDIR /app
 
+# Set the PORT environment variable
+ENV PORT 8080
+
 # Copy package manager files
 COPY package*.json ./
 
 # Copy Prisma schema before installing dependencies
-# This is the crucial fix to ensure 'prisma generate' works on install
 COPY prisma ./prisma/
 
-# Install dependencies (this will also trigger 'prisma generate')
+# Install dependencies
 RUN npm install
 
 # Copy the rest of the application's source code
@@ -21,7 +23,7 @@ COPY . .
 RUN npm run build
 
 # Expose the port the app runs on
-EXPOSE 3000
+EXPOSE 8080
 
-# Define the command to run your app
-CMD ["npm", "start"]
+# Define the command to run your app, using the PORT variable
+CMD ["npm", "start", "--", "-p", "8080"]

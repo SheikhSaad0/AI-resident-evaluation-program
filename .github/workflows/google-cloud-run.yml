@@ -50,10 +50,11 @@ jobs:
           region: ${{ env.REGION }}
           image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE }}:latest
           
-          # ⬇️ *** THIS IS THE CORRECT LOCATION FOR THESE TWO LINES *** ⬇️
-          service_account: 'residencyeval@gen-lang-client-0549239622.iam.gserviceaccount.com'
-          allow_unauthenticated: true
-          
+          # Pass service account and unauthenticated flag here
+          flags: >-
+            --service-account=residencyeval@gen-lang-client-0549239622.iam.gserviceaccount.com
+            --allow-unauthenticated
+
           secrets: |
             /secrets/google-credentials-json=google-credentials-json:latest
             

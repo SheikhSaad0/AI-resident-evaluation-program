@@ -9,7 +9,7 @@
   "scripts": {
   "dev": "concurrently \"npm:next:dev\" \"npm:ws:dev\"",
   "build": "npx prisma generate && next build",
-  "start": "concurrently \"npm:ws:prod\" \"npm:next:start\"",
+  "start": "next start",
   "lint": "next lint",
   "clear-cache": "node scripts/clear-cache.js",
   "next:dev": "next dev",
