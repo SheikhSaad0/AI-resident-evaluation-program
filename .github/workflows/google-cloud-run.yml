@@ -1,0 +1,85 @@
+name: Build and Deploy to Google Cloud Run
+
+on:
+  push:
+    branches:
+      - main # This triggers the workflow on pushes to the main branch
+
+env:
+  # The GCP project ID
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  # The name of your Cloud Run service
+  SERVICE: ai-resident-evaluation-program
+  # The name for your Docker image repository
+  REPO_NAME: ai-resident-evaluation-program
+  # The GCP region for your service and Artifact Registry
+  REGION: us-east4
+
+jobs:
+  deploy:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    
+    # These permissions are needed for the GitHub Actions to interact with Google Cloud
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' # Using the service account key from secrets
+
+      - name: Set up Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v2'
+
+      - name: Authorize Docker push
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE }}:latest
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        uses: 'google-github-actions/deploy-cloudrun@v2'
+        with:
+          service: ${{ env.SERVICE }}
+          region: ${{ env.REGION }}
+          # Point to the image we just pushed
+          image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE }}:latest
+          # Set environment variables from GitHub secrets
+          env_vars: |
+            UPSTASH_REDIS_REST_URL=${{ secrets.UPSTASH_REDIS_REST_URL }}
+            UPSTASH_REDIS_REST_TOKEN=${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+            GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}
+            GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+            DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}
+            ASSEMBLYAI_API_KEY=${{ secrets.ASSEMBLYAI_API_KEY }}
+            OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+            EMAIL_HOST=${{ secrets.EMAIL_HOST }}
+            EMAIL_PORT=${{ secrets.EMAIL_PORT }}
+            EMAIL_USER=${{ secrets.EMAIL_USER }}
+            EMAIL_PASS=${{ secrets.EMAIL_PASS }}
+            EMAIL_FROM=${{ secrets.EMAIL_FROM }}
+            GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
+            CRON_SECRET=${{ secrets.CRON_SECRET }}
+            NEXT_PUBLIC_GCS_BUCKET_NAME=${{ secrets.NEXT_PUBLIC_GCS_BUCKET_NAME }}
+            QSTASH_URL=${{ secrets.QSTASH_URL }}
+            QSTASH_TOKEN=${{ secrets.QSTASH_TOKEN }}
+            QSTASH_CURRENT_SIGNING_KEY=${{ secrets.QSTASH_CURRENT_SIGNING_KEY }}
+            QSTASH_NEXT_SIGNING_KEY=${{ secrets.QSTASH_NEXT_SIGNING_KEY }}
+            DATABASE_URL=${{ secrets.DATABASE_URL_PRODUCTION }}
+            NEXT_PUBLIC_DEEPGRAM_API_KEY=${{ secrets.NEXT_PUBLIC_DEEPGRAM_API_KEY }}
+            GOOGLE_APPLICATION_CREDENTIALS_JSON=${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
+            
+      - name: Show Output URL
+        run: echo "Deployment successful. App is available at ${{ steps.deploy.outputs.url }}"
