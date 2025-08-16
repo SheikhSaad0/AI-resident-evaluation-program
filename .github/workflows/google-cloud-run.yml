@@ -85,6 +85,7 @@ jobs:
             NEXT_PUBLIC_DEEPGRAM_API_KEY=${{ secrets.NEXT_PUBLIC_DEEPGRAM_API_KEY }}
             GCP_SERVICE_ACCOUNT_B64=${{ secrets.GCP_SERVICE_ACCOUNT_B64 }}
             GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}
+            NEXT_PUBLIC_WEBSOCKET_URL=wss://${{ secrets.CLOUD_RUN_HOSTNAME }}
 
       - name: Show Output URL
         run: echo "Deployment successful. App is available at ${{ steps.deploy.outputs.url }}"
