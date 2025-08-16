@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback, ChangeEvent, KeyboardEvent, useContext } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
-// Corrected Imports: Removed curly braces for default exports
 import GlassCard from '../components/ui/GlassCard';
 import GlassButton from '../components/ui/GlassButton';
 import GlassInput from '../components/ui/GlassInput';
@@ -31,8 +30,8 @@ interface LiveSessionState {
 }
 
 const DEBOUNCE_TIME_MS = 2000;
-const AUDIO_CHUNK_INTERVAL_MS = 250; // Send audio every 250ms
-const WEBSOCKET_KEEP_ALIVE_MS = 15000; // Send a keep-alive message every 15 seconds
+const AUDIO_CHUNK_INTERVAL_MS = 500; // Increased interval for mobile stability
+const WEBSOCKET_KEEP_ALIVE_MS = 15000;
 
 const LiveEvaluationPage = () => {
     const router = useRouter();
@@ -48,8 +47,6 @@ const LiveEvaluationPage = () => {
     const [isAiProcessing, setIsAiProcessing] = useState(false);
     const [textInput, setTextInput] = useState('');
     const [selectedSpeaker, setSelectedSpeaker] = useState('0');
-
-    // State for dynamically setting the WebSocket URL
     const [websocketUrl, setWebsocketUrl] = useState('');
 
     const [currentState, setCurrentState] = useState<LiveSessionState>({
@@ -59,6 +56,7 @@ const LiveEvaluationPage = () => {
         currentStepName: '',
     });
 
+    // --- Refs ---
     const stateRef = useRef(currentState);
     const fullTranscriptRef = useRef<string>("");
     const liveNotesRef = useRef<any[]>([]);
@@ -71,15 +69,18 @@ const LiveEvaluationPage = () => {
     const isPlayingAudioRef = useRef(false);
     const checkInTriggeredRef = useRef<boolean>(false);
     const stepExceededTriggeredRef = useRef<boolean>(false);
-
-    // --- NEW REFS FOR MOBILE FIX ---
-    const audioContextRef = useRef<AudioContext | null>(null);
     const keepAliveIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+    // --- REFS FOR MOBILE AUDIO FIX ---
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
+    const mediaStreamSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+    const mediaStreamRef = useRef<MediaStream | null>(null);
+
 
     useEffect(() => { stateRef.current = currentState; }, [currentState]);
     useEffect(() => { transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatHistory, isAiProcessing]);
 
-    // Effect to set the WebSocket URL based on the window's location
     useEffect(() => {
         if (typeof window !== 'undefined') {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -98,14 +99,47 @@ const LiveEvaluationPage = () => {
         fetchResidents();
     }, [apiFetch]);
 
+    // Cleanup function
+    const cleanupSession = useCallback(() => {
+        console.log("Cleaning up session resources...");
+
+        if (socketRef.current) {
+            socketRef.current.onclose = null;
+            socketRef.current.close();
+            socketRef.current = null;
+        }
+        if (micRecorderRef.current && micRecorderRef.current.state !== 'inactive') {
+            micRecorderRef.current.stop();
+            micRecorderRef.current = null;
+        }
+        if (mediaStreamRef.current) {
+            mediaStreamRef.current.getTracks().forEach(track => track.stop());
+            mediaStreamRef.current = null;
+        }
+        if (audioProcessorRef.current) {
+            audioProcessorRef.current.disconnect();
+            audioProcessorRef.current = null;
+        }
+        if (mediaStreamSourceRef.current) {
+            mediaStreamSourceRef.current.disconnect();
+            mediaStreamSourceRef.current = null;
+        }
+        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+            audioContextRef.current.close();
+            audioContextRef.current = null;
+        }
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        if (keepAliveIntervalRef.current) clearInterval(keepAliveIntervalRef.current);
+        
+        setIsSessionActive(false);
+        setStatus('idle');
+    }, []);
+
     useEffect(() => {
         return () => {
-            socketRef.current?.close();
-            micRecorderRef.current?.stop();
-            if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-            if (keepAliveIntervalRef.current) clearInterval(keepAliveIntervalRef.current);
+            cleanupSession();
         };
-    }, []);
+    }, [cleanupSession]);
 
     const playNextInQueue = useCallback(() => {
         if (isPlayingAudioRef.current || audioQueueRef.current.length === 0) return;
@@ -188,16 +222,12 @@ const LiveEvaluationPage = () => {
                         const config = EVALUATION_CONFIGS[procedureId as keyof typeof EVALUATION_CONFIGS];
                         const newStepIndex = config.procedureSteps.findIndex(step => step.key === aiData.payload.stepKey);
                         if (newStepIndex !== -1 && newStepIndex !== stateRef.current.currentStepIndex) {
-                            // Log the duration of the previous step
                             const previousStep = config.procedureSteps[stateRef.current.currentStepIndex];
                             const durationInSeconds = stateRef.current.timeElapsedInStep;
                             const durationFormatted = `${Math.floor(durationInSeconds / 60)} minutes and ${durationInSeconds % 60} seconds`;
                             liveNotesRef.current.push({
                                 action: 'LOG_STEP_DURATION',
-                                payload: {
-                                    step: previousStep.name,
-                                    duration: durationFormatted,
-                                },
+                                payload: { step: previousStep.name, duration: durationFormatted, },
                                 timestamp: new Date().toISOString(),
                             });
 
@@ -239,22 +269,18 @@ const LiveEvaluationPage = () => {
         return () => clearInterval(timer);
     }, [isSessionActive]);
 
+
     useEffect(() => {
         if (!isSessionActive || isAiProcessing) return;
-
         const procedureId = Object.keys(EVALUATION_CONFIGS).find(key => EVALUATION_CONFIGS[key].name === selectedSurgery);
         if (!procedureId) return;
-
         const currentStepConfig = EVALUATION_CONFIGS[procedureId].procedureSteps[currentState.currentStepIndex];
         if (!currentStepConfig?.time) return;
-
         const timeParts = currentStepConfig.time.replace(' min', '').split('-');
         const maxTimeMinutes = parseInt(timeParts[1], 10);
         if (isNaN(maxTimeMinutes)) return;
-        
         const checkInTimeSeconds = maxTimeMinutes * 60 * 0.75;
         const stepExceededTimeSeconds = maxTimeMinutes * 60 * 1.15;
-
         if (currentState.timeElapsedInStep >= checkInTimeSeconds && !checkInTriggeredRef.current) {
             checkInTriggeredRef.current = true; 
             const timeElapsed = stateRef.current.timeElapsedInStep;
@@ -262,7 +288,6 @@ const LiveEvaluationPage = () => {
             const message = `We've been on ${stepName} for ${Math.floor(timeElapsed / 60)} minutes and ${timeElapsed % 60} seconds. Attending, how is the resident progressing? Should they continue, or would you like to take over?`;
             addVeritasMessage(message, true);
         }
-        
         if (currentState.timeElapsedInStep >= stepExceededTimeSeconds && !stepExceededTriggeredRef.current) {
             stepExceededTriggeredRef.current = true;
             addVeritasMessage("Have we moved on to the next step?", true);
@@ -272,12 +297,8 @@ const LiveEvaluationPage = () => {
 
 
     const startSession = async () => {
-        if (!selectedResident || !selectedSurgery) {
-            alert("Please select a surgery and a resident.");
-            return;
-        }
-        if (!websocketUrl) {
-            alert("WebSocket URL not ready. Please wait a moment and try again.");
+        if (!selectedResident || !selectedSurgery || !websocketUrl) {
+            alert("Please select a resident and surgery, and ensure the connection is ready.");
             return;
         }
         setStatus('connecting');
@@ -291,22 +312,21 @@ const LiveEvaluationPage = () => {
         const procedureId = Object.keys(EVALUATION_CONFIGS).find(key => EVALUATION_CONFIGS[key].name === selectedSurgery);
         const initialStepName = procedureId ? EVALUATION_CONFIGS[procedureId].procedureSteps[0].name : '';
 
-        setCurrentState({
-            currentStepIndex: 0,
-            timeElapsedInSession: 0,
-            timeElapsedInStep: 0,
-            currentStepName: initialStepName,
-        });
+        setCurrentState({ currentStepIndex: 0, timeElapsedInSession: 0, timeElapsedInStep: 0, currentStepName: initialStepName });
 
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-            // --- MOBILE FIX: Create and manage AudioContext ---
-            audioContextRef.current = new AudioContext();
-            const source = audioContextRef.current.createMediaStreamSource(stream);
-            // We don't need to connect it to a destination for this to work.
+            // --- MOBILE FIX: Create and manage a persistent AudioContext processing graph ---
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+            mediaStreamSourceRef.current = audioContextRef.current.createMediaStreamSource(mediaStreamRef.current);
+            audioProcessorRef.current = audioContextRef.current.createScriptProcessor(4096, 1, 1);
+            
+            mediaStreamSourceRef.current.connect(audioProcessorRef.current);
+            audioProcessorRef.current.connect(audioContextRef.current.destination);
+            audioProcessorRef.current.onaudioprocess = () => {}; // This empty handler is the magic key.
 
-            micRecorderRef.current = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            micRecorderRef.current = new MediaRecorder(mediaStreamRef.current, { mimeType: 'audio/webm' });
             micRecorderRef.current.ondataavailable = (event) => {
                 if (event.data.size > 0 && socketRef.current?.readyState === WebSocket.OPEN) {
                     recordedChunksRef.current.push(event.data);
@@ -323,7 +343,6 @@ const LiveEvaluationPage = () => {
                 micRecorderRef.current?.start(AUDIO_CHUNK_INTERVAL_MS);
                 processTranscriptWithAI(true);
                 
-                // --- MOBILE FIX: Start WebSocket keep-alive ---
                 keepAliveIntervalRef.current = setInterval(() => {
                     if (socketRef.current?.readyState === WebSocket.OPEN) {
                         socketRef.current.send(JSON.stringify({ type: 'keep-alive' }));
@@ -355,30 +374,29 @@ const LiveEvaluationPage = () => {
             };
 
             socketRef.current.onclose = () => {
-                setStatus('idle');
-                setIsSessionActive(false);
-                stream.getTracks().forEach(track => track.stop());
-                if (keepAliveIntervalRef.current) clearInterval(keepAliveIntervalRef.current);
-                audioContextRef.current?.close(); // Clean up AudioContext
+                cleanupSession();
             };
             socketRef.current.onerror = (err) => {
+                console.error("WebSocket Error:", err);
                 setStatus('error');
+                cleanupSession();
             }
         } catch (error) {
             console.error("Failed to start session:", error);
             setStatus('error');
+            alert("Failed to access the microphone. Please check permissions and try again.");
         }
     };
 
     const stopSessionAndAnalyze = async () => {
         setIsProcessing(true);
-        micRecorderRef.current?.stop();
-        socketRef.current?.close();
-        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-        if (keepAliveIntervalRef.current) clearInterval(keepAliveIntervalRef.current);
+        cleanupSession(); // Use the centralized cleanup function
 
         setTimeout(async () => {
             const audioBlob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
+            if (audioBlob.size === 0) {
+                 console.warn("Audio blob is empty, final analysis might be incomplete.");
+            }
             const formData = new FormData();
             formData.append('audio', audioBlob, 'live_recording.webm');
             formData.append('residentId', selectedResident!.id);
@@ -400,29 +418,15 @@ const LiveEvaluationPage = () => {
 
     const handleTextSubmit = () => {
         if (!textInput.trim() || !isSessionActive) return;
-
-        const newEntry: TranscriptEntry = {
-            speaker: selectedSpeaker === '0' ? 'Attending' : 'Resident',
-            text: textInput,
-            isFinal: true,
-        };
-
+        const newEntry: TranscriptEntry = { speaker: selectedSpeaker === '0' ? 'Attending' : 'Resident', text: textInput, isFinal: true, };
         setChatHistory(prev => [...prev, newEntry]);
         fullTranscriptRef.current += `[${newEntry.speaker}] ${newEntry.text}\n`;
         setTextInput('');
-
         if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = setTimeout(() => {
-            processTranscriptWithAI();
-        }, 500);
+        debounceTimerRef.current = setTimeout(() => { processTranscriptWithAI(); }, 500);
     };
 
-    const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === 'Enter') {
-            handleTextSubmit();
-        }
-    };
-
+    const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') handleTextSubmit(); };
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full">
@@ -466,14 +470,8 @@ const LiveEvaluationPage = () => {
                             <div className="space-y-4">
                                 {chatHistory.map((entry, index) => (
                                     <div key={index} className={`flex flex-col ${entry.speaker === 'Veritas' ? 'items-center text-center' : (entry.speaker === 'Attending' ? 'items-start' : 'items-end') }`}>
-                                        <div className={`p-3 rounded-2xl max-w-lg ${
-                                            entry.speaker === 'Veritas'
-                                                ? 'bg-purple-900 bg-opacity-50'
-                                                : entry.speaker === 'Attending' ? 'bg-blue-900 bg-opacity-60' : 'bg-gray-700'
-                                        }`}>
-                                            <p className={`font-semibold text-sm mb-1 ${
-                                                entry.speaker === 'Veritas' ? 'text-purple-300' : entry.speaker === 'Attending' ? 'text-blue-300' : 'text-gray-300'
-                                            }`}>{entry.speaker}</p>
+                                        <div className={`p-3 rounded-2xl max-w-lg ${ entry.speaker === 'Veritas' ? 'bg-purple-900 bg-opacity-50' : entry.speaker === 'Attending' ? 'bg-blue-900 bg-opacity-60' : 'bg-gray-700' }`}>
+                                            <p className={`font-semibold text-sm mb-1 ${ entry.speaker === 'Veritas' ? 'text-purple-300' : entry.speaker === 'Attending' ? 'text-blue-300' : 'text-gray-300' }`}>{entry.speaker}</p>
                                             <p className="text-white">{'text' in entry ? entry.text : ''}</p>
                                         </div>
                                     </div>
@@ -491,24 +489,11 @@ const LiveEvaluationPage = () => {
                         )}
                     </div>
                     <div className="mt-4 flex items-center gap-4">
-                        <select
-                            value={selectedSpeaker}
-                            onChange={(e) => setSelectedSpeaker(e.target.value)}
-                            className="bg-black bg-opacity-30 border border-gray-600 text-white p-2 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                            disabled={!isSessionActive}
-                        >
+                        <select value={selectedSpeaker} onChange={(e) => setSelectedSpeaker(e.target.value)} className="bg-black bg-opacity-30 border border-gray-600 text-white p-2 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500" disabled={!isSessionActive} >
                             <option value="0">Attending</option>
                             <option value="1">Resident</option>
                         </select>
-                        <GlassInput
-                            type="text"
-                            value={textInput}
-                            onChange={(e: ChangeEvent<HTMLInputElement>) => setTextInput(e.target.value)}
-                            placeholder={isSessionActive ? "Type transcript here..." : "Start a session to begin"}
-                            className="flex-grow"
-                            onKeyDown={handleKeyDown}
-                            disabled={!isSessionActive}
-                        />
+                        <GlassInput type="text" value={textInput} onChange={(e: ChangeEvent<HTMLInputElement>) => setTextInput(e.target.value)} placeholder={isSessionActive ? "Type transcript here..." : "Start a session to begin"} className="flex-grow" onKeyDown={handleKeyDown} disabled={!isSessionActive} />
                         <GlassButton onClick={handleTextSubmit} disabled={!isSessionActive || !textInput.trim()}>Send</GlassButton>
                     </div>
                 </GlassCard>
