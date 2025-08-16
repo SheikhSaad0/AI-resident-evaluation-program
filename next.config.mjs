@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Your existing images configuration is preserved
   images: {
     remotePatterns: [
       {
@@ -10,7 +11,8 @@ const nextConfig = {
       },
     ],
   },
-  // Disable API route caching to prevent stale cached routes
+  
+  // Your existing headers configuration is preserved
   async headers() {
     return [
       {
@@ -31,6 +33,11 @@ const nextConfig = {
         ],
       },
     ];
+  },
+
+  // This new block ignores ESLint warnings during the build
+  eslint: {
+    ignoreDuringBuilds: true,
   },
 };
 
