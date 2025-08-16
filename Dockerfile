@@ -29,4 +29,4 @@ RUN npm run build
 EXPOSE 8080
 
 # Define the command to run your app, using the PORT variable
-CMD ["npm", "start", "--", "-p", "8080"]
+CMD ["npm", "start"]

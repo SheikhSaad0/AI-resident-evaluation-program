@@ -83,6 +83,8 @@ jobs:
             DATABASE_URL_TESTING=${{ secrets.DATABASE_URL_TESTING }} # Add this line
             DATABASE_URL=${{ secrets.DATABASE_URL_PRODUCTION }} # Keep this for Prisma generate
             NEXT_PUBLIC_DEEPGRAM_API_KEY=${{ secrets.NEXT_PUBLIC_DEEPGRAM_API_KEY }}
+            GCP_SERVICE_ACCOUNT_B64=${{ secrets.GCP_SERVICE_ACCOUNT_B64 }}
+            GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}
 
       - name: Show Output URL
         run: echo "Deployment successful. App is available at ${{ steps.deploy.outputs.url }}"
