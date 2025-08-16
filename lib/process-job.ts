@@ -288,7 +288,7 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
         **PRIMARY INSTRUCTIONS:**
         1.  **Analyze the Transcript:** Review the entire transcript and context. Identify the resident (learner) and the attending (teacher). Focus the evaluation on the resident's performance.
         2.  **Evaluate Step-by-Step:** For each surgical step, provide a detailed evaluation, include comments the attending may have given that can criique and improve the residents future performance
-            - **Scoring Scale (1-5):**
+            - **RISE Scoring Scale (1-5):**
               - **1:** Unsafe, attending took over.
               - **2:** Performed <50% of step, significant help needed.
               - **3:** Performed >50% but still needed assistance.
