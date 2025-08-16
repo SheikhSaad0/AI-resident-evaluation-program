@@ -54,9 +54,8 @@ jobs:
           # ⬇️ *** KEY CHANGES ARE HERE *** ⬇️
           # We now mount the secret as a file. The path will be /secrets/google-credentials.
           secrets: |
-  google-credentials-json:google-credentials-json:latest
-
-
+            /secrets/google-credentials-json:google-credentials-json:latest
+            
           # Set an environment variable pointing to the mounted secret file.
           # The application will automatically use this file for authentication.
           env_vars: |
