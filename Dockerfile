@@ -16,11 +16,14 @@ COPY prisma ./prisma/
 # Install dependencies
 RUN npm install
 
+RUN npx prisma generate
+
 # Copy the rest of the application's source code
 COPY . .
 
 # Build the Next.js application for production
 RUN npm run build
+
 
 # Expose the port the app runs on
 EXPOSE 8080

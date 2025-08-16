@@ -79,7 +79,9 @@ jobs:
             QSTASH_TOKEN=${{ secrets.QSTASH_TOKEN }}
             QSTASH_CURRENT_SIGNING_KEY=${{ secrets.QSTASH_CURRENT_SIGNING_KEY }}
             QSTASH_NEXT_SIGNING_KEY=${{ secrets.QSTASH_NEXT_SIGNING_KEY }}
-            DATABASE_URL=${{ secrets.DATABASE_URL_PRODUCTION }}
+            DATABASE_URL_PRODUCTION=${{ secrets.DATABASE_URL_PRODUCTION }}
+            DATABASE_URL_TESTING=${{ secrets.DATABASE_URL_TESTING }} # Add this line
+            DATABASE_URL=${{ secrets.DATABASE_URL_PRODUCTION }} # Keep this for Prisma generate
             NEXT_PUBLIC_DEEPGRAM_API_KEY=${{ secrets.NEXT_PUBLIC_DEEPGRAM_API_KEY }}
 
       - name: Show Output URL
