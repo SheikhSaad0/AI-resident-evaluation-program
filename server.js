@@ -2,7 +2,7 @@ import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';
 import { WebSocketServer } from 'ws';
-import { createClient } from '@deepgram/sdk';
+import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
 
 // --- Main Application Setup ---
 const dev = process.env.NODE_ENV !== 'production';
@@ -11,7 +11,10 @@ const handle = app.getRequestHandler();
 const port = process.env.PORT || 3000;
 
 // --- Deepgram Client Setup ---
-const deepgram = createClient(process.env.DEEPGRAM_API_KEY || '');
+if (!process.env.DEEPGRAM_API_KEY) {
+    throw new Error("DEEPGRAM_API_KEY is not defined in your .env file.");
+}
+const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
 
 await app.prepare();
 
@@ -30,7 +33,7 @@ server.on('upgrade', (request, socket, head) => {
             wss.emit('connection', ws, request);
         });
     } else {
-        socket.destroy();
+        // Do not interfere with Next.js's own HMR WebSocket
     }
 });
 
@@ -41,54 +44,71 @@ wss.on('connection', (ws, req) => {
         model: 'nova-2',
         language: 'en-US',
         smart_format: true,
-        punctuate: true,
         interim_results: true,
-        // Diarize has been removed for stability
+        diarize: true,
     });
 
-    const keepAlive = setInterval(() => {
-        if (deepgramConnection.getReadyState() === 1 /* OPEN */) {
-            deepgramConnection.keepAlive();
-        }
-    }, 10000);
+    // --- FIX: Implement an audio queue for the race condition ---
+    let audioQueue = [];
+    let isDeepgramOpen = false;
 
-    deepgramConnection.on('open', () => {
+    let keepAlive;
+
+    deepgramConnection.on(LiveTranscriptionEvents.Open, () => {
         console.log('[Deepgram] Connection opened.');
+        isDeepgramOpen = true;
 
-        deepgramConnection.on('transcript', (data) => {
-            // --- ADDED: Robust error handling ---
-            try {
-                const transcript = data.channel?.alternatives[0]?.transcript;
-                if (transcript) {
-                    const message = {
-                        type: 'transcript',
-                        entry: {
-                             // Reverted to simpler speaker logic
-                            speaker: `Speaker ${data.channel?.speaker ?? 0}`,
-                            text: transcript,
-                            isFinal: data.is_final,
-                        },
-                    };
-                    ws.send(JSON.stringify(message));
-                }
-            } catch (error) {
-                console.error('[Deepgram] Error processing transcript data:', error);
+        // Send any queued audio
+        if (audioQueue.length > 0) {
+            console.log(`[Deepgram] Sending ${audioQueue.length} queued audio packets.`);
+            audioQueue.forEach(packet => deepgramConnection.send(packet));
+            audioQueue = []; // Clear the queue
+        }
+
+        keepAlive = setInterval(() => {
+            deepgramConnection.keepAlive();
+        }, 10 * 1000);
+    });
+
+    deepgramConnection.on(LiveTranscriptionEvents.Close, (event) => {
+        console.error('[Deepgram] Connection closed. Code:', event.code, 'Reason:', event.reason);
+        clearInterval(keepAlive);
+    });
+
+    deepgramConnection.on(LiveTranscriptionEvents.Error, (err) => {
+        console.error('[Deepgram] Encountered an error:', err);
+    });
+
+    deepgramConnection.on(LiveTranscriptionEvents.Transcript, (data) => {
+        const transcript = data.channel?.alternatives[0]?.transcript;
+        if (transcript) {
+            const speakerIndex = data.channel?.alternatives[0]?.words[0]?.speaker ?? '0';
+            const message = {
+                type: 'transcript',
+                entry: {
+                    speaker: `Speaker ${speakerIndex}`,
+                    text: transcript,
+                    isFinal: data.is_final,
+                },
+            };
+            if (ws.readyState === ws.OPEN) {
+                ws.send(JSON.stringify(message));
             }
-        });
-
-        deepgramConnection.on('error', (err) => console.error('[Deepgram] Error:', err));
-        deepgramConnection.on('close', () => console.log('[Deepgram] Connection closed.'));
+        }
     });
 
     ws.on('message', (message) => {
-        if (deepgramConnection.getReadyState() === 1) {
+        // --- FIX: Queue audio if Deepgram isn't ready yet ---
+        if (isDeepgramOpen && deepgramConnection.getReadyState() === 1) {
             deepgramConnection.send(message);
+        } else {
+            console.log('[WebSocket] Queuing audio packet while waiting for Deepgram connection.');
+            audioQueue.push(message);
         }
     });
 
-    ws.on('close', () => {
-        console.log('[WebSocket] Client disconnected.');
-        clearInterval(keepAlive);
+    ws.on('close', (code, reason) => {
+        console.log(`[WebSocket] Client disconnected. Code: ${code}, Reason: ${reason.toString()}`);
         if (deepgramConnection.getReadyState() === 1) {
             deepgramConnection.finish();
         }

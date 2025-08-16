@@ -244,18 +244,18 @@ const LiveEvaluationPage = () => {
         const timeParts = currentStepConfig.time.replace(' min', '').split('-');
         const maxTimeMinutes = parseInt(timeParts[1], 10);
         if (isNaN(maxTimeMinutes)) return;
-
+        
         const checkInTimeSeconds = maxTimeMinutes * 60 * 0.75;
         const stepExceededTimeSeconds = maxTimeMinutes * 60 * 1.15;
 
         if (currentState.timeElapsedInStep >= checkInTimeSeconds && !checkInTriggeredRef.current) {
-            checkInTriggeredRef.current = true;
+            checkInTriggeredRef.current = true; 
             const timeElapsed = stateRef.current.timeElapsedInStep;
             const stepName = stateRef.current.currentStepName;
             const message = `We've been on ${stepName} for ${Math.floor(timeElapsed / 60)} minutes and ${timeElapsed % 60} seconds. Attending, how is the resident progressing? Should they continue, or would you like to take over?`;
             addVeritasMessage(message, true);
         }
-
+        
         if (currentState.timeElapsedInStep >= stepExceededTimeSeconds && !stepExceededTriggeredRef.current) {
             stepExceededTriggeredRef.current = true;
             addVeritasMessage("Have we moved on to the next step?", true);
@@ -309,7 +309,7 @@ const LiveEvaluationPage = () => {
             socketRef.current.onopen = () => {
                 setStatus('connected');
                 setIsSessionActive(true);
-                micRecorderRef.current?.start(250); // <-- Change this to 250ms
+                micRecorderRef.current?.start(250); // <-- OPTIMIZATION: Send audio chunks more frequently
                 processTranscriptWithAI(true);
             };
 
