@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "outDir": "scripts",
+    "noEmit": false
+  },
+  "include": ["scripts/webSocketServer.ts"]
+}
