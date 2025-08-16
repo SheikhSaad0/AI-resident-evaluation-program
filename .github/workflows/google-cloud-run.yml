@@ -50,9 +50,8 @@ jobs:
           region: ${{ env.REGION }}
           image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE }}:latest
           
-          # ⬇️ *** THIS LINE IS MISSING FROM YOUR FILE *** ⬇️
+          # ⬇️ *** THIS IS THE CORRECT LOCATION FOR THESE TWO LINES *** ⬇️
           service_account: 'residencyeval@gen-lang-client-0549239622.iam.gserviceaccount.com'
-          
           allow_unauthenticated: true
           
           secrets: |
