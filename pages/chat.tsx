@@ -82,15 +82,29 @@ const ChatPage = () => {
   const [context, setContext] = useState<ChatContext>(initialContext);
   const [modalType, setModalType] = useState<ModalType>(null);
   const [modalData, setModalData] = useState<any[]>([]);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const auth = useContext(AuthContext);
   const { apiFetch } = useApi();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [menuRef]);
 
   const handleSendMessage = async () => {
     const isContextEmpty = context.residents.length === 0 && context.attendings.length === 0 && context.cases.length === 0;
@@ -191,15 +205,11 @@ const ChatPage = () => {
       return newContext;
     });
   };
-  
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => { /* ... */ };
 
   const renderModalContent = (): ReactNode => {
     if (!modalData) return <p>Loading...</p>;
 
     const renderItem = (item: any, onClick: () => void) => {
-      // ✅ FIX: The logic here is now more specific to avoid conflicts.
-      // It now correctly checks for unique properties of Residents/Supervisors vs. Cases.
       if (item.type === 'Attending' || item.type === 'Program Director' || 'year' in item) { // Resident or Supervisor
         const profile = item as Resident | Supervisor;
         return (
@@ -239,10 +249,10 @@ const ChatPage = () => {
         {renderModalContent()}
       </SelectionModal>
 
-      <div className="flex flex-col h-full bg-navy-900 rounded-4xl">
+      <div className="flex flex-col h-full bg-gray-800 bg-opacity-50 backdrop-blur-lg rounded-4xl">
         <div className="flex-grow overflow-y-auto p-6 space-y-4 scrollbar-glass">
           <div className="text-center mb-8">
-            <h1 className="heading-xl text-gradient">Hello, {auth?.user?.name?.split(' ')[0]}</h1>
+            <h1 className="heading-xl text-animated-gradient">Hello, {auth?.user?.name?.split(' ')[0]}</h1>
             <p className="text-text-tertiary mt-2">How can I help you analyze performance today?</p>
           </div>
           {messages.map((msg, index) => (
@@ -278,16 +288,16 @@ const ChatPage = () => {
 
         <div className="p-4">
           <GlassCard variant="strong" className="p-2 flex items-center gap-2">
-            <div className="relative group">
-              <button className="p-3 text-white rounded-full hover:bg-glass-200 transition-colors">+</button>
-              <div className="absolute bottom-full mb-2 w-48 bg-navy-700 rounded-xl shadow-lg p-2 hidden group-hover:block">
-                <button onClick={() => fileInputRef.current?.click()} className="modal-menu-item">Upload File</button>
-                <button onClick={() => openModal('resident')} className="modal-menu-item">Add Resident</button>
-                <button onClick={() => openModal('attending')} className="modal-menu-item">Add Supervisor</button>
-                <button onClick={() => openModal('case')} className="modal-menu-item">Add Case</button>
-              </div>
+            <div className="relative" ref={menuRef}>
+              <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-3 text-white rounded-full hover:bg-glass-200 transition-colors">+</button>
+              {isMenuOpen && (
+                <div className="absolute bottom-full mb-2 w-48 bg-navy-700 rounded-xl shadow-lg p-2">
+                  <button onClick={() => { openModal('resident'); setIsMenuOpen(false); }} className="modal-menu-item">Add Resident</button>
+                  <button onClick={() => { openModal('attending'); setIsMenuOpen(false); }} className="modal-menu-item">Add Supervisor</button>
+                  <button onClick={() => { openModal('case'); setIsMenuOpen(false); }} className="modal-menu-item">Add Case</button>
+                </div>
+              )}
             </div>
-            <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
             <GlassInput
               className="flex-grow bg-transparent border-none focus:ring-0 text-lg"
               placeholder="Ask Veritas..."

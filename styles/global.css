@@ -124,6 +124,34 @@
     @apply bg-purple-gradient bg-clip-text text-transparent;
   }
 
+  /* Animated Text Gradient */
+  .text-animated-gradient {
+    background-image: linear-gradient(
+      -90deg,
+      #11acff 0%,
+      #ac30ff 22%,
+      #ff0055 54%,
+      #65f86a 70%,
+      #11acff 99%
+    );
+    background-size: auto auto;
+    background-clip: border-box;
+    background-size: 200% auto;
+    color: #fff;
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: textclip 2s linear infinite;
+    display: inline-block;
+  }
+
+  @keyframes textclip {
+    to {
+      background-position: 200% center;
+    }
+  }
+
+
   /* Enhanced typography */
   .heading-xl {
     @apply text-5xl font-apple font-black text-text-primary tracking-tight;
