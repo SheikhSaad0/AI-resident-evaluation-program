@@ -78,21 +78,33 @@ const ChatPage = () => {
     setInput('');
     setIsLoading(true);
 
-    // Create a more detailed summary of the context
+    // Create a detailed summary of the context for the AI
     const contextSummary = {
-      residents: context.residents.map(r => ({
-        id: r.resident.id,
-        name: r.resident.name,
-        evaluationCount: r.evaluations.length,
-        averageScore: r.evaluations.length > 0 ? r.evaluations.reduce((acc, e) => acc + (e.score || 0), 0) / r.evaluations.length : 0,
-      })),
+      residents: context.residents.map(r => {
+        // For each resident, map over their evaluations and include the detailed results
+        const detailedEvaluations = r.evaluations.map(evaluation => {
+          // Omit the lengthy transcript from each evaluation result
+          const { transcription, ...restOfResult } = evaluation.result || {};
+          return {
+            id: evaluation.id,
+            surgeryName: evaluation.surgeryName,
+            finalScore: evaluation.finalScore,
+            evaluation: restOfResult,
+          };
+        });
+
+        return {
+          id: r.resident.id,
+          name: r.resident.name,
+          evaluations: detailedEvaluations, // Send the detailed evaluations
+        };
+      }),
       attendings: context.attendings.map(a => ({
         id: a.supervisor.id,
         name: a.supervisor.name,
         evaluationCount: a.evaluations.length,
       })),
       cases: context.cases.map(c => {
-        // Include the evaluation result, but without the lengthy transcript
         const { transcription, ...restOfResult } = c.caseData.result || {};
         return {
           id: c.caseData.id,
@@ -160,7 +172,6 @@ const ChatPage = () => {
     setModalType(null);
   };
 
-  // --- NEW: Function to remove items from context ---
   const handleRemoveContextItem = (type: 'resident' | 'attending' | 'case', id: string) => {
     setContext(prev => {
       const newContext = { ...prev };
@@ -235,7 +246,6 @@ const ChatPage = () => {
           <div ref={chatEndRef} />
         </div>
 
-        {/* --- NEW: Context Pills UI --- */}
         <ContextPills context={context} onRemove={handleRemoveContextItem} />
 
         <div className="p-4">
@@ -258,7 +268,7 @@ const ChatPage = () => {
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
             />
             <button onClick={handleSendMessage} className="p-3 text-white bg-brand-primary rounded-full hover:bg-brand-primary-hover transition-colors disabled:opacity-50" disabled={isLoading}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
             </button>
           </GlassCard>
         </div>
