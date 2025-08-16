@@ -81,9 +81,7 @@ const ChatPage = () => {
     // Create a detailed summary of the context for the AI
     const contextSummary = {
       residents: context.residents.map(r => {
-        // For each resident, map over their evaluations and include the detailed results
         const detailedEvaluations = r.evaluations.map(evaluation => {
-          // Omit the lengthy transcript from each evaluation result
           const { transcription, ...restOfResult } = evaluation.result || {};
           return {
             id: evaluation.id,
@@ -96,12 +94,13 @@ const ChatPage = () => {
         return {
           id: r.resident.id,
           name: r.resident.name,
-          evaluations: detailedEvaluations, // Send the detailed evaluations
+          evaluations: detailedEvaluations,
         };
       }),
       attendings: context.attendings.map(a => ({
         id: a.supervisor.id,
         name: a.supervisor.name,
+        type: a.supervisor.type, // Pass the type to the AI
         evaluationCount: a.evaluations.length,
       })),
       cases: context.cases.map(c => {
@@ -149,13 +148,26 @@ const ChatPage = () => {
       setContext(prev => ({ ...prev, residents: [...prev.residents, { resident, evaluations }] }));
       contextMessage = `Added for analysis: ${resident.name}`;
     }
+    
     if (modalType === 'attending') {
       if (context.attendings.some(a => a.supervisor.id === item.id)) { setModalType(null); return; }
-      const supervisor = await apiFetch(`/api/attendings/${item.id}`);
-      const evaluations = await apiFetch(`/api/attendings/evaluations?id=${item.id}`);
+      
+      let supervisor;
+      let evaluations;
+      
+      // Check if the selected item is a Program Director or an Attending and call the correct API
+      if (item.type === 'Program Director') {
+        supervisor = await apiFetch(`/api/program-directors/${item.id}`);
+        evaluations = await apiFetch(`/api/program-directors/evaluations?id=${item.id}`);
+      } else { // Default to 'Attending'
+        supervisor = await apiFetch(`/api/attendings/${item.id}`);
+        evaluations = await apiFetch(`/api/attendings/evaluations?id=${item.id}`);
+      }
+      
       setContext(prev => ({ ...prev, attendings: [...prev.attendings, { supervisor, evaluations }] }));
       contextMessage = `Added for analysis: ${supervisor.name}`;
     }
+
     if (modalType === 'case') {
       if (context.cases.some(c => c.caseData.id === item.id)) { setModalType(null); return; }
       const caseData = await apiFetch(`/api/evaluations/${item.id}`);
@@ -220,7 +232,7 @@ const ChatPage = () => {
 
   return (
     <>
-      <SelectionModal title={`Select ${modalType}`} isOpen={!!modalType} onClose={() => setModalType(null)}>
+      <SelectionModal title={`Select ${modalType === 'attending' ? 'Supervisor' : modalType}`} isOpen={!!modalType} onClose={() => setModalType(null)}>
         {renderModalContent()}
       </SelectionModal>
 
@@ -268,7 +280,7 @@ const ChatPage = () => {
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
             />
             <button onClick={handleSendMessage} className="p-3 text-white bg-brand-primary rounded-full hover:bg-brand-primary-hover transition-colors disabled:opacity-50" disabled={isLoading}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
             </button>
           </GlassCard>
         </div>
