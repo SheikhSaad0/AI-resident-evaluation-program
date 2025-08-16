@@ -4,17 +4,20 @@ FROM node:20-slim
 # Set the working directory in the container
 WORKDIR /app
 
-# Install dependencies
+# Copy package manager files
 COPY package*.json ./
+
+# Copy Prisma schema before installing dependencies
+# This is the crucial fix to ensure 'prisma generate' works on install
+COPY prisma ./prisma/
+
+# Install dependencies (this will also trigger 'prisma generate')
 RUN npm install
 
-# Copy the rest of the application's code
+# Copy the rest of the application's source code
 COPY . .
 
-# Generate the Prisma client
-RUN npx prisma generate
-
-# Build the Next.js application
+# Build the Next.js application for production
 RUN npm run build
 
 # Expose the port the app runs on
