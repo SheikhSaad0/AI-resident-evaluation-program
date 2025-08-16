@@ -167,7 +167,7 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
         **CONTEXT:**
         - **Procedure:** ${surgeryName}
         - **Additional Context:** ${additionalContext || 'None'}
-        - **Transcript:** A full transcript with speaker labels and timestamps is provided below.
+        - **Transcript:** A full transcript with speaker labels and timestamps is provided below. Speaker labels may not be accurate, be aware of this.
         
         **SCORING SCALE (0–5):**
 
