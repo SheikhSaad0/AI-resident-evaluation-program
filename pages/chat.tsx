@@ -10,26 +10,36 @@ import { useApi } from '../lib/useApi';
 interface Message { text: string; sender: 'user' | 'gemini'; }
 interface Resident { id: string; name: string; photoUrl?: string | null; year?: string; }
 interface Supervisor { id: string; name: string; photoUrl?: string | null; type: 'Attending' | 'Program Director'; }
-interface Case { id: string; surgery: string; date: string; residentName?: string; surgeryName?: string; }
+interface Case { id: string; surgery: string; date: string; residentName?: string; }
 type ModalType = 'resident' | 'attending' | 'case' | null;
 
-interface ContextReference {
-  id: string;
-  name: string;
-  type: 'resident' | 'attending' | 'case';
+interface ChatContext {
+  residents: { resident: any; evaluations: any[] }[];
+  attendings: { supervisor: any; evaluations: any[] }[];
+  cases: { caseData: any }[];
 }
 
-// --- ContextPills Component ---
-const ContextPills = ({ items, onRemove }: { items: ContextReference[]; onRemove: (id: string) => void; }) => {
-  if (items.length === 0) return null;
+const initialContext: ChatContext = { residents: [], attendings: [], cases: [] };
+
+// --- NEW COMPONENT: ContextPills ---
+// This component displays the selected items for analysis above the chat input.
+const ContextPills = ({ context, onRemove }: { context: ChatContext; onRemove: (type: 'resident' | 'attending' | 'case', id: string) => void; }) => {
+  const residents = context.residents.map(r => ({ ...r.resident, type: 'resident' as const }));
+  const attendings = context.attendings.map(a => ({ ...a.supervisor, type: 'attending' as const }));
+  const cases = context.cases.map(c => ({ ...c.caseData, id: c.caseData.id, name: c.caseData.surgeryName || `Case #${c.caseData.id}`, type: 'case' as const }));
+
+  const allItems = [...residents, ...attendings, ...cases];
+
+  if (allItems.length === 0) return null;
+
   return (
     <div className="px-4 pb-2">
       <GlassCard variant="subtle" className="p-2">
         <div className="flex flex-wrap gap-2">
-          {items.map(item => (
-            <div key={item.id} className="flex items-center gap-2 bg-glass-300 rounded-full pl-3 pr-2 py-1 text-sm text-text-primary animate-fade-in">
+          {allItems.map(item => (
+            <div key={`${item.type}-${item.id}`} className="flex items-center gap-2 bg-glass-300 rounded-full px-3 py-1 text-sm text-text-primary">
               <span>{item.name}</span>
-              <button onClick={() => onRemove(item.id)} className="text-text-tertiary hover:text-white transition-colors">
+              <button onClick={() => onRemove(item.type, item.id)} className="text-text-tertiary hover:text-white">
                 &times;
               </button>
             </div>
@@ -40,11 +50,12 @@ const ContextPills = ({ items, onRemove }: { items: ContextReference[]; onRemove
   );
 };
 
+
 const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [contextItems, setContextItems] = useState<ContextReference[]>([]);
+  const [context, setContext] = useState<ChatContext>(initialContext);
   const [modalType, setModalType] = useState<ModalType>(null);
   const [modalData, setModalData] = useState<any[]>([]);
 
@@ -59,31 +70,39 @@ const ChatPage = () => {
 
   // --- Message Handling ---
   const handleSendMessage = async () => {
-    const hasContext = contextItems.length > 0;
-    const hasInput = input.trim() !== '';
-    if (!hasContext && !hasInput) return;
-
+    if (input.trim() === '' && messages.length === 0) return;
     const currentInput = input;
-    const currentContextItems = [...contextItems];
-
-    setContextItems([]);
+    const newMessages: Message[] = currentInput ? [...messages, { text: currentInput, sender: 'user' }] : [...messages];
+    
+    setMessages(newMessages);
     setInput('');
     setIsLoading(true);
 
-    if (currentInput) {
-      setMessages(prev => [...prev, { text: currentInput, sender: 'user' }]);
-    }
-
+    // FIX: Create a lightweight summary of the context to avoid large request bodies.
     const contextSummary = {
-      residents: currentContextItems.filter(i => i.type === 'resident').map(i => ({ id: i.id, name: i.name })),
-      attendings: currentContextItems.filter(i => i.type === 'attending').map(i => ({ id: i.id, name: i.name })),
-      cases: currentContextItems.filter(i => i.type === 'case').map(i => ({ id: i.id, surgeryName: i.name })),
+      residents: context.residents.map(r => ({
+        id: r.resident.id,
+        name: r.resident.name,
+        evaluationCount: r.evaluations.length,
+        averageScore: r.evaluations.length > 0 ? r.evaluations.reduce((acc, e) => acc + (e.score || 0), 0) / r.evaluations.length : 0,
+      })),
+      attendings: context.attendings.map(a => ({
+        id: a.supervisor.id,
+        name: a.supervisor.name,
+        evaluationCount: a.evaluations.length,
+      })),
+      cases: context.cases.map(c => ({
+        id: c.caseData.id,
+        surgeryName: c.caseData.surgeryName,
+        residentName: c.caseData.residentName,
+        finalScore: c.caseData.finalScore,
+      })),
     };
 
     try {
       const res = await apiFetch('/api/chat', {
         method: 'POST',
-        body: { history: messages, message: currentInput, context: contextSummary },
+        body: { history: newMessages, message: currentInput, context: contextSummary },
       });
       setMessages(prev => [...prev, { text: res.response, sender: 'gemini' }]);
     } catch (error) {
@@ -91,6 +110,7 @@ const ChatPage = () => {
       setMessages(prev => [...prev, { text: 'Sorry, I encountered an error.', sender: 'gemini' }]);
     } finally {
       setIsLoading(false);
+      setContext(initialContext);
     }
   };
 
@@ -104,31 +124,51 @@ const ChatPage = () => {
     setModalData(data);
   };
 
-  const handleSelect = (item: any) => {
-    if (contextItems.some(existingItem => existingItem.id === item.id)) {
-      setModalType(null);
-      return;
-    }
-    let newItem: ContextReference | null = null;
-    if (modalType === 'resident') {
-        newItem = { id: item.id, name: item.name, type: 'resident' };
-    } else if (modalType === 'attending') {
-        newItem = { id: item.id, name: item.name, type: 'attending' };
-    } else if (modalType === 'case') {
-        newItem = { id: item.id, name: item.surgeryName || item.surgery || `Case #${item.id}`, type: 'case' };
-    }
+  const handleSelect = async (item: any) => {
+    let contextMessage = '';
 
-    if (newItem) {
-        setContextItems(prev => [...prev, newItem!]);
-        setMessages(prev => [...prev, { text: `Added for analysis: ${newItem!.name}`, sender: 'gemini' }]);
+    if (modalType === 'resident') {
+      if (context.residents.some(r => r.resident.id === item.id)) { setModalType(null); return; }
+      const resident = await apiFetch(`/api/residents/${item.id}`);
+      const evaluations = await apiFetch(`/api/residents/${item.id}/evaluations`);
+      setContext(prev => ({ ...prev, residents: [...prev.residents, { resident, evaluations }] }));
+      contextMessage = `Added for analysis: ${resident.name}`;
     }
+    if (modalType === 'attending') {
+      if (context.attendings.some(a => a.supervisor.id === item.id)) { setModalType(null); return; }
+      const supervisor = await apiFetch(`/api/attendings/${item.id}`);
+      const evaluations = await apiFetch(`/api/attendings/evaluations?id=${item.id}`);
+      setContext(prev => ({ ...prev, attendings: [...prev.attendings, { supervisor, evaluations }] }));
+      contextMessage = `Added for analysis: ${supervisor.name}`;
+    }
+    if (modalType === 'case') {
+      if (context.cases.some(c => c.caseData.id === item.id)) { setModalType(null); return; }
+      const caseData = await apiFetch(`/api/evaluations/${item.id}`);
+      setContext(prev => ({ ...prev, cases: [...prev.cases, { caseData }] }));
+      contextMessage = `Added for analysis: Case #${item.id} (${caseData.surgeryName})`;
+    }
+    
+    // FIX: Only add the "Added for analysis" message if it's not a duplicate of the last message
+    setMessages(prev => {
+        if (prev.length > 0 && prev[prev.length - 1].text === contextMessage) {
+            return prev;
+        }
+        return [...prev, { text: contextMessage, sender: 'gemini' }];
+    });
     setModalType(null);
   };
 
-  const handleRemoveContextItem = (idToRemove: string) => {
-    setContextItems(prev => prev.filter(item => item.id !== idToRemove));
+  // --- NEW: Function to remove items from context ---
+  const handleRemoveContextItem = (type: 'resident' | 'attending' | 'case', id: string) => {
+    setContext(prev => {
+      const newContext = { ...prev };
+      if (type === 'resident') newContext.residents = prev.residents.filter(r => r.resident.id !== id);
+      if (type === 'attending') newContext.attendings = prev.attendings.filter(a => a.supervisor.id !== id);
+      if (type === 'case') newContext.cases = prev.cases.filter(c => c.caseData.id !== id);
+      return newContext;
+    });
   };
-
+  
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => { /* ... */ };
 
   const renderModalContent = () => {
@@ -193,7 +233,8 @@ const ChatPage = () => {
           <div ref={chatEndRef} />
         </div>
 
-        <ContextPills items={contextItems} onRemove={handleRemoveContextItem} />
+        {/* --- NEW: Context Pills UI --- */}
+        <ContextPills context={context} onRemove={handleRemoveContextItem} />
 
         <div className="p-4">
           <GlassCard variant="strong" className="p-2 flex items-center gap-2">
