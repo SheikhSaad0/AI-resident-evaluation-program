@@ -30,7 +30,6 @@ interface LiveSessionState {
     currentStepName: string;
 }
 
-const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEBSOCKET_URL || "ws://localhost:3001";
 const DEBOUNCE_TIME_MS = 2000;
 
 const LiveEvaluationPage = () => {
@@ -47,6 +46,9 @@ const LiveEvaluationPage = () => {
     const [isAiProcessing, setIsAiProcessing] = useState(false);
     const [textInput, setTextInput] = useState('');
     const [selectedSpeaker, setSelectedSpeaker] = useState('0');
+
+    // State for dynamically setting the WebSocket URL
+    const [websocketUrl, setWebsocketUrl] = useState('');
 
     const [currentState, setCurrentState] = useState<LiveSessionState>({
         currentStepIndex: 0,
@@ -70,6 +72,15 @@ const LiveEvaluationPage = () => {
 
     useEffect(() => { stateRef.current = currentState; }, [currentState]);
     useEffect(() => { transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatHistory, isAiProcessing]);
+
+    // Effect to set the WebSocket URL based on the window's location
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            setWebsocketUrl(`${protocol}//${host}`);
+        }
+    }, []);
 
     useEffect(() => {
         const fetchResidents = async () => {
@@ -189,7 +200,7 @@ const LiveEvaluationPage = () => {
                                 timeElapsedInStep: 0,
                                 currentStepName: config.procedureSteps[newStepIndex].name,
                             }));
-                            checkInTriggeredRef.current = false; 
+                            checkInTriggeredRef.current = false;
                             stepExceededTriggeredRef.current = false;
                         }
                     }
@@ -233,18 +244,18 @@ const LiveEvaluationPage = () => {
         const timeParts = currentStepConfig.time.replace(' min', '').split('-');
         const maxTimeMinutes = parseInt(timeParts[1], 10);
         if (isNaN(maxTimeMinutes)) return;
-        
+
         const checkInTimeSeconds = maxTimeMinutes * 60 * 0.75;
         const stepExceededTimeSeconds = maxTimeMinutes * 60 * 1.15;
 
         if (currentState.timeElapsedInStep >= checkInTimeSeconds && !checkInTriggeredRef.current) {
-            checkInTriggeredRef.current = true; 
+            checkInTriggeredRef.current = true;
             const timeElapsed = stateRef.current.timeElapsedInStep;
             const stepName = stateRef.current.currentStepName;
             const message = `We've been on ${stepName} for ${Math.floor(timeElapsed / 60)} minutes and ${timeElapsed % 60} seconds. Attending, how is the resident progressing? Should they continue, or would you like to take over?`;
             addVeritasMessage(message, true);
         }
-        
+
         if (currentState.timeElapsedInStep >= stepExceededTimeSeconds && !stepExceededTriggeredRef.current) {
             stepExceededTriggeredRef.current = true;
             addVeritasMessage("Have we moved on to the next step?", true);
@@ -256,6 +267,10 @@ const LiveEvaluationPage = () => {
     const startSession = async () => {
         if (!selectedResident || !selectedSurgery) {
             alert("Please select a surgery and a resident.");
+            return;
+        }
+        if (!websocketUrl) {
+            alert("WebSocket URL not ready. Please wait a moment and try again.");
             return;
         }
         setStatus('connecting');
@@ -286,7 +301,8 @@ const LiveEvaluationPage = () => {
                 }
             };
 
-            const wsUrl = `${WEBSOCKET_URL}?residentName=${encodeURIComponent(selectedResident.name)}`;
+            // Use the dynamic websocketUrl from state
+            const wsUrl = `${websocketUrl}?residentName=${encodeURIComponent(selectedResident.name)}`;
             socketRef.current = new WebSocket(wsUrl);
 
             socketRef.current.onopen = () => {

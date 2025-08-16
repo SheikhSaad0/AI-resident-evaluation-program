@@ -7,17 +7,12 @@
     "node": "20.x"
   },
   "scripts": {
-  "dev": "concurrently \"npm:next:dev\" \"npm:ws:dev\"",
-  "build": "npx prisma generate && next build",
-  "start": "concurrently \"npm:ws:prod\" \"npm:next:start\"",
-  "lint": "next lint",
-  "clear-cache": "node scripts/clear-cache.js",
-  "next:dev": "next dev",
-  "next:start": "next start",
-  "ws:dev": "ts-node-dev --respawn --transpile-only scripts/webSocketServer.ts",
-  "ws:prod": "tsx watch scripts/webSocketServer.ts",
-  "postinstall": "npx prisma generate",
-  "postbuild": "tsc --project tsconfig.server.json"
+    "dev": "node server.js",
+    "build": "npx prisma generate && next build",
+    "start": "NODE_ENV=production node server.js",
+    "lint": "next lint",
+    "clear-cache": "node scripts/clear-cache.js",
+    "postinstall": "npx prisma generate"
   },
   "dependencies": {
     "@deepgram/sdk": "^4.9.1",
