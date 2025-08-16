@@ -51,7 +51,7 @@ jobs:
           service: ${{ env.SERVICE }}
           region: ${{ env.REGION }}
           image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE }}:latest
-          
+          allow_unauthenticated: true
           # ⬇️ *** THE FINAL SYNTAX CORRECTION IS HERE *** ⬇️
           # Using '=' as the separator between the mount path and the secret name.
           secrets: |
