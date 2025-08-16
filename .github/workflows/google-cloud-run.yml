@@ -50,7 +50,6 @@ jobs:
           region: ${{ env.REGION }}
           image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE }}:latest
           
-          # Pass service account and unauthenticated flag here
           flags: >-
             --service-account=residencyeval@gen-lang-client-0549239622.iam.gserviceaccount.com
             --allow-unauthenticated
@@ -74,19 +73,18 @@ jobs:
             EMAIL_FROM=${{ secrets.EMAIL_FROM }}
             GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
             CRON_SECRET=${{ secrets.CRON_SECRET }}
-            NEXT_PUBLIC_GCS_BUCKET_NAME=${{ secrets.NEXT_PUBLIC_GCS_BUCKET_NAME }}
+            NEXT_PUBLIC_GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}
             QSTASH_URL=${{ secrets.QSTASH_URL }}
             QSTASH_TOKEN=${{ secrets.QSTASH_TOKEN }}
             QSTASH_CURRENT_SIGNING_KEY=${{ secrets.QSTASH_CURRENT_SIGNING_KEY }}
             QSTASH_NEXT_SIGNING_KEY=${{ secrets.QSTASH_NEXT_SIGNING_KEY }}
             DATABASE_URL_PRODUCTION=${{ secrets.DATABASE_URL_PRODUCTION }}
-            DATABASE_URL_TESTING=${{ secrets.DATABASE_URL_TESTING }} # Add this line
-            DATABASE_URL=${{ secrets.DATABASE_URL_PRODUCTION }} # Keep this for Prisma generate
-            NEXT_PUBLIC_DEEPGRAM_API_KEY=${{ secrets.NEXT_PUBLIC_DEEPGRAM_API_KEY }}
+            DATABASE_URL_TESTING=${{ secrets.DATABASE_URL_TESTING }}
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            NEXT_PUBLIC_DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}
             GCP_SERVICE_ACCOUNT_B64=${{ secrets.GCP_SERVICE_ACCOUNT_B64 }}
-            GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}
             NEXT_PUBLIC_WEBSOCKET_URL=wss://${{ secrets.CLOUD_RUN_HOSTNAME }}
-            NEXT_PUBLIC_APP_URL=https://ai-resident-evaluation-program-390365571117.us-east4.run.app
-
+            NEXT_PUBLIC_APP_URL=${{ steps.deploy.outputs.url }}
+            
       - name: Show Output URL
         run: echo "Deployment successful. App is available at ${{ steps.deploy.outputs.url }}"
