@@ -5,12 +5,11 @@ on:
     branches:
       - main
 
-      
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   SERVICE: ai-resident-evaluation-program
   REPO_NAME: ai-resident-evaluation-program
-  REGION: us-east4 # I noticed from your logs you are using us-east4, updated it.
+  REGION: us-east4
 
 jobs:
   deploy:
@@ -51,13 +50,11 @@ jobs:
           region: ${{ env.REGION }}
           image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE }}:latest
           
-          # ⬇️ *** KEY CHANGES ARE HERE *** ⬇️
-          # We now mount the secret as a file. The path will be /secrets/google-credentials.
+          # ⬇️ *** THE FINAL SYNTAX CORRECTION IS HERE *** ⬇️
+          # Using '=' as the separator between the mount path and the secret name.
           secrets: |
-            /secrets/google-credentials-json:google-credentials-json:latest
+            /secrets/google-credentials-json=google-credentials-json:latest
             
-          # Set an environment variable pointing to the mounted secret file.
-          # The application will automatically use this file for authentication.
           env_vars: |
             GOOGLE_APPLICATION_CREDENTIALS=/secrets/google-credentials-json
             UPSTASH_REDIS_REST_URL=${{ secrets.UPSTASH_REDIS_REST_URL }}
