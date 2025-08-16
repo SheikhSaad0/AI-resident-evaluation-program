@@ -10,6 +10,8 @@ env:
   SERVICE: ai-resident-evaluation-program
   REPO_NAME: ai-resident-evaluation-program
   REGION: us-east4
+  service_account: 'residencyeval@gen-lang-client-0549239622.iam.gserviceaccount.com'
+
 
 jobs:
   deploy:
