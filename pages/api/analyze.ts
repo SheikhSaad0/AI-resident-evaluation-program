@@ -174,7 +174,7 @@ async function transcribeWithDeepgram(audioFile: formidable.File): Promise<strin
     const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
       fs.readFileSync(audioFile.filepath),
       {
-        model: 'nova-2',
+        model: 'nova-3',
         diarize: true,
         punctuate: true,
         utterances: true,

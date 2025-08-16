@@ -130,7 +130,7 @@ const EVALUATION_CONFIGS: EvaluationConfigs = {
 
 async function transcribeWithDeepgram(urlForTranscription: string): Promise<string> {
     console.log(`[Deepgram] Starting audio transcription with URL: ${urlForTranscription}`);
-    const { result, error } = await deepgram.listen.prerecorded.transcribeUrl( { url: urlForTranscription }, { model: 'nova-2', diarize: true, punctuate: true, utterances: true } );
+    const { result, error } = await deepgram.listen.prerecorded.transcribeUrl( { url: urlForTranscription }, { model: 'nova-3', diarize: true, punctuate: true, utterances: true } );
     if (error) {
         console.error(`[Deepgram] Error during transcription:`, error);
         throw new DeepgramError(error.message);

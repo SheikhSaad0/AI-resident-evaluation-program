@@ -31,6 +31,8 @@ interface LiveSessionState {
 }
 
 const DEBOUNCE_TIME_MS = 2000;
+const AUDIO_CHUNK_INTERVAL_MS = 250; // Send audio every 250ms
+const WEBSOCKET_KEEP_ALIVE_MS = 15000; // Send a keep-alive message every 15 seconds
 
 const LiveEvaluationPage = () => {
     const router = useRouter();
@@ -70,6 +72,10 @@ const LiveEvaluationPage = () => {
     const checkInTriggeredRef = useRef<boolean>(false);
     const stepExceededTriggeredRef = useRef<boolean>(false);
 
+    // --- NEW REFS FOR MOBILE FIX ---
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const keepAliveIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
     useEffect(() => { stateRef.current = currentState; }, [currentState]);
     useEffect(() => { transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatHistory, isAiProcessing]);
 
@@ -97,6 +103,7 @@ const LiveEvaluationPage = () => {
             socketRef.current?.close();
             micRecorderRef.current?.stop();
             if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+            if (keepAliveIntervalRef.current) clearInterval(keepAliveIntervalRef.current);
         };
     }, []);
 
@@ -293,24 +300,35 @@ const LiveEvaluationPage = () => {
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+            // --- MOBILE FIX: Create and manage AudioContext ---
+            audioContextRef.current = new AudioContext();
+            const source = audioContextRef.current.createMediaStreamSource(stream);
+            // We don't need to connect it to a destination for this to work.
+
             micRecorderRef.current = new MediaRecorder(stream, { mimeType: 'audio/webm' });
             micRecorderRef.current.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    console.log(`[Mic] Sending audio chunk: ${event.data.size} bytes`); // <-- Add this line for debugging
+                if (event.data.size > 0 && socketRef.current?.readyState === WebSocket.OPEN) {
                     recordedChunksRef.current.push(event.data);
                     socketRef.current?.send(event.data);
                 }
             };
 
-            // Use the dynamic websocketUrl from state
             const wsUrl = `${websocketUrl}/api/deepgram?residentName=${encodeURIComponent(selectedResident.name)}`;
             socketRef.current = new WebSocket(wsUrl);
 
             socketRef.current.onopen = () => {
                 setStatus('connected');
                 setIsSessionActive(true);
-                micRecorderRef.current?.start(250); // <-- OPTIMIZATION: Send audio chunks more frequently
+                micRecorderRef.current?.start(AUDIO_CHUNK_INTERVAL_MS);
                 processTranscriptWithAI(true);
+                
+                // --- MOBILE FIX: Start WebSocket keep-alive ---
+                keepAliveIntervalRef.current = setInterval(() => {
+                    if (socketRef.current?.readyState === WebSocket.OPEN) {
+                        socketRef.current.send(JSON.stringify({ type: 'keep-alive' }));
+                    }
+                }, WEBSOCKET_KEEP_ALIVE_MS);
             };
 
             socketRef.current.onmessage = (event) => {
@@ -340,6 +358,8 @@ const LiveEvaluationPage = () => {
                 setStatus('idle');
                 setIsSessionActive(false);
                 stream.getTracks().forEach(track => track.stop());
+                if (keepAliveIntervalRef.current) clearInterval(keepAliveIntervalRef.current);
+                audioContextRef.current?.close(); // Clean up AudioContext
             };
             socketRef.current.onerror = (err) => {
                 setStatus('error');
@@ -355,6 +375,7 @@ const LiveEvaluationPage = () => {
         micRecorderRef.current?.stop();
         socketRef.current?.close();
         if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        if (keepAliveIntervalRef.current) clearInterval(keepAliveIntervalRef.current);
 
         setTimeout(async () => {
             const audioBlob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });

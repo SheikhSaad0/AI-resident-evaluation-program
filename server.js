@@ -41,28 +41,25 @@ wss.on('connection', (ws, req) => {
     console.log('[WebSocket] Client connected.');
 
     const deepgramConnection = deepgram.listen.live({
-        model: 'nova-2',
+        model: 'nova-3',
         language: 'en-US',
         smart_format: true,
         interim_results: true,
         diarize: true,
     });
 
-    // --- FIX: Implement an audio queue for the race condition ---
     let audioQueue = [];
     let isDeepgramOpen = false;
-
     let keepAlive;
 
     deepgramConnection.on(LiveTranscriptionEvents.Open, () => {
         console.log('[Deepgram] Connection opened.');
         isDeepgramOpen = true;
 
-        // Send any queued audio
         if (audioQueue.length > 0) {
             console.log(`[Deepgram] Sending ${audioQueue.length} queued audio packets.`);
             audioQueue.forEach(packet => deepgramConnection.send(packet));
-            audioQueue = []; // Clear the queue
+            audioQueue = [];
         }
 
         keepAlive = setInterval(() => {
@@ -98,11 +95,20 @@ wss.on('connection', (ws, req) => {
     });
 
     ws.on('message', (message) => {
-        // --- FIX: Queue audio if Deepgram isn't ready yet ---
+        // --- MOBILE FIX: Handle keep-alive messages and audio data ---
+        try {
+            const messageString = message.toString();
+            if (messageString.includes('keep-alive')) {
+                // This is a keep-alive message, ignore it
+                return;
+            }
+        } catch (error) {
+            // This is likely binary audio data, so we proceed
+        }
+
         if (isDeepgramOpen && deepgramConnection.getReadyState() === 1) {
             deepgramConnection.send(message);
         } else {
-            console.log('[WebSocket] Queuing audio packet while waiting for Deepgram connection.');
             audioQueue.push(message);
         }
     });
