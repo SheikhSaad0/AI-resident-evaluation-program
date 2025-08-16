@@ -21,67 +21,80 @@ const server = createServer((req, res) => {
 });
 
 // --- WebSocket Server Logic ---
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ noServer: true });
+
+server.on('upgrade', (request, socket, head) => {
+    const { pathname } = parse(request.url, true);
+    if (pathname === '/api/deepgram') {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+            wss.emit('connection', ws, request);
+        });
+    } else {
+        socket.destroy();
+    }
+});
 
 wss.on('connection', (ws, req) => {
     console.log('[WebSocket] Client connected.');
 
-    // Create a new Deepgram live transcription connection with stable options
     const deepgramConnection = deepgram.listen.live({
         model: 'nova-2',
         language: 'en-US',
         smart_format: true,
         punctuate: true,
         interim_results: true,
+        // Diarize has been removed for stability
     });
+
+    const keepAlive = setInterval(() => {
+        if (deepgramConnection.getReadyState() === 1 /* OPEN */) {
+            deepgramConnection.keepAlive();
+        }
+    }, 10000);
 
     deepgramConnection.on('open', () => {
         console.log('[Deepgram] Connection opened.');
 
-        // Handle transcripts from Deepgram
         deepgramConnection.on('transcript', (data) => {
-            const transcript = data.channel.alternatives[0].transcript;
-            if (transcript) {
-                const message = {
-                    type: 'transcript',
-                    entry: {
-                        // Use the simple "Speaker X" format which is more robust
-                        speaker: `Speaker ${data.channel.speaker}`,
-                        text: transcript,
-                        isFinal: data.is_final,
-                    },
-                };
-                ws.send(JSON.stringify(message));
+            // --- ADDED: Robust error handling ---
+            try {
+                const transcript = data.channel?.alternatives[0]?.transcript;
+                if (transcript) {
+                    const message = {
+                        type: 'transcript',
+                        entry: {
+                             // Reverted to simpler speaker logic
+                            speaker: `Speaker ${data.channel?.speaker ?? 0}`,
+                            text: transcript,
+                            isFinal: data.is_final,
+                        },
+                    };
+                    ws.send(JSON.stringify(message));
+                }
+            } catch (error) {
+                console.error('[Deepgram] Error processing transcript data:', error);
             }
         });
 
-        deepgramConnection.on('error', (err) => {
-            console.error('[Deepgram] Error:', err);
-        });
-
-        deepgramConnection.on('close', () => {
-            console.log('[Deepgram] Connection closed.');
-        });
+        deepgramConnection.on('error', (err) => console.error('[Deepgram] Error:', err));
+        deepgramConnection.on('close', () => console.log('[Deepgram] Connection closed.'));
     });
 
-    // Handle audio messages from the client
     ws.on('message', (message) => {
-        if (deepgramConnection.getReadyState() === 1 /* OPEN */) {
+        if (deepgramConnection.getReadyState() === 1) {
             deepgramConnection.send(message);
         }
     });
 
-    // Handle client disconnection
     ws.on('close', () => {
         console.log('[WebSocket] Client disconnected.');
-        if (deepgramConnection.getReadyState() === 1 /* OPEN */) {
+        clearInterval(keepAlive);
+        if (deepgramConnection.getReadyState() === 1) {
             deepgramConnection.finish();
         }
     });
 
-    ws.on('error', (error) => {
-        console.error('[WebSocket] Error:', error);
-    });
+    ws.on('error', (error) => console.error('[WebSocket] Error:', error));
 });
 
 server.listen(port, (err) => {

@@ -296,19 +296,20 @@ const LiveEvaluationPage = () => {
             micRecorderRef.current = new MediaRecorder(stream, { mimeType: 'audio/webm' });
             micRecorderRef.current.ondataavailable = (event) => {
                 if (event.data.size > 0) {
+                    console.log(`[Mic] Sending audio chunk: ${event.data.size} bytes`); // <-- Add this line for debugging
                     recordedChunksRef.current.push(event.data);
                     socketRef.current?.send(event.data);
                 }
             };
 
             // Use the dynamic websocketUrl from state
-            const wsUrl = `${websocketUrl}?residentName=${encodeURIComponent(selectedResident.name)}`;
+            const wsUrl = `${websocketUrl}/api/deepgram?residentName=${encodeURIComponent(selectedResident.name)}`;
             socketRef.current = new WebSocket(wsUrl);
 
             socketRef.current.onopen = () => {
                 setStatus('connected');
                 setIsSessionActive(true);
-                micRecorderRef.current?.start(1000);
+                micRecorderRef.current?.start(250); // <-- Change this to 250ms
                 processTranscriptWithAI(true);
             };
 
