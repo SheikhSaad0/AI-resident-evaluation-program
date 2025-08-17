@@ -1,6 +1,7 @@
-import { useState, useContext, useRef, useEffect, ReactNode } from 'react';
+import { useState, useContext, useRef, useEffect, ReactNode, useCallback } from 'react';
 import Image from 'next/image';
-import { GlassCard, GlassInput } from '../components/ui';
+import { useRouter } from 'next/router';
+import { GlassCard, GlassInput, GlassButton } from '../components/ui'; // <-- ADDED GlassButton
 import SelectionModal from '../components/ui/SelectionModal';
 import MarkdownRenderer from '../components/ui/MarkdownRenderer';
 import { AuthContext } from '../lib/auth';
@@ -23,10 +24,16 @@ interface ChatContext {
   cases: { caseData: any }[];
 }
 
+// NEW INTERFACES
+interface ChatHistoryItem {
+  id: string;
+  title: string;
+  createdAt: string;
+}
+
 const initialContext: ChatContext = { residents: [], attendings: [], cases: [] };
 
 // --- UI COMPONENTS ---
-
 const MessageContextPills = ({ context }: { context: ChatContext }) => {
   const residents = context.residents.map(r => ({ ...r.resident, type: 'resident' as const }));
   const attendings = context.attendings.map(a => ({ ...a.supervisor, type: 'attending' as const }));
@@ -83,11 +90,16 @@ const ChatPage = () => {
   const [modalType, setModalType] = useState<ModalType>(null);
   const [modalData, setModalData] = useState<any[]>([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  
+  // NEW STATE FOR CHAT HISTORY
+  const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
 
   const auth = useContext(AuthContext);
   const { apiFetch } = useApi();
   const chatEndRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -105,6 +117,61 @@ const ChatPage = () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [menuRef]);
+
+  // NEW: Fetch chat history on component mount or auth change
+  const fetchChatHistory = useCallback(async () => {
+    if (!auth?.user?.id) return;
+    try {
+      const history = await apiFetch(`/api/chat-history?userId=${auth.user.id}&userType=${auth.user.type}`);
+      setChatHistory(history);
+      // Automatically load the latest chat
+      if (history.length > 0 && !activeChatId) {
+        loadChat(history[0].id);
+      }
+    } catch (error) {
+      console.error('Failed to fetch chat history:', error);
+    }
+  }, [apiFetch, auth?.user?.id, auth?.user?.type, activeChatId]);
+
+  useEffect(() => {
+    fetchChatHistory();
+  }, [fetchChatHistory]);
+
+  // NEW: Function to load a specific chat
+  const loadChat = useCallback(async (chatId: string) => {
+    setIsLoading(true);
+    try {
+      const chat = await apiFetch(`/api/chat-history/${chatId}`);
+      setActiveChatId(chatId);
+      setMessages(chat.history);
+      setContext(initialContext);
+    } catch (error) {
+      console.error('Failed to load chat:', error);
+      setMessages([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [apiFetch]);
+
+  // NEW: Function to create a new chat
+  const createNewChat = async () => {
+    if (!auth?.user?.id) return;
+    setIsLoading(true);
+    try {
+      const newChat = await apiFetch('/api/chat-history', {
+        method: 'POST',
+        body: { userId: auth.user.id, userType: auth.user.type, title: 'New Chat' },
+      });
+      fetchChatHistory();
+      setActiveChatId(newChat.id);
+      setMessages([]);
+      setContext(initialContext);
+    } catch (error) {
+      console.error('Failed to create new chat:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSendMessage = async () => {
     const isContextEmpty = context.residents.length === 0 && context.attendings.length === 0 && context.cases.length === 0;
@@ -148,11 +215,30 @@ const ChatPage = () => {
 
     try {
       const historyForApi = newMessages.map(({ text, sender }) => ({ text, sender }));
-      const res = await apiFetch('/api/chat', {
+      const res = await apiFetch(`/api/chat?chatId=${activeChatId}`, {
         method: 'POST',
         body: { history: historyForApi, message: currentInput, context: contextSummary },
       });
-      setMessages(prev => [...prev, { text: res.response, sender: 'gemini' }]);
+      
+      // FIX: Explicitly cast the sender to 'gemini' to match the Message interface
+      const updatedMessages = [
+        ...newMessages,
+        {
+          text: res.response,
+          sender: 'gemini' as 'gemini', // Type assertion added here
+        },
+      ];
+      setMessages(updatedMessages);
+
+      // Update the chat history in the backend
+      if (activeChatId) {
+        await apiFetch(`/api/chat-history/${activeChatId}`, {
+          method: 'PUT',
+          body: { history: updatedMessages },
+        });
+        fetchChatHistory(); // Refresh history to update titles
+      }
+
     } catch (error) {
       console.error('Error sending message:', error);
       setMessages(prev => [...prev, { text: 'Sorry, I encountered an error.', sender: 'gemini' }]);
@@ -249,67 +335,90 @@ const ChatPage = () => {
         {renderModalContent()}
       </SelectionModal>
 
-      <div className="flex flex-col h-full bg-gray-800 bg-opacity-50 backdrop-blur-lg rounded-4xl">
-        <div className="flex-grow overflow-y-auto p-6 space-y-4 scrollbar-glass">
-          <div className="text-center mb-8">
-            <h1 className="heading-xl text-animated-gradient">Hello, {auth?.user?.name?.split(' ')[0]}</h1>
-            <p className="text-text-tertiary mt-2">How can I help you analyze performance today?</p>
-          </div>
-          {messages.map((msg, index) => (
-            <div key={index} className={`flex items-start gap-4 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-              {msg.sender === 'gemini' && <Image src="/images/logo.png" alt="Veritas" width={40} height={40} className="rounded-full mt-1 flex-shrink-0" />}
-              <GlassCard variant={msg.sender === 'user' ? 'strong' : 'subtle'} className="p-4 max-w-3xl">
-                {msg.sender === 'user' && msg.context && <MessageContextPills context={msg.context} />}
-                
-                {msg.sender === 'gemini' ? (
-                  <MarkdownRenderer content={msg.text} />
-                ) : (
-                  msg.text && <p className="text-white whitespace-pre-wrap">{msg.text}</p>
-                )}
-              </GlassCard>
-            </div>
-          ))}
-          {isLoading && (
-            <div className="flex items-start gap-4 justify-start">
-              <Image src="/images/logo.png" alt="Veritas" width={40} height={40} className="rounded-full mt-1 flex-shrink-0" />
-              <GlassCard variant="subtle" className="p-4 max-w-3xl">
-                <div className="flex items-center gap-2 text-text-tertiary">
-                  <div className="w-2 h-2 bg-brand-primary rounded-full animate-pulse" style={{ animationDelay: '0s' }}></div>
-                  <div className="w-2 h-2 bg-brand-primary rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                  <div className="w-2 h-2 bg-brand-primary rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+      <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-6 h-full">
+          {/* Chat History Sidebar */}
+          <GlassCard variant="strong" className="p-4 flex-col gap-4 hidden md:flex">
+              <div className="flex items-center justify-between mb-2">
+                  <h3 className="heading-md">Chats</h3>
+                  <GlassButton size="sm" onClick={createNewChat}>+ New Chat</GlassButton>
+              </div>
+              <div className="flex-grow space-y-2 overflow-y-auto pr-2 scrollbar-glass">
+                  {chatHistory.map(chat => (
+                      <div 
+                        key={chat.id}
+                        onClick={() => loadChat(chat.id)}
+                        className={`p-3 rounded-2xl cursor-pointer transition-all duration-200 hover:bg-glass-200 ${activeChatId === chat.id ? 'bg-brand-primary/20 border border-brand-primary' : ''}`}
+                      >
+                          <p className="font-medium text-text-primary text-sm truncate">{chat.title}</p>
+                          <p className="text-xs text-text-tertiary">{new Date(chat.createdAt).toLocaleDateString()}</p>
+                      </div>
+                  ))}
+              </div>
+          </GlassCard>
+
+          {/* Main Chat Area */}
+          <div className="md:col-span-3 lg:col-span-4 flex flex-col h-full bg-gray-800 bg-opacity-50 backdrop-blur-lg rounded-4xl">
+            <div className="flex-grow overflow-y-auto p-6 space-y-4 scrollbar-glass">
+              <div className="text-center mb-8">
+                <h1 className="heading-xl text-animated-gradient">Hello, {auth?.user?.name?.split(' ')[0]}</h1>
+                <p className="text-text-tertiary mt-2">How can I help you analyze performance today?</p>
+              </div>
+              {messages.map((msg, index) => (
+                <div key={index} className={`flex items-start gap-4 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  {msg.sender === 'gemini' && <Image src="/images/logo.png" alt="Veritas" width={40} height={40} className="rounded-full mt-1 flex-shrink-0" />}
+                  <GlassCard variant={msg.sender === 'user' ? 'strong' : 'subtle'} className="p-4 max-w-3xl">
+                    {msg.sender === 'user' && msg.context && <MessageContextPills context={msg.context} />}
+                    
+                    {msg.sender === 'gemini' ? (
+                      <MarkdownRenderer content={msg.text} />
+                    ) : (
+                      msg.text && <p className="text-white whitespace-pre-wrap">{msg.text}</p>
+                    )}
+                  </GlassCard>
                 </div>
-              </GlassCard>
-            </div>
-          )}
-          <div ref={chatEndRef} />
-        </div>
-
-        <StagingContextPills context={context} onRemove={handleRemoveContextItem} />
-
-        <div className="p-4">
-          <GlassCard variant="strong" className="p-2 flex items-center gap-2">
-            <div className="relative" ref={menuRef}>
-              <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-3 text-white rounded-full hover:bg-glass-200 transition-colors">+</button>
-              {isMenuOpen && (
-                <div className="absolute bottom-full mb-2 w-48 bg-navy-700 rounded-xl shadow-lg p-2">
-                  <button onClick={() => { openModal('resident'); setIsMenuOpen(false); }} className="modal-menu-item">Add Resident</button>
-                  <button onClick={() => { openModal('attending'); setIsMenuOpen(false); }} className="modal-menu-item">Add Supervisor</button>
-                  <button onClick={() => { openModal('case'); setIsMenuOpen(false); }} className="modal-menu-item">Add Case</button>
+              ))}
+              {isLoading && (
+                <div className="flex items-start gap-4 justify-start">
+                  <Image src="/images/logo.png" alt="Veritas" width={40} height={40} className="rounded-full mt-1 flex-shrink-0" />
+                  <GlassCard variant="subtle" className="p-4 max-w-3xl">
+                    <div className="flex items-center gap-2 text-text-tertiary">
+                      <div className="w-2 h-2 bg-brand-primary rounded-full animate-pulse" style={{ animationDelay: '0s' }}></div>
+                      <div className="w-2 h-2 bg-brand-primary rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                      <div className="w-2 h-2 bg-brand-primary rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                    </div>
+                  </GlassCard>
                 </div>
               )}
+              <div ref={chatEndRef} />
             </div>
-            <GlassInput
-              className="flex-grow bg-transparent border-none focus:ring-0 text-lg"
-              placeholder="Ask Veritas..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
-            />
-            <button onClick={handleSendMessage} className="p-3 text-white bg-brand-primary rounded-full hover:bg-brand-primary-hover transition-colors disabled:opacity-50" disabled={isLoading}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-            </button>
-          </GlassCard>
-        </div>
+
+            <StagingContextPills context={context} onRemove={handleRemoveContextItem} />
+
+            <div className="p-4">
+              <GlassCard variant="strong" className="p-2 flex items-center gap-2">
+                <div className="relative" ref={menuRef}>
+                  <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-3 text-white rounded-full hover:bg-glass-200 transition-colors">+</button>
+                  {isMenuOpen && (
+                    <div className="absolute bottom-full mb-2 w-48 bg-navy-700 rounded-xl shadow-lg p-2">
+                      <button onClick={() => { openModal('resident'); setIsMenuOpen(false); }} className="modal-menu-item">Add Resident</button>
+                      <button onClick={() => { openModal('attending'); setIsMenuOpen(false); }} className="modal-menu-item">Add Supervisor</button>
+                      <button onClick={() => { openModal('case'); setIsMenuOpen(false); }} className="modal-menu-item">Add Case</button>
+                    </div>
+                  )}
+                </div>
+                <GlassInput
+                  className="flex-grow bg-transparent border-none focus:ring-0 text-lg"
+                  placeholder="Ask Veritas..."
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
+                />
+                <button onClick={handleSendMessage} className="p-3 text-white bg-brand-primary rounded-full hover:bg-brand-primary-hover transition-colors disabled:opacity-50" disabled={isLoading}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                </button>
+              </GlassCard>
+            </div>
+          </div>
       </div>
     </>
   );
