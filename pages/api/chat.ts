@@ -1,6 +1,9 @@
+// pages/api/chat.ts
+
 import { NextApiRequest, NextApiResponse } from 'next';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getPrismaClient } from '../../lib/prisma';
+import { PrismaClient } from '@prisma/client';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
@@ -10,7 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const { history, message, context } = req.body;
-  const prisma = getPrismaClient(req);
+  const prisma: PrismaClient = getPrismaClient(req);
 
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
 
@@ -30,51 +33,62 @@ Case difficulty: (Number 1-3) Rate the case difficulty is based on the a procedu
 
 If the provided context does not contain the information needed to answer the user's question, state that the information is not available.`;
 
-  let newContext = context;
-  let matchFound = false;
+  // Define newContext based on the provided context, which will be merged with any newly found context.
+  let newContext = { ...context };
 
-  // Attempt to find context only if none is already provided.
-  if (!context || (context.residents.length === 0 && context.attendings.length === 0 && context.cases.length === 0)) {
-    // Fetch all attendings and residents for a more flexible search
-    const allAttendings = await prisma.attending.findMany();
-    const allResidents = await prisma.resident.findMany();
+  const allAttendings = await prisma.attending.findMany();
+const allResidents = await prisma.resident.findMany();
 
-    // Check for a match in the message against all names
-    const matchedAttending = allAttendings.find(a => message.toLowerCase().includes(a.name.toLowerCase()));
-    const matchedResident = allResidents.find(r => message.toLowerCase().includes(r.name.toLowerCase()));
+// PROPOSED CHANGE: Robust, bidirectional name search logic.
+const combinedProfiles = [...allAttendings, ...allResidents];
+let matchedProfile = null;
+const lowerCaseMessage = message.toLowerCase();
+
+for (const profile of combinedProfiles) {
+    const lowerCaseProfileName = profile.name.toLowerCase();
     
-    if (matchedAttending) {
-      const evaluations = await prisma.job.findMany({
-        where: { attendingId: matchedAttending.id },
-        include: { resident: true, attending: true }
-      });
-      newContext = { residents: [], attendings: [{ supervisor: { ...matchedAttending, type: 'Attending' }, evaluations }], cases: [] };
-      matchFound = true;
-    } else if (matchedResident) {
-      const evaluations = await prisma.job.findMany({
-        where: { residentId: matchedResident.id },
-        include: { resident: true, attending: true }
-      });
-      newContext = { residents: [{ resident: matchedResident, evaluations }], attendings: [], cases: [] };
-      matchFound = true;
+    // Check if the message contains the full profile name, OR if the profile name contains the message's core name.
+    const messageContainsName = lowerCaseMessage.includes(lowerCaseProfileName);
+    const nameContainsMessage = lowerCaseProfileName.includes(lowerCaseMessage);
+    
+    // Check for a match based on the core name (e.g., "James Harris")
+    const coreName = lowerCaseMessage.replace(/ jr\.?$/, '').trim();
+    const profileContainsCoreName = lowerCaseProfileName.includes(coreName);
+
+    if (messageContainsName || nameContainsMessage || profileContainsCoreName) {
+        matchedProfile = profile;
+        break;
     }
-  } else {
-    // A context was already provided.
-    matchFound = true;
+}
+
+  if (matchedProfile) {
+    if ('type' in matchedProfile && matchedProfile.type === 'Attending') {
+        const evaluations = await prisma.job.findMany({
+            where: { attendingId: matchedProfile.id },
+            include: { resident: true, attending: true }
+        });
+        // Merge the new context with the existing context
+        newContext.attendings = [...newContext.attendings, { supervisor: { ...matchedProfile, type: 'Attending' }, evaluations }];
+    } else {
+        const evaluations = await prisma.job.findMany({
+            where: { residentId: matchedProfile.id },
+            include: { resident: true, attending: true }
+        });
+        // Merge the new context with the existing context
+        newContext.residents = [...newContext.residents, { resident: matchedProfile, evaluations }];
+    }
   }
 
-  // If no relevant data is found after all search attempts, return the custom message.
-  if (!matchFound) {
+  // Fallback to the original "I don't have enough data" message if no context is found at all.
+  const hasContext = newContext.residents.length > 0 || newContext.attendings.length > 0 || newContext.cases.length > 0;
+  if (!hasContext) {
       return res.status(200).json({
           response: "I don't have enough data to perform a detailed analysis on that query. For more specific information, please use the plus icon to select additional context to your query.",
           context: { residents: [], attendings: [], cases: [] }
       });
   }
 
-  const contextText = (newContext.residents.length > 0 || newContext.attendings.length > 0 || newContext.cases.length > 0)
-    ? `\n\n### CONTEXT ###\n${JSON.stringify(newContext, null, 2)}`
-    : '';
-
+  const contextText = `\n\n### CONTEXT ###\n${JSON.stringify(newContext, null, 2)}`;
   const fullPrompt = `${systemPrompt}\n\n${history.map((h: any) => `${h.sender}: ${h.text}`).join('\n')}\nuser: ${message}${contextText}`;
 
   try {
