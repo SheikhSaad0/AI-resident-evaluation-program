@@ -1,7 +1,7 @@
 import { useState, useContext, useRef, useEffect, ReactNode, useCallback } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
-import { GlassCard, GlassInput, GlassButton } from '../components/ui'; // <-- ADDED GlassButton
+import { GlassCard, GlassInput, GlassButton } from '../components/ui';
 import SelectionModal from '../components/ui/SelectionModal';
 import MarkdownRenderer from '../components/ui/MarkdownRenderer';
 import { AuthContext } from '../lib/auth';
@@ -24,14 +24,54 @@ interface ChatContext {
   cases: { caseData: any }[];
 }
 
-// NEW INTERFACES
 interface ChatHistoryItem {
   id: string;
   title: string;
   createdAt: string;
 }
 
+// FIX: New interface for MobileChatHistorySidebar props to fix 'any' type errors
+interface MobileSidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+  chats: ChatHistoryItem[];
+  activeChatId: string | null;
+  onSelectChat: (chatId: string) => void;
+  onNewChat: () => void;
+}
+
 const initialContext: ChatContext = { residents: [], attendings: [], cases: [] };
+
+// --- NEW COMPONENT FOR MOBILE SIDEBAR ---
+const MobileChatHistorySidebar = ({ isOpen, onClose, chats, activeChatId, onSelectChat, onNewChat }: MobileSidebarProps) => {
+    return (
+        <div className={`fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-all ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            <div className={`h-full w-80 max-w-[90vw] p-4 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                <GlassCard variant="strong" className="p-4 flex-col gap-4 h-full">
+                    <div className="flex items-center justify-between mb-2">
+                        <h3 className="heading-md">Chats</h3>
+                        <GlassButton size="sm" onClick={onNewChat}>+ New Chat</GlassButton>
+                    </div>
+                    <div className="flex-grow space-y-2 overflow-y-auto pr-2 scrollbar-glass">
+                        {chats.map((chat) => (
+                            <div 
+                                key={chat.id}
+                                onClick={() => { onSelectChat(chat.id); onClose(); }}
+                                className={`p-3 rounded-2xl cursor-pointer transition-all duration-200 hover:bg-glass-200 ${activeChatId === chat.id ? 'bg-brand-primary/20 border border-brand-primary' : ''}`}
+                            >
+                                <p className="font-medium text-text-primary text-sm truncate">{chat.title}</p>
+                                <p className="text-xs text-text-tertiary">{new Date(chat.createdAt).toLocaleDateString()}</p>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex justify-center mt-4">
+                        <GlassButton onClick={onClose} variant="ghost" size="sm">Close</GlassButton>
+                    </div>
+                </GlassCard>
+            </div>
+        </div>
+    );
+};
 
 // --- UI COMPONENTS ---
 const MessageContextPills = ({ context }: { context: ChatContext }) => {
@@ -94,6 +134,7 @@ const ChatPage = () => {
   // NEW STATE FOR CHAT HISTORY
   const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const auth = useContext(AuthContext);
   const { apiFetch } = useApi();
@@ -111,20 +152,17 @@ const ChatPage = () => {
         setIsMenuOpen(false);
       }
     }
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [menuRef]);
 
-  // NEW: Fetch chat history on component mount or auth change
   const fetchChatHistory = useCallback(async () => {
     if (!auth?.user?.id) return;
     try {
       const history = await apiFetch(`/api/chat-history?userId=${auth.user.id}&userType=${auth.user.type}`);
       setChatHistory(history);
-      // Automatically load the latest chat
       if (history.length > 0 && !activeChatId) {
         loadChat(history[0].id);
       }
@@ -137,7 +175,6 @@ const ChatPage = () => {
     fetchChatHistory();
   }, [fetchChatHistory]);
 
-  // NEW: Function to load a specific chat
   const loadChat = useCallback(async (chatId: string) => {
     setIsLoading(true);
     try {
@@ -153,7 +190,6 @@ const ChatPage = () => {
     }
   }, [apiFetch]);
 
-  // NEW: Function to create a new chat
   const createNewChat = async () => {
     if (!auth?.user?.id) return;
     setIsLoading(true);
@@ -220,23 +256,19 @@ const ChatPage = () => {
         body: { history: historyForApi, message: currentInput, context: contextSummary },
       });
       
-      // FIX: Explicitly cast the sender to 'gemini' to match the Message interface
       const updatedMessages = [
         ...newMessages,
-        {
-          text: res.response,
-          sender: 'gemini' as 'gemini', // Type assertion added here
-        },
+        // FIX: Explicitly cast the sender to 'gemini' to fix the TypeScript error
+        { text: res.response, sender: 'gemini' as 'gemini' }
       ];
       setMessages(updatedMessages);
 
-      // Update the chat history in the backend
       if (activeChatId) {
         await apiFetch(`/api/chat-history/${activeChatId}`, {
           method: 'PUT',
           body: { history: updatedMessages },
         });
-        fetchChatHistory(); // Refresh history to update titles
+        fetchChatHistory();
       }
 
     } catch (error) {
@@ -296,7 +328,7 @@ const ChatPage = () => {
     if (!modalData) return <p>Loading...</p>;
 
     const renderItem = (item: any, onClick: () => void) => {
-      if (item.type === 'Attending' || item.type === 'Program Director' || 'year' in item) { // Resident or Supervisor
+      if (item.type === 'Attending' || item.type === 'Program Director' || 'year' in item) {
         const profile = item as Resident | Supervisor;
         return (
           <GlassCard key={profile.id} variant="subtle" hover onClick={onClick} className="p-3">
@@ -310,7 +342,7 @@ const ChatPage = () => {
           </GlassCard>
         );
       }
-      if ('surgery' in item) { // Case
+      if ('surgery' in item) {
         const caseItem = item as Case;
         return (
           <GlassCard key={caseItem.id} variant="subtle" hover onClick={onClick} className="p-3">
@@ -335,8 +367,26 @@ const ChatPage = () => {
         {renderModalContent()}
       </SelectionModal>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-6 h-full">
-          {/* Chat History Sidebar */}
+      <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-6 h-full relative">
+          {/* Mobile Sidebar Toggle Button */}
+          <button 
+              onClick={() => setIsMobileSidebarOpen(true)} 
+              className="md:hidden fixed top-4 left-4 z-40 p-3 bg-glass-400 rounded-full text-white shadow-lg"
+              aria-label="Open chat history"
+          >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+          </button>
+          {/* Mobile Chat History Sidebar */}
+          <MobileChatHistorySidebar
+              isOpen={isMobileSidebarOpen}
+              onClose={() => setIsMobileSidebarOpen(false)}
+              chats={chatHistory}
+              activeChatId={activeChatId}
+              onSelectChat={loadChat}
+              onNewChat={createNewChat}
+          />
+
+          {/* Desktop Chat History Sidebar */}
           <GlassCard variant="strong" className="p-4 flex-col gap-4 hidden md:flex">
               <div className="flex items-center justify-between mb-2">
                   <h3 className="heading-md">Chats</h3>

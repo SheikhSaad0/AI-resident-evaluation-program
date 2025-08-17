@@ -5,14 +5,13 @@ import React, { useContext, useEffect, useState } from 'react';
 import { AuthContext } from '../lib/auth';
 import { GlassButton } from './ui';
 
-// FIX: Added the 'Chat' nav item to the array
 const navItems = [
   { name: 'Evaluate', href: '/', icon: '/images/evaluate-icon.svg' },
   { name: 'Live Mode', href: '/live', icon: '/images/live-icon.svg' },
   { name: 'Dashboard', href: '/dashboard', icon: '/images/dashboard-icon.svg' },
   { name: 'View Reports', href: '/evaluations', icon: '/images/dashboard-icon.svg' },
   { name: 'Manage Profiles', href: '/manage-profiles', icon: '/images/default-avatar.svg' },
-  { name: 'Chat', href: '/chat', icon: '/images/chat.svg' },
+  { name: 'Chat', href: '/chat', icon: '/images/chat.svg' }, // FIX: Corrected icon to chat.svg
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -71,6 +70,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const profileUrl = profilePath ? `/${profilePath}/${auth.user.id}` : '#';
 
   const SidebarContent = () => {
+    // FIX: Add a null check for auth.user to prevent TypeScript errors
+    if (!auth?.user) {
+      return null;
+    }
     const userTitle = auth.user?.title || auth.user?.year || (auth.user?.type === 'programDirector' ? 'Program Director' : auth.user?.type);
 
     return (
@@ -138,26 +141,25 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </aside>
 
         <div className="flex flex-col flex-1 w-full sm:w-auto">
-          {/* Mobile Header (No changes needed here) */}
+          {/* FIX: Updated the mobile header to prevent overlap */}
           <header className="sm:hidden p-4 flex justify-between items-center sticky top-0 bg-background-gradient/80 backdrop-blur-sm z-10">
-              <Link href={profileUrl} className="flex items-center space-x-3 group min-w-0">
-                  <img
-                      src={auth.user.photoUrl || '/images/default-avatar.svg'}
-                      alt={auth.user.name}
-                      className="w-10 h-10 rounded-full object-cover border-2 border-primary-accent flex-shrink-0"
-                  />
-                  <div className="min-w-0">
-                      <p className="font-semibold text-base text-text-primary truncate group-hover:text-brand-primary transition-colors">{auth.user.name}</p>
-                      <p className="text-xs text-text-tertiary">{auth.user.title || auth.user.year}</p>
-                  </div>
-              </Link>
-              <button onClick={() => setSidebarOpen(true)} className="text-white" aria-label="Open menu">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
-              </button>
+            <Link href={profileUrl} className="flex items-center space-x-3 group min-w-0">
+                <img
+                    src={auth.user?.photoUrl || '/images/chat.svg'}
+                    alt={auth.user?.name || 'User'}
+                    className="w-10 h-10 rounded-full object-cover border-2 border-primary-accent flex-shrink-0"
+                />
+                <div className="min-w-0">
+                    <p className="font-semibold text-base text-text-primary truncate group-hover:text-brand-primary transition-colors">{auth.user?.name}</p>
+                    <p className="text-xs text-text-tertiary">{auth.user?.title || auth.user?.year}</p>
+                </div>
+            </Link>
+            <button onClick={() => setSidebarOpen(true)} className="p-2 text-white ml-auto" aria-label="Open menu">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+            </button>
           </header>
 
           <main className="flex-grow p-4 pt-0 sm:p-6 sm:pt-6 h-full">
-              {/* FIX: Conditional rendering for the main content wrapper */}
               {useGlassmorphismLayout ? (
                 <div className="w-full h-full overflow-y-auto scrollbar-glass glassmorphism rounded-4xl shadow-glass-lg p-6 md:p-8">
                   {children}
@@ -171,7 +173,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </div>
       
-      {/* Mobile Sidebar (No changes needed here) */}
       <div
         className={`fixed inset-0 bg-black/50 z-30 sm:hidden transition-opacity ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={() => setSidebarOpen(false)}
