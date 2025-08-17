@@ -18,7 +18,7 @@ Upload an MP3 file and enjoy!
 ## Credits
 
 Created by Saad M. Mahmood
-Original Idea by James Harris Jr. MD and Udit Choubey MBBS
+Original Idea by James Harris Jr.
 
 Affiliated with:
 Johns Hopkins Howard County Medical Center,
@@ -26,3 +26,6 @@ Johns Hopkins School of Medicine
 
 Original Feed Back Form:
 https://docs.google.com/forms/d/e/1FAIpQLSdhSQJndBsHkoP5m5unfK7wfpXnAEbugSdb0Ba3Ua8BuaTUMw/viewform
+
+This site is available at https://ai-resident-evaluation-program-amgtfpmhua-uk.a.run.app/
+This web app is hosted by google cloud run
