@@ -70,7 +70,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                                 resolve(Math.ceil(durationInSeconds));
                             })
                             // Process the file but send the output to null, as we only need the time
-                            .output('/dev/null') // Use /dev/null for Linux-based environments like Vercel
+                            .output('/dev/null')
                             .format('null')
                             .run();
                     });

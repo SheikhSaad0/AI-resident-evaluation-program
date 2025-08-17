@@ -8,9 +8,6 @@ const qstashClient = new Client({
 });
 
 function getApiBaseUrl() {
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
   // Use the new environment variable for the app's public URL
   if (process.env.NEXT_PUBLIC_APP_URL) {
     return process.env.NEXT_PUBLIC_APP_URL;
