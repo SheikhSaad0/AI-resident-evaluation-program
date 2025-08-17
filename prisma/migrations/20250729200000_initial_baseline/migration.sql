@@ -1,5 +1,8 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
 -- CreateTable
-CREATE TABLE "Job" (
+CREATE TABLE "public"."Job" (
     "id" TEXT NOT NULL,
     "status" TEXT NOT NULL,
     "gcsUrl" TEXT NOT NULL,
@@ -12,14 +15,16 @@ CREATE TABLE "Job" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "withVideo" BOOLEAN NOT NULL DEFAULT false,
     "videoAnalysis" BOOLEAN NOT NULL DEFAULT false,
+    "audioDuration" INTEGER,
     "residentId" TEXT,
     "attendingId" TEXT,
+    "programDirectorId" TEXT,
 
     CONSTRAINT "Job_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "Resident" (
+CREATE TABLE "public"."Resident" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "email" TEXT,
@@ -34,9 +39,10 @@ CREATE TABLE "Resident" (
 );
 
 -- CreateTable
-CREATE TABLE "Attending" (
+CREATE TABLE "public"."Attending" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "email" TEXT,
     "title" TEXT NOT NULL,
     "primaryInstitution" TEXT NOT NULL,
     "specialty" TEXT NOT NULL,
@@ -49,9 +55,10 @@ CREATE TABLE "Attending" (
 );
 
 -- CreateTable
-CREATE TABLE "ProgramDirector" (
+CREATE TABLE "public"."ProgramDirector" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "email" TEXT,
     "title" TEXT NOT NULL,
     "primaryInstitution" TEXT NOT NULL,
     "specialty" TEXT NOT NULL,
@@ -61,7 +68,7 @@ CREATE TABLE "ProgramDirector" (
 );
 
 -- CreateTable
-CREATE TABLE "Settings" (
+CREATE TABLE "public"."Settings" (
     "id" TEXT NOT NULL,
     "activeDatabase" TEXT NOT NULL DEFAULT 'testing',
     "defaultDatabase" TEXT NOT NULL DEFAULT 'testing',
@@ -72,7 +79,7 @@ CREATE TABLE "Settings" (
 );
 
 -- CreateTable
-CREATE TABLE "Evaluation" (
+CREATE TABLE "public"."Evaluation" (
     "id" TEXT NOT NULL,
     "procedure" TEXT NOT NULL,
     "overallFeedback" TEXT NOT NULL,
@@ -85,7 +92,7 @@ CREATE TABLE "Evaluation" (
 );
 
 -- CreateTable
-CREATE TABLE "EvaluationStep" (
+CREATE TABLE "public"."EvaluationStep" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "score" INTEGER NOT NULL,
@@ -97,14 +104,17 @@ CREATE TABLE "EvaluationStep" (
 );
 
 -- AddForeignKey
-ALTER TABLE "Job" ADD CONSTRAINT "Job_residentId_fkey" FOREIGN KEY ("residentId") REFERENCES "Resident"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "public"."Job" ADD CONSTRAINT "Job_residentId_fkey" FOREIGN KEY ("residentId") REFERENCES "public"."Resident"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Job" ADD CONSTRAINT "Job_attendingId_fkey" FOREIGN KEY ("attendingId") REFERENCES "Attending"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "public"."Job" ADD CONSTRAINT "Job_attendingId_fkey" FOREIGN KEY ("attendingId") REFERENCES "public"."Attending"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Evaluation" ADD CONSTRAINT "Evaluation_residentId_fkey" FOREIGN KEY ("residentId") REFERENCES "Resident"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."Job" ADD CONSTRAINT "Job_programDirectorId_fkey" FOREIGN KEY ("programDirectorId") REFERENCES "public"."ProgramDirector"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "EvaluationStep" ADD CONSTRAINT "EvaluationStep_evaluationId_fkey" FOREIGN KEY ("evaluationId") REFERENCES "Evaluation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "public"."Evaluation" ADD CONSTRAINT "Evaluation_residentId_fkey" FOREIGN KEY ("residentId") REFERENCES "public"."Resident"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."EvaluationStep" ADD CONSTRAINT "EvaluationStep_evaluationId_fkey" FOREIGN KEY ("evaluationId") REFERENCES "public"."Evaluation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 

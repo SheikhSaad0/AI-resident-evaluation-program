@@ -101,3 +101,13 @@ model EvaluationStep {
   evaluation   Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
   evaluationId String
 }
+
+model ChatHistory {
+  id                String    @id @default(cuid())
+  userId            String
+  userType          String
+  title             String    @default("New Chat")
+  history           Json      @default("[]")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
