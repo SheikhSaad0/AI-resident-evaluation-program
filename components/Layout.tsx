@@ -70,7 +70,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const profileUrl = profilePath ? `/${profilePath}/${auth.user.id}` : '#';
 
   const SidebarContent = () => {
-    // FIX: Add a null check for auth.user to prevent TypeScript errors
     if (!auth?.user) {
       return null;
     }
@@ -129,8 +128,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // FIX: This determines if the main content area should have the glass card styling.
-  // For the chat page, we want it to be plain so the chat component can control its own background.
   const useGlassmorphismLayout = router.pathname !== '/chat';
 
   return (
@@ -141,23 +138,31 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </aside>
 
         <div className="flex flex-col flex-1 w-full sm:w-auto">
-          {/* FIX: Updated the mobile header to prevent overlap */}
-          <header className="sm:hidden p-4 flex justify-between items-center sticky top-0 bg-background-gradient/80 backdrop-blur-sm z-10">
-            <Link href={profileUrl} className="flex items-center space-x-3 group min-w-0">
-                <img
-                    src={auth.user?.photoUrl || '/images/chat.svg'}
-                    alt={auth.user?.name || 'User'}
-                    className="w-10 h-10 rounded-full object-cover border-2 border-primary-accent flex-shrink-0"
-                />
-                <div className="min-w-0">
-                    <p className="font-semibold text-base text-text-primary truncate group-hover:text-brand-primary transition-colors">{auth.user?.name}</p>
-                    <p className="text-xs text-text-tertiary">{auth.user?.title || auth.user?.year}</p>
-                </div>
-            </Link>
-            <button onClick={() => setSidebarOpen(true)} className="p-2 text-white ml-auto" aria-label="Open menu">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
-            </button>
-          </header>
+          {/* FIX: Conditionally render the header based on the current page */}
+          {router.pathname === '/chat' ? (
+            <header className="sm:hidden p-4 flex justify-end items-center sticky top-0 bg-background-gradient/80 backdrop-blur-sm z-10">
+              <button onClick={() => setSidebarOpen(true)} className="p-2 text-white" aria-label="Open menu">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+              </button>
+            </header>
+          ) : (
+            <header className="sm:hidden p-4 flex justify-between items-center sticky top-0 bg-background-gradient/80 backdrop-blur-sm z-10">
+              <Link href={profileUrl} className="flex items-center space-x-3 group min-w-0">
+                  <img
+                      src={auth.user?.photoUrl || '/images/chat.svg'}
+                      alt={auth.user?.name || 'User'}
+                      className="w-10 h-10 rounded-full object-cover border-2 border-primary-accent flex-shrink-0"
+                  />
+                  <div className="min-w-0">
+                      <p className="font-semibold text-base text-text-primary truncate group-hover:text-brand-primary transition-colors">{auth.user?.name}</p>
+                      <p className="text-xs text-text-tertiary">{auth.user?.title || auth.user?.year}</p>
+                  </div>
+              </Link>
+              <button onClick={() => setSidebarOpen(true)} className="p-2 text-white" aria-label="Open menu">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+              </button>
+            </header>
+          )}
 
           <main className="flex-grow p-4 pt-0 sm:p-6 sm:pt-6 h-full">
               {useGlassmorphismLayout ? (

@@ -368,14 +368,15 @@ const ChatPage = () => {
       </SelectionModal>
 
       <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-6 h-full relative">
-          {/* Mobile Sidebar Toggle Button */}
+          {/* FIX START: Updated the chat history button icon */}
           <button 
               onClick={() => setIsMobileSidebarOpen(true)} 
               className="md:hidden fixed top-4 left-4 z-40 p-3 bg-glass-400 rounded-full text-white shadow-lg"
               aria-label="Open chat history"
           >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+              <Image src="/images/history.svg" alt="Chat History" width={24} height={24} />
           </button>
+          {/* FIX END */}
           {/* Mobile Chat History Sidebar */}
           <MobileChatHistorySidebar
               isOpen={isMobileSidebarOpen}
