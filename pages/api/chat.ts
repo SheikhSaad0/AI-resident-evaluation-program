@@ -1,4 +1,3 @@
-// pages/api/chat.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getPrismaClient } from '../../lib/prisma';
@@ -15,7 +14,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { chatId } = req.query; 
   const prisma: PrismaClient = getPrismaClient(req);
 
-  // The system prompt should be a separate systemInstruction
   const systemPrompt = `You are an expert surgical analyst, Veritas. Your job is to help the user with their requests. You should be professional and get the job done.
 When context is provided, you MUST use it to answer the user's questions. The context may contain information about residents, attendings, and specific cases.
 FOR YOUR RESPONSE, YOU MUST ONLY USE THE DATA PROVIDED IN THE CONTEXT. DO NOT INVENT OR HALLUCINATE ANY DETAILS, NAMES, DATES, OR CASE EXAMPLES. If the data is not present in the context, state that you cannot find the information.
@@ -80,25 +78,18 @@ If the provided context does not contain the information needed to answer the us
           context: { residents: [], attendings: [], cases: [] }
       });
   }
-
-  // --- FIX START ---
-  // Create a structured history array for the API request
-  const formattedHistory = history.map((h: any) => {
-    let text = h.text;
-    // Add context from past user messages to the message text
-    if (h.sender === 'user' && h.context) {
-        text += `\n\n### CONTEXT ###\n${JSON.stringify(h.context, null, 2)}`;
-    }
-    return {
-      role: h.sender === 'user' ? 'user' : 'model',
-      parts: [{ text: text }]
-    };
-  });
   
-  // The new message itself also needs the context appended
-  let finalMessage = message;
+  // --- CORRECTED FIX START ---
+  // Create a structured history array for the API request without context in the message text
+  const formattedHistory = history.map((h: any) => ({
+      role: h.sender === 'user' ? 'user' : 'model',
+      parts: [{ text: h.text }]
+  }));
+  
+  // Prepare the parts for the final message, with context as a separate part
+  const finalMessageParts = [{ text: message }];
   if (hasContext) {
-    finalMessage += `\n\n### CONTEXT ###\n${JSON.stringify(newContext, null, 2)}`;
+      finalMessageParts.push({ text: `\n\n### CONTEXT ###\n${JSON.stringify(newContext, null, 2)}` });
   }
 
   try {
@@ -114,7 +105,8 @@ If the provided context does not contain the information needed to answer the us
         history: formattedHistory,
     });
     
-    const result = await chat.sendMessage(finalMessage);
+    // Pass the message parts, including the structured context, to sendMessage
+    const result = await chat.sendMessage(finalMessageParts);
     const response = await result.response;
     const text = response.text();
     
@@ -123,5 +115,5 @@ If the provided context does not contain the information needed to answer the us
     console.error('Error calling Generative AI API:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
-  // --- FIX END ---
+  // --- CORRECTED FIX END ---
 }
