@@ -1,14 +1,17 @@
 // lib/process-job.ts
 
-// Note: Prisma types will be available after database is set up
-// import type { Job, Resident } from '@prisma/client';
 import OpenAI from 'openai';
 import { createClient, DeepgramError } from '@deepgram/sdk';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { getPrismaClient } from './prisma'; // Correct: Use the async getter
-import { generateV4ReadSignedUrl } from './r2';
+import { getPrismaClient } from './prisma';
+import { generateV4ReadSignedUrl, downloadFileAsBuffer } from './r2';
+import ffmpeg from 'fluent-ffmpeg';
+import ffprobeStatic from 'ffprobe-static';
+
+// Tell fluent-ffmpeg where to find the ffprobe binary
+ffmpeg.setFfprobePath(ffprobeStatic.path);
 
 // --- Services Configuration ---
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY || '');
@@ -17,6 +20,15 @@ const deepgram = createClient(process.env.DEEPGRAM_API_KEY || '');
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY!,
 });
+
+// Helper function to parse HH:mm:ss.ss to seconds
+const parseTimemarkToSeconds = (timemark: string): number => {
+    const parts = timemark.split(':');
+    const seconds = parseFloat(parts.pop() || '0');
+    const minutes = parseInt(parts.pop() || '0', 10);
+    const hours = parseInt(parts.pop() || '0', 10);
+    return (hours * 3600) + (minutes * 60) + seconds;
+};
 
 // --- TYPE DEFINITIONS AND CONFIGS ---
 interface ProcedureStepConfig { key: string; name: string; }
@@ -183,13 +195,21 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
         - Repositioning a tool without performing the task  
         These are considered *facilitative support*, not takeover.
 
+        - **Redo alone doesn’t justify a 3.** If the resident corrects the mistake on their own, still score a 4.
+
+        - **In unclear situations, lean toward higher score unless the attending did part of the step themselves.**
+
         - **True "taking over" means performing part of the step themselves.** Only deduct for **procedural actions** — cutting, suturing, dissecting, tying, clipping, etc.
 
         - **Redo alone doesn’t justify a 3.** If the resident corrects the mistake on their own, still score a 4.
 
         - **In unclear situations, lean toward higher score unless the attending did part of the step themselves.**
 
-        ---
+        - **True "taking over" means performing part of the step themselves.** Only deduct for **procedural actions** — cutting, suturing, dissecting, tying, clipping, etc.
+
+        - **Redo alone doesn’t justify a 3.** If the resident corrects the mistake on their own, still score a 4.
+
+        - **In unclear situations, lean toward higher score unless the attending did part of the step themselves.**
 
         - **If a step was NOT performed:** Use a score of 0, time "N/A", and comment "This step was not performed or mentioned."
         - Do not make up information about what the attending says, avoid direct quotes, just evaluate each step effectively, if there was no attending comment for that step, mention that.
@@ -198,8 +218,14 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
         - Use the transcripts timestamps and the procedure steps estimated time to asses where in the case the attending and resident might be, the attending may give the score out verbally after completing a section of the case.
         - Listen in to the random comments made by the attending throughout the case and take note of those comments to be later used in the additional comments/overall score section of the finished evaluation.
         - unless the attending EXPLICITLY states that they are taking over, assume the resident is in full control
+        - know the difference between the attending speaking / guiding and taking over, do not make up information about what the attending says, avoid direct quotes, just evaluate each step effectively, if there was no attending comment for that step, mention that.
+        - be as accurate as you can, when the transcript is silent, assume that the surgeons are operating
+        - when an attending is talking, without mention of them taking over or verbal cues that they did take over, assume the resident is performing the procedure as they are being the ones evaluated, by default they are doing the surgery.
+        - use the transcripts timestamps and the procedure steps estimated time to asses where in the case the attending and resident might be, the attending may give the score out verbally after completing a section of the case.
+        - listen in to the random comments made by the attending throughout the case and take note of those comments to be later used in the additional comments/overall score section of the finished evaluation.
+        - unless the attending EXPLICITLY states that they are taking over, assume the resident is in full control
         - know the difference between the attending speaking / guiding and taking over, if the attending is speaking and acting like he is doing the procedure, but the resident is doing the same, assume the resident is operating, take timestamps into consideration as well, they will verbally ASK to switch in, it is never silent
-        - Take into account random mishaps or accidents that may happen in the OR
+        - take into account random mishaps or accidents that may happen in the OR
         - use context clues to differentiate coaching and acting from the attending, things like "let me scrub in now" or "give me that" are some examples
         - keep into account that speak 0 and 1 labels may not be very accurate in the transcript
         - keep in mind, even if the residents makes mistakes or does something wrong and is corrected by the attending verbally, under all circumstances that the attending does nott physically have to take over or do the step, the resident is awarded at minimum a score of 4 for that step, this is due to the fact they only had verbal coachiing and no interference from the attending
@@ -239,7 +265,6 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
             }
         ],
         response_format: { type: "json_object" },
-        temperature: 0.1,
     });
     
     const responseText = completion.choices[0]?.message?.content;
@@ -249,7 +274,6 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
     }
     
     try {
-        // Clean the response text to remove potential markdown and whitespace
         const cleanedText = responseText.trim().replace(/^```json\s*/, '').replace(/```$/, '');
         return JSON.parse(cleanedText) as OpenAIEvaluationResult;
     } catch (error) {
@@ -327,7 +351,6 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, r2U
             }
         ],
         response_format: { type: "json_object" },
-        temperature: 0.1,
     });
 
     const responseText = completion.choices[0]?.message?.content;
@@ -337,7 +360,6 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, r2U
     }
 
     try {
-        // Clean the response text to remove potential markdown and whitespace
         const cleanedText = responseText.trim().replace(/^```json\s*/, '').replace(/```$/, '');
         const parsedResult = JSON.parse(cleanedText) as OpenAIEvaluationResult;
         parsedResult.transcription = transcription;
@@ -356,8 +378,6 @@ export async function processJob(jobWithDetails: any, prismaClient?: any) {
     console.log(`[ProcessJob] Using prisma client: ${prismaClient ? 'provided' : 'default'}`);
     const { id, gcsUrl, gcsObjectPath, surgeryName, additionalContext, withVideo, videoAnalysis, resident } = jobWithDetails;
 
-    // The gcsUrl and gcsObjectPath will now point to the first file.
-    // In a more advanced implementation, you would loop through all files.
     if (!gcsUrl || !gcsObjectPath) {
         console.error(`[ProcessJob] Missing required fields - gcsUrl: ${gcsUrl}, gcsObjectPath: ${gcsObjectPath}`);
         throw new Error(`Job ${id} is missing gcsUrl or gcsObjectPath.`);
@@ -374,8 +394,46 @@ export async function processJob(jobWithDetails: any, prismaClient?: any) {
 
     let evaluationResult: OpenAIEvaluationResult;
     let transcription: string | undefined;
+    let audioDuration: number | null | undefined;
 
     try {
+        await prisma.job.update({ where: { id }, data: { status: 'processing-duration-scan' } });
+
+        console.log(`[ProcessJob] Starting DURATION SCAN for job ${id}`);
+        const tempFilePath = path.join(os.tmpdir(), `temp_audio_${id}.webm`);
+
+        try {
+            const fileContents = await downloadFileAsBuffer(gcsObjectPath);
+            fs.writeFileSync(tempFilePath, fileContents);
+
+            audioDuration = await new Promise<number | null>((resolve, reject) => {
+                ffmpeg.ffprobe(tempFilePath, (err, data) => {
+                    if (err) {
+                        console.error(`[ProcessJob] FFprobe error for job ${id}:`, err.message);
+                        resolve(null);
+                    } else {
+                        const durationInSeconds = data?.format?.duration;
+                        console.log(`[ProcessJob] FFprobe finished. Duration: ${durationInSeconds}s`);
+                        resolve(durationInSeconds ? Math.ceil(durationInSeconds) : null);
+                    }
+                });
+            });
+
+            if (audioDuration && audioDuration > 0) {
+                console.log(`[ProcessJob] SUCCESS! Duration found: ${audioDuration}s. Updating database.`);
+                await prisma.job.update({ where: { id }, data: { audioDuration: audioDuration } });
+            } else {
+                console.error(`[ProcessJob] FAILURE: Scan completed but duration was zero or null for job ${id}.`);
+            }
+        } catch (metaError) {
+            console.error(`[ProcessJob] A critical error occurred during duration scan for job ${id}:`, metaError);
+        } finally {
+            if (fs.existsSync(tempFilePath)) {
+                fs.unlinkSync(tempFilePath);
+            }
+        }
+        
+        // Now proceed with transcription and evaluation
         if (withVideo && videoAnalysis) {
             try {
                 console.log("[ProcessJob] Visual analysis is enabled. Starting transcription...");
@@ -389,7 +447,6 @@ export async function processJob(jobWithDetails: any, prismaClient?: any) {
 
                 console.log("[ProcessJob] Transcription complete. Starting OpenAI video evaluation...");
                 await prisma.job.update({ where: { id }, data: { status: 'processing-in-openai' } });
-                // Note: R2 doesn't use gs:// URIs like GCS, we'll pass the HTTP URL directly
                 console.log(`[ProcessJob] Using R2 URL for video evaluation: ${gcsUrl}`);
                 evaluationResult = await evaluateVideo(surgeryName, additionalContext || '', gcsUrl, transcription);
 

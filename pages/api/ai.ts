@@ -134,7 +134,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 }
             ],
             response_format: { type: "json_object" },
-            temperature: 0.1,
         });
 
         const responseText = completion.choices[0]?.message?.content;

@@ -282,7 +282,6 @@ async function evaluateTranscriptWithOpenAI(transcription: string, surgeryName: 
             }
         ],
         response_format: { type: "json_object" },
-        temperature: 0.1,
     });
 
     const responseText = completion.choices[0]?.message?.content;
