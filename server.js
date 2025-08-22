@@ -37,6 +37,7 @@ server.on('upgrade', (request, socket, head) => {
     }
 });
 
+
 wss.on('connection', (ws, req) => {
     console.log('[WebSocket] Client connected.');
 
