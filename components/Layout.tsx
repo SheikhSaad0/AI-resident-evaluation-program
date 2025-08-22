@@ -11,7 +11,6 @@ const navItems = [
   { name: 'Dashboard', href: '/dashboard', icon: '/images/dashboard-icon.svg' },
   { name: 'View Reports', href: '/evaluations', icon: '/images/dashboard-icon.svg' },
   { name: 'Manage Profiles', href: '/manage-profiles', icon: '/images/default-avatar.svg' },
-  { name: 'Chat', href: '/chat', icon: '/images/chat.svg' }, // FIX: Corrected icon to chat.svg
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -19,8 +18,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const auth = useContext(AuthContext);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
 
-  const publicPages = ['/login'];
+  const publicPages = ['/login', '/manage-profiles'];
 
+  // Maps the user type from the auth context to the correct URL path for their profile.
   const profilePathMap = {
     resident: 'residents',
     attending: 'attendings',
@@ -31,7 +31,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     if (!auth?.loading && !auth?.user && !publicPages.includes(router.pathname)) {
       router.push('/login');
     }
-  }, [auth?.loading, auth?.user, router.pathname, router]);
+  }, [auth?.loading, auth?.user, router.pathname, router, publicPages]);
 
   useEffect(() => {
     if (isSidebarOpen) {
@@ -52,139 +52,204 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   if (auth?.loading || (!auth?.user && !publicPages.includes(router.pathname))) {
     return (
-        <div className="min-h-screen flex items-center justify-center bg-background-gradient">
-            <div className="w-10 h-10 border-2 border-brand-primary border-t-transparent rounded-full animate-spin" />
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-background-gradient">
+        <div className="w-10 h-10 border-2 border-brand-primary border-t-transparent rounded-full animate-spin" />
+      </div>
     );
   }
 
-  if (publicPages.includes(router.pathname)) {
+  if (!auth?.user && publicPages.includes(router.pathname)) {
     return <main className="bg-background-gradient min-h-screen">{children}</main>;
   }
-  
+
   if (!auth?.user) {
-    return null; 
+    return null;
   }
 
+  // Constructs the correct profile URL based on the logged-in user's type and ID.
   const profilePath = auth.user.type ? profilePathMap[auth.user.type] : '';
   const profileUrl = profilePath ? `/${profilePath}/${auth.user.id}` : '#';
 
+  // Always use current user's profile photo if available, otherwise fallback
+  const getProfilePhotoUrl = () =>
+    auth.user && auth.user.photoUrl && auth.user.photoUrl.trim() !== ''
+      ? auth.user.photoUrl
+      : '/images/default-avatar.svg';
+
+  const getInitials = (name: string = '') =>
+    name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+
+  // Centralize userTitle so it is available anywhere
+  const userTitle =
+    auth.user.title ||
+    auth.user.year ||
+    (auth.user.type === 'programDirector'
+      ? 'Program Director'
+      : auth.user.type);
+
   const SidebarContent = () => {
-    if (!auth?.user) {
-      return null;
-    }
-    const userTitle = auth.user?.title || auth.user?.year || (auth.user?.type === 'programDirector' ? 'Program Director' : auth.user?.type);
+    if (!auth.user) return null;
+
+    const photoUrl = getProfilePhotoUrl();
 
     return (
-        <div className="h-full glassmorphism-strong rounded-4xl p-6 flex flex-col shadow-glass-lg">
-        <Link href={profileUrl} className="block group">
-          <div className="flex justify-between items-start mb-10">
-              <div className="flex items-center space-x-4 min-w-0">
-                  <img
-                      src={auth.user?.photoUrl || '/images/default-avatar.svg'}
-                      alt={auth.user?.name || 'User'}
-                      className="w-16 h-16 rounded-full object-cover border-2 border-primary-accent flex-shrink-0"
-                  />
-                  <div className="min-w-0">
-                      <p className="font-bold text-lg text-text-primary break-words group-hover:text-brand-primary transition-colors">{auth.user?.name}</p>
-                      <p className="text-sm text-text-tertiary">{userTitle}</p>
-                  </div>
+      <div className="h-full glassmorphism-strong rounded-4xl p-6 flex flex-col shadow-glass-lg">
+        <Link href={profileUrl} className="block group" legacyBehavior>
+          <a className="flex justify-between items-start mb-10">
+            <div className="flex items-center space-x-4 min-w-0">
+              {photoUrl && photoUrl !== '/images/default-avatar.svg' ? (
+                <img
+                  src={photoUrl}
+                  alt={auth.user.name}
+                  className="w-16 h-16 rounded-full object-cover border-2 border-primary-accent flex-shrink-0"
+                  onError={(e) => {
+                    // fallback to initials if image fails to load
+                    const target = e.target as HTMLImageElement;
+                    target.onerror = null;
+                    target.src = '/images/default-avatar.svg';
+                  }}
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-gray-500 flex items-center justify-center text-white text-2xl font-bold border-2 border-primary-accent flex-shrink-0">
+                  {getInitials(auth.user.name)}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="font-bold text-lg text-text-primary break-words group-hover:text-brand-primary transition-colors">
+                  {auth.user.name}
+                </p>
+                <p className="text-sm text-text-tertiary">{userTitle}</p>
               </div>
-          </div>
+            </div>
+          </a>
         </Link>
         <button
-            onClick={() => setSidebarOpen(false)}
-            className="sm:hidden absolute top-8 right-8 text-text-primary hover:text-white"
-            aria-label="Close menu"
+          onClick={() => setSidebarOpen(false)}
+          className="sm:hidden absolute top-8 right-8 text-text-primary hover:text-white"
+          aria-label="Close menu"
         >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          <svg
+            className="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M6 18L18 6M6 6l12 12"
+            ></path>
+          </svg>
         </button>
-      <nav className="flex-grow">
-        <ul className="space-y-3">
-          {navItems.map((item) => (
-            <li key={item.name}>
-              <Link href={item.href} className={`nav-item ${router.pathname === item.href ? 'nav-item-active' : ''}`}>
-                <div className="glassmorphism-subtle p-2 rounded-2xl mr-3">
-                  <Image src={item.icon} alt={item.name} width={20} height={20} className="opacity-80 group-hover:opacity-100 transition-opacity"/>
-                </div>
-                <span className="font-medium">{item.name}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
-      <div className="space-y-4">
-          <GlassButton variant="secondary" onClick={() => auth.logout()} className="w-full">
-              Logout
+        <nav className="flex-grow">
+          <ul className="space-y-3">
+            {navItems.map((item) => (
+              <li key={item.name}>
+                <Link
+                  href={item.href}
+                  className={`nav-item ${
+                    router.pathname === item.href ? 'nav-item-active' : ''
+                  }`}
+                >
+                  <div className="glassmorphism-subtle p-2 rounded-2xl mr-3">
+                    <Image
+                      src={item.icon}
+                      alt={item.name}
+                      width={20}
+                      height={20}
+                      className="opacity-80 group-hover:opacity-100 transition-opacity"
+                    />
+                  </div>
+                  <span className="font-medium">{item.name}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <div className="space-y-4">
+          <GlassButton variant="destructive" onClick={() => auth.logout()} className="w-full">
+            Logout
           </GlassButton>
           <div className="glassmorphism-subtle rounded-3xl p-4 text-center">
-              <div className="text-xs font-medium text-text-tertiary space-y-1">
+            <div className="text-xs font-medium text-text-tertiary space-y-1">
               <p className="text-gradient font-semibold">AI Surgical Evaluator</p>
               <p className="text-text-quaternary">Version 2.0</p>
-              </div>
+            </div>
           </div>
+        </div>
       </div>
-    </div>
-    )
-  }
-
-  const useGlassmorphismLayout = router.pathname !== '/chat';
+    );
+  };
 
   return (
     <>
       <div className="flex min-h-screen w-full bg-background-gradient">
-        <aside className="hidden sm:block flex-shrink-0 w-80 p-6">
+        <aside className="hidden sm:block flex-shrink-0 w-72 p-6">
           <SidebarContent />
         </aside>
 
         <div className="flex flex-col flex-1 w-full sm:w-auto">
-          {/* FIX: Conditionally render the header based on the current page */}
-          {router.pathname === '/chat' ? (
-            <header className="sm:hidden p-4 flex justify-end items-center sticky top-0 bg-background-gradient/80 backdrop-blur-sm z-10">
-              <button onClick={() => setSidebarOpen(true)} className="p-2 text-white" aria-label="Open menu">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
-              </button>
-            </header>
-          ) : (
-            <header className="sm:hidden p-4 flex justify-between items-center sticky top-0 bg-background-gradient/80 backdrop-blur-sm z-10">
-              <Link href={profileUrl} className="flex items-center space-x-3 group min-w-0">
-                  <img
-                      src={auth.user?.photoUrl || '/images/chat.svg'}
-                      alt={auth.user?.name || 'User'}
-                      className="w-10 h-10 rounded-full object-cover border-2 border-primary-accent flex-shrink-0"
-                  />
-                  <div className="min-w-0">
-                      <p className="font-semibold text-base text-text-primary truncate group-hover:text-brand-primary transition-colors">{auth.user?.name}</p>
-                      <p className="text-xs text-text-tertiary">{auth.user?.title || auth.user?.year}</p>
-                  </div>
-              </Link>
-              <button onClick={() => setSidebarOpen(true)} className="p-2 text-white" aria-label="Open menu">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
-              </button>
-            </header>
-          )}
+          <header className="sm:hidden p-4 flex justify-between items-center sticky top-0 bg-background-gradient/80 backdrop-blur-sm z-10">
+            <Link href={profileUrl} className="flex items-center space-x-3 group min-w-0" legacyBehavior>
+              <a className="flex items-center space-x-3 group min-w-0">
+                <img
+                  src={getProfilePhotoUrl()}
+                  alt={auth.user.name}
+                  className="w-10 h-10 rounded-full object-cover border-2 border-primary-accent flex-shrink-0"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.onerror = null;
+                    target.src = '/images/default-avatar.svg';
+                  }}
+                />
+                <div className="min-w-0">
+                  <p className="font-semibold text-base text-text-primary truncate group-hover:text-brand-primary transition-colors">
+                    {auth.user.name}
+                  </p>
+                  <p className="text-xs text-text-tertiary">{userTitle}</p>
+                </div>
+              </a>
+            </Link>
+            <button onClick={() => setSidebarOpen(true)} className="text-white" aria-label="Open menu">
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path>
+              </svg>
+            </button>
+          </header>
 
-          <main className="flex-grow p-4 pt-0 sm:p-6 sm:pt-6 h-full">
-              {useGlassmorphismLayout ? (
-                <div className="w-full h-full overflow-y-auto scrollbar-glass glassmorphism rounded-4xl shadow-glass-lg p-6 md:p-8">
-                  {children}
-                </div>
-              ) : (
-                <div className="w-full h-full">
-                  {children}
-                </div>
-              )}
+          <main className="flex-grow p-4 pt-0 sm:p-6 sm:pt-6">
+            <div className="w-full h-full overflow-y-auto scrollbar-glass glassmorphism rounded-4xl shadow-glass-lg p-6 md:p-8">
+              {children}
+            </div>
           </main>
         </div>
       </div>
-      
+
       <div
-        className={`fixed inset-0 bg-black/50 z-30 sm:hidden transition-opacity ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`fixed inset-0 bg-black/50 z-30 sm:hidden transition-opacity ${
+          isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
         onClick={() => setSidebarOpen(false)}
         aria-hidden="true"
       ></div>
+
       <aside
-        className={`fixed top-0 left-0 h-full w-80 max-w-[90vw] p-4 z-40 transform transition-transform sm:hidden ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`fixed top-0 left-0 h-full w-80 max-w-[90vw] p-4 z-40 transform transition-transform sm:hidden ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
       >
         <SidebarContent />
       </aside>
