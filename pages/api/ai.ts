@@ -1,9 +1,11 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { GoogleGenerativeAI, GenerationConfig } from '@google/generative-ai';
+import OpenAI from 'openai';
 import { EVALUATION_CONFIGS } from '../../lib/evaluation-configs';
 
 // Ensure your environment variable is correctly set up
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+});
 
 // Helper function to format time
 const formatTime = (seconds: number): string => {
@@ -118,19 +120,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const populatedPrompt = populatePrompt(systemPrompt);
 
-    const generationConfig: GenerationConfig = {
-        responseMimeType: "application/json",
-    };
-
     try {
-        const model = genAI.getGenerativeModel({
-            model: "gemini-2.5-flash",
-            systemInstruction: { role: "system", parts: [{ text: populatedPrompt }] },
-            generationConfig
+        const completion = await openai.chat.completions.create({
+            model: "gpt-5-nano", // Fast and cheap for live mode
+            messages: [
+                { role: "system", content: populatedPrompt },
+                { role: "user", content: recentTranscript }
+            ],
+            response_format: { type: "json_object" },
+            temperature: 0.1,
         });
 
-        const result = await model.generateContent(recentTranscript);
-        const responseText = result.response.text();
+        const responseText = completion.choices[0]?.message?.content;
 
         if (responseText) {
             try {
@@ -177,7 +178,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json({ action: 'none' });
 
     } catch (error) {
-        console.error("Error calling Generative AI API:", error);
+        console.error("Error calling OpenAI API:", error);
         return res.status(500).json({ action: 'none', error: 'Internal Server Error' });
     }
 }

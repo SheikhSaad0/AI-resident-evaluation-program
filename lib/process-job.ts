@@ -1,46 +1,27 @@
 // lib/process-job.ts
 
 import { Job, Resident } from '@prisma/client';
-import { VertexAI, Part } from '@google-cloud/vertexai';
+import OpenAI from 'openai';
 import { createClient, DeepgramError } from '@deepgram/sdk';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import { getPrismaClient } from './prisma'; // Correct: Use the async getter
-import { generateV4ReadSignedUrl } from './gcs';
+import { generateV4ReadSignedUrl } from './r2';
 
 // ... (keep all the service configuration, type definitions, and helper functions the same)
 // --- Services Configuration ---
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY || '');
 
-// --- VertexAI Authentication Setup ---
-const serviceAccountB64 = process.env.GCP_SERVICE_ACCOUNT_B64;
-if (!serviceAccountB64) {
-  throw new Error('GCP_SERVICE_ACCOUNT_B64 environment variable is not set.');
-}
-const serviceAccountJson = Buffer.from(serviceAccountB64, 'base64').toString('utf-8');
-const credentials = JSON.parse(serviceAccountJson);
-
-const credentialsPath = path.join(os.tmpdir(), 'gcp-credentials.json');
-fs.writeFileSync(credentialsPath, serviceAccountJson);
-process.env.GOOGLE_APPLICATION_CREDENTIALS = credentialsPath;
-
-const vertex_ai = new VertexAI({
-    project: credentials.project_id,
-    location: 'us-central1',
-});
-
-const generativeModel = vertex_ai.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-});
-const textModel = vertex_ai.getGenerativeModel({
-    model: 'gemini-2.5-flash',
+// --- OpenAI Setup ---
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
 });
 
 // --- TYPE DEFINITIONS AND CONFIGS ---
 interface ProcedureStepConfig { key: string; name: string; }
 interface EvaluationStep { score: number; time: string; comments:string; }
-interface GeminiEvaluationResult {
+interface EvaluationResult {
     [key: string]: EvaluationStep | number | string | undefined;
     caseDifficulty: number;
     additionalComments: string;
@@ -145,15 +126,15 @@ async function transcribeWithDeepgram(urlForTranscription: string): Promise<stri
     return utterances.map(utt => `[Speaker ${utt.speaker}] (${utt.start.toFixed(2)}s): ${utt.transcript}`).join('\n');
 }
 
-const getMimeTypeFromGcsUri = (gcsUri: string): string => {
-    const extension = path.extname(gcsUri).toLowerCase();
+const getMimeTypeFromR2Uri = (r2Uri: string): string => {
+    const extension = path.extname(r2Uri).toLowerCase();
     if (extension === '.mov') return 'video/quicktime';
     if (extension === '.mp4') return 'video/mp4';
     if (extension === '.webm') return 'video/webm';
     return 'video/mp4';
 };
 
-async function evaluateTranscript(transcription: string, surgeryName: string, additionalContext: string): Promise<GeminiEvaluationResult> {
+async function evaluateTranscript(transcription: string, surgeryName: string, additionalContext: string): Promise<EvaluationResult> {
     console.log('Starting text-based evaluation with JSON mode...');
     const config = EVALUATION_CONFIGS[surgeryName as keyof typeof EVALUATION_CONFIGS];
     const stepKeys = config.procedureSteps.map(s => `"${s.key}": { "score": ..., "time": "...", "comments": "..." }`).join(',\n    ');
@@ -252,26 +233,39 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
         },
     };
     
-    const result = await textModel.generateContent(request);
-    const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!responseText) {
-        throw new Error("Failed to get a valid response from text model.");
-    }
-    
     try {
-        // Clean the response text to remove potential markdown and whitespace
-        const cleanedText = responseText.trim().replace(/^```json\s*/, '').replace(/```$/, '');
-        return JSON.parse(cleanedText) as GeminiEvaluationResult;
+        const completion = await openai.chat.completions.create({
+            model: "gpt-5-mini", // For processing evaluations
+            messages: [
+                { role: "user", content: prompt }
+            ],
+            response_format: { type: "json_object" },
+            temperature: 0.1,
+        });
+        
+        const responseText = completion.choices[0]?.message?.content;
+        
+        if (!responseText) {
+            throw new Error("Failed to get a valid response from OpenAI model.");
+        }
+        
+        try {
+            // Clean the response text to remove potential markdown and whitespace
+            const cleanedText = responseText.trim().replace(/^```json\s*/, '').replace(/```$/, '');
+            return JSON.parse(cleanedText) as EvaluationResult;
+        } catch (error) {
+            console.error("Failed to parse JSON from OpenAI model. Raw response:", responseText);
+            throw new Error("AI model returned invalid JSON.");
+        }
     } catch (error) {
-        console.error("Failed to parse JSON from text model. Raw response:", responseText);
-        throw new Error("AI model returned invalid JSON.");
+        console.error("Error calling OpenAI API:", error);
+        throw error;
     }
 }
 
-async function evaluateVideo(surgeryName: string, additionalContext: string, gcsUri: string, transcription: string): Promise<GeminiEvaluationResult> {
+async function evaluateVideo(surgeryName: string, additionalContext: string, r2Uri: string, transcription: string): Promise<EvaluationResult> {
     const config = EVALUATION_CONFIGS[surgeryName as keyof typeof EVALUATION_CONFIGS];
-    console.log(`Starting video evaluation with GCS URI: ${gcsUri}`);
+    console.log(`Starting video evaluation with R2 URI: ${r2Uri}`);
     const stepKeys = config.procedureSteps.map(s => `"${s.key}": { "score": ..., "time": "...", "comments": "..." }`).join(',\n    ');
     const difficultyText = Object.entries(config.caseDifficultyDescriptions)
         .map(([key, value]) => `- ${key}: ${value}`)
@@ -321,30 +315,40 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
         ---
       `;
 
-    const filePart: Part = { fileData: { mimeType: getMimeTypeFromGcsUri(gcsUri), fileUri: gcsUri } };
-    const request = {
-        contents: [{ role: 'user', parts: [filePart, { text: prompt }] }],
-        generationConfig: {
-            responseMimeType: "application/json",
-        },
-    };
-
-    const result = await generativeModel.generateContent(request);
-    const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text;
+    // Note: OpenAI doesn't directly support video analysis like Google's models
+    // For now, we'll use the transcription for evaluation
+    // TODO: In the future, you could extract frames from video and analyze them separately
+    console.log(`Starting text-based evaluation for video (using transcription) with OpenAI...`);
     
-    if (!responseText) {
-        throw new Error("Failed to get a valid response from the video model.");
-    }
-
     try {
-        // Clean the response text to remove potential markdown and whitespace
-        const cleanedText = responseText.trim().replace(/^```json\s*/, '').replace(/```$/, '');
-        const parsedResult = JSON.parse(cleanedText) as GeminiEvaluationResult;
-        parsedResult.transcription = transcription;
-        return parsedResult;
-    } catch(error) {
-        console.error("Failed to parse JSON from video model. Raw response:", responseText);
-        throw new Error("AI model returned invalid JSON.");
+        const completion = await openai.chat.completions.create({
+            model: "gpt-5-mini", // For processing evaluations
+            messages: [
+                { role: "user", content: prompt }
+            ],
+            response_format: { type: "json_object" },
+            temperature: 0.1,
+        });
+        
+        const responseText = completion.choices[0]?.message?.content;
+        
+        if (!responseText) {
+            throw new Error("Failed to get a valid response from OpenAI model.");
+        }
+
+        try {
+            // Clean the response text to remove potential markdown and whitespace
+            const cleanedText = responseText.trim().replace(/^```json\s*/, '').replace(/```$/, '');
+            const parsedResult = JSON.parse(cleanedText) as EvaluationResult;
+            parsedResult.transcription = transcription;
+            return parsedResult;
+        } catch(error) {
+            console.error("Failed to parse JSON from OpenAI model. Raw response:", responseText);
+            throw new Error("AI model returned invalid JSON.");
+        }
+    } catch (error) {
+        console.error("Error calling OpenAI API:", error);
+        throw error;
     }
 }
 
@@ -372,7 +376,7 @@ export async function processJob(jobWithDetails: Job & { resident: Resident | nu
         residentName: resident?.name
     });
 
-    let evaluationResult: GeminiEvaluationResult;
+    let evaluationResult: EvaluationResult;
     let transcription: string | undefined;
 
     try {
@@ -389,9 +393,9 @@ export async function processJob(jobWithDetails: Job & { resident: Resident | nu
 
                 console.log("[ProcessJob] Transcription complete. Starting Vertex AI video evaluation...");
                 await prisma.job.update({ where: { id }, data: { status: 'processing-in-gemini' } });
-                const gcsUri = gcsUrl.replace('https://storage.googleapis.com/', 'gs://');
-                console.log(`[ProcessJob] Using GCS URI for video evaluation: ${gcsUri}`);
-                evaluationResult = await evaluateVideo(surgeryName, additionalContext || '', gcsUri, transcription);
+                const r2Uri = gcsUrl.replace('https://storage.googleapis.com/', 'r2://');
+                console.log(`[ProcessJob] Using R2 URI for video evaluation: ${r2Uri}`);
+                evaluationResult = await evaluateVideo(surgeryName, additionalContext || '', r2Uri, transcription);
 
             } catch (videoError) {
                 console.error("[ProcessJob] Vertex AI video evaluation failed. Falling back to audio-only analysis.", videoError);

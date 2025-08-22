@@ -145,7 +145,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log("---");
 
     console.log("Step 2: Evaluating transcript with Gemini...");
-    const evaluation = await evaluateTranscriptWithGemini(transcription, surgeryName, additionalContext);
+    const evaluation = await evaluateTranscriptWithOpenAI(transcription, surgeryName, additionalContext);
     console.log("✅ Evaluation complete.");
     console.log("---");
 
@@ -213,21 +213,13 @@ interface SchemaProperties {
     };
 }
 
-async function evaluateTranscriptWithGemini(transcription: string, surgeryName: string, additionalContext: string): Promise<GeminiEvaluationResult> {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("GEMINI_API_KEY environment variable not set.");
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+async function evaluateTranscriptWithOpenAI(transcription: string, surgeryName: string, additionalContext: string): Promise<GeminiEvaluationResult> {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error("OPENAI_API_KEY environment variable not set.");
 
     const EVALUATION_CONFIG = EVALUATION_CONFIGS[surgeryName as keyof typeof EVALUATION_CONFIGS];
 
-    const RESPONSE_JSON_SCHEMA = {
-        type: "OBJECT",
-        properties: {
-            ...EVALUATION_CONFIG.procedureSteps.reduce((acc: SchemaProperties, step: ProcedureStepConfig) => {
-                acc[step.key] = {
-                    type: "OBJECT",
-                    properties: {
-                        score: { type: "NUMBER" },
+    const stepKeysForJson = EVALUATION_CONFIG.procedureSteps.map(s => `"${s.key}": { "score": <number between 0 and 5>, "time": "<string>", "comments": "<string>" }`).join(',\n    ');
                         time: { type: "STRING" },
                         comments: { type: "STRING" }
                     }
@@ -235,19 +227,6 @@ async function evaluateTranscriptWithGemini(transcription: string, surgeryName: 
                 return acc;
             }, {}),
             caseDifficulty: { type: "NUMBER" },
-            additionalComments: { type: "STRING" },
-        }
-    };
-
-    const contextPromptSection = additionalContext
-        ? `
-      **Additional Context to Consider:**
-      ---
-      ${additionalContext}
-      ---
-      `
-        : '';
-
     const prompt = `
       You are an expert surgical education analyst. Your task is to provide a detailed, constructive evaluation of a resident's performance based on a transcript and the provided context.
 
@@ -274,29 +253,45 @@ async function evaluateTranscriptWithGemini(transcription: string, surgeryName: 
       5.  **Overall Assessment:**
           * 'caseDifficulty': (Number 1-3) Analyze the entire transcript and provided context to determine the overall case difficulty (1=Low, 2=Moderate, 3=High).
           * 'additionalComments': (String) Provide a concise summary of the resident's overall performance, including strengths and areas for improvement. This is for the final remarks. Make sure to incorporate the additional context in your assessment.
-      6.  **Return ONLY the JSON object.** The entire response must be a single JSON object conforming to a schema.
+      6.  **Return ONLY the JSON object in this format:**
+      
+      {
+        "caseDifficulty": <number>,
+        "additionalComments": "<string>",
+        ${stepKeysForJson}
+      }
     `;
 
-    const payload = {
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema: RESPONSE_JSON_SCHEMA,
-        },
-    };
+    try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: 'gpt-5-mini',
+                messages: [{ role: 'user', content: prompt }],
+                response_format: { type: 'json_object' },
+                temperature: 0.1
+            })
+        });
 
-    const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    });
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new Error(`OpenAI evaluation API request failed: ${response.status} ${response.statusText} - ${errorBody}`);
+        }
 
-    if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`Gemini evaluation API request failed: ${response.status} ${response.statusText} - ${errorBody}`);
+        const result = await response.json();
+        const resultText = result.choices[0]?.message?.content;
+        
+        if (!resultText) {
+            throw new Error("No response from OpenAI model.");
+        }
+        
+        return JSON.parse(resultText) as GeminiEvaluationResult;
+    } catch (error) {
+        console.error("Error calling OpenAI API:", error);
+        throw error;
     }
-
-    const result = await response.json();
-    const resultText = result.candidates[0].content.parts[0].text;
-    return JSON.parse(resultText) as GeminiEvaluationResult;
 }

@@ -1,56 +1,62 @@
-import { Storage } from '@google-cloud/storage';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
-// Decode the Base64 service account key
-const serviceAccountJson = Buffer.from(process.env.GCP_SERVICE_ACCOUNT_B64 || '', 'base64').toString('utf-8');
-const credentials = JSON.parse(serviceAccountJson);
-
-// Initialize Google Cloud Storage
-const storage = new Storage({
-  projectId: credentials.project_id,
-  credentials,
-});
-
-const bucketName = process.env.GCS_BUCKET_NAME || '';
-if (!bucketName) {
-  throw new Error("GCS_BUCKET_NAME environment variable not set.");
+// Initialize R2 client
+function getR2Client() {
+    return new S3Client({
+        region: 'auto',
+        endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+        credentials: {
+            accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+            secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+        },
+    });
 }
-const bucket = storage.bucket(bucketName);
+
+const bucketName = process.env.R2_BUCKET_NAME || '';
+if (!bucketName) {
+  throw new Error("R2_BUCKET_NAME environment variable not set.");
+}
 
 /**
- * Uploads a local file to Google Cloud Storage.
+ * Uploads a local file to Cloudflare R2.
  * @param localPath The path to the local file to upload.
- * @param destination The destination path in the GCS bucket.
+ * @param destination The destination path in the R2 bucket.
  * @returns The public URL of the uploaded file.
  */
-export async function uploadFileToGCS(localPath: string, destination: string): Promise<string> {
+export async function uploadFileToR2(localPath: string, destination: string): Promise<string> {
   try {
-    const options = {
-      destination: destination,
-      // Optional: Makes the file publicly readable.
-      // Configure your bucket for public access if needed.
-      public: true, 
-      // Optional: Add metadata.
-      metadata: {
-        cacheControl: 'public, max-age=31536000',
-      },
-    };
+    const s3Client = getR2Client();
+    const fileContent = Buffer.from(require('fs').readFileSync(localPath));
+    
+    const command = new PutObjectCommand({
+      Bucket: bucketName,
+      Key: destination,
+      Body: fileContent,
+    });
 
-    await bucket.upload(localPath, options);
+    await s3Client.send(command);
     
     console.log(`${localPath} uploaded to ${bucketName}/${destination}.`);
     
-    // Return the public URL
-    return `https://storage.googleapis.com/${bucketName}/${destination}`;
+    // Return the public URL (adjust based on your R2 configuration)
+    const customDomain = process.env.R2_CUSTOM_DOMAIN;
+    if (customDomain) {
+        return `https://${customDomain}/${destination}`;
+    }
+    return `https://${bucketName}.${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${destination}`;
   } catch (error) {
-    console.error('ERROR uploading file to GCS:', error);
+    console.error('ERROR uploading file to R2:', error);
     throw error;
   }
 }
 
 /**
- * This function is useful if Deepgram can transcribe directly from a public URL.
- * Ensure your bucket objects are publicly accessible if you use this approach.
+ * This function returns the public URL for an R2 object.
  */
 export function getPublicUrl(destination: string): string {
-  return `https://storage.googleapis.com/${bucketName}/${destination}`;
+  const customDomain = process.env.R2_CUSTOM_DOMAIN;
+  if (customDomain) {
+      return `https://${customDomain}/${destination}`;
+  }
+  return `https://${bucketName}.${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${destination}`;
 }

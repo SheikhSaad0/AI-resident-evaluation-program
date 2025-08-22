@@ -2,7 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getPrismaClient } from '../../../lib/prisma';
-import { generateV4ReadSignedUrl, downloadFileAsBuffer } from '../../../lib/gcs';
+import { generateV4ReadSignedUrl, downloadFileAsBuffer } from '../../../lib/r2';
 
 import ffmpeg from 'fluent-ffmpeg';
 import ffprobeStatic from 'ffprobe-static';

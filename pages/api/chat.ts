@@ -1,9 +1,11 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 import { getPrismaClient } from '../../lib/prisma';
 import { PrismaClient } from '@prisma/client';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+});
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -78,42 +80,42 @@ If the provided context does not contain the information needed to answer the us
           context: { residents: [], attendings: [], cases: [] }
       });
   }
-  
-  // --- CORRECTED FIX START ---
-  // Create a structured history array for the API request without context in the message text
-  const formattedHistory = history.map((h: any) => ({
-      role: h.sender === 'user' ? 'user' : 'model',
-      parts: [{ text: h.text }]
-  }));
-  
-  // Prepare the parts for the final message, with context as a separate part
-  const finalMessageParts = [{ text: message }];
-  if (hasContext) {
-      finalMessageParts.push({ text: `\n\n### CONTEXT ###\n${JSON.stringify(newContext, null, 2)}` });
-  }
 
   try {
-    const model = genAI.getGenerativeModel({
-        model: "gemini-2.5-pro",
-        systemInstruction: {
-            role: "system",
-            parts: [{ text: systemPrompt }]
-        }
+    // Build the OpenAI messages array
+    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+        { role: "system", content: systemPrompt }
+    ];
+
+    // Add conversation history
+    history.forEach((h: any) => {
+        messages.push({
+            role: h.sender === 'user' ? 'user' : 'assistant',
+            content: h.text
+        });
     });
 
-    const chat = model.startChat({
-        history: formattedHistory,
+    // Add current message with context if available
+    let currentMessage = message;
+    if (hasContext) {
+        currentMessage += `\n\n### CONTEXT ###\n${JSON.stringify(newContext, null, 2)}`;
+    }
+    messages.push({ role: "user", content: currentMessage });
+
+    const completion = await openai.chat.completions.create({
+        model: "gpt-5-mini", // For chat mode
+        messages: messages,
+        temperature: 0.7,
     });
+
+    const responseText = completion.choices[0]?.message?.content;
+    if (!responseText) {
+        throw new Error("No response from OpenAI model.");
+    }
     
-    // Pass the message parts, including the structured context, to sendMessage
-    const result = await chat.sendMessage(finalMessageParts);
-    const response = await result.response;
-    const text = response.text();
-    
-    res.status(200).json({ response: text, context: newContext });
+    res.status(200).json({ response: responseText, context: newContext });
   } catch (error) {
-    console.error('Error calling Generative AI API:', error);
+    console.error('Error calling OpenAI API:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
-  // --- CORRECTED FIX END ---
 }

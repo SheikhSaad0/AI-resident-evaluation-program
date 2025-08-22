@@ -1,12 +1,14 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import formidable, { File } from 'formidable';
 import fs from 'fs';
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from 'openai';
 import { getPrismaClient } from '../../lib/prisma';
-import { uploadFileToGCS, getPublicUrl } from '../../lib/gcs';
+import { uploadFileToR2, getPublicUrl } from '../../lib/r2';
 import { EVALUATION_CONFIGS } from '../../lib/evaluation-configs';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+});
 
 export const config = {
     api: {
@@ -14,13 +16,23 @@ export const config = {
     },
 };
 
-async function getGeminiResponse(prompt: string) {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+async function getOpenAIResponse(prompt: string) {
+    const completion = await openai.chat.completions.create({
+        model: "gpt-5-mini", // For processing final evaluations
+        messages: [
+            { role: "user", content: prompt }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.1,
+    });
+    
+    const responseText = completion.choices[0]?.message?.content;
+    if (!responseText) {
+        throw new Error("No response from OpenAI model.");
+    }
+    
     // More robust JSON parsing
-    const jsonString = text.match(/\{[\s\S]*\}/)?.[0];
+    const jsonString = responseText.match(/\{[\s\S]*\}/)?.[0];
     if (!jsonString) {
         throw new Error("Invalid JSON response from AI model.");
     }
@@ -69,7 +81,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const config = EVALUATION_CONFIGS[procedureId];
 
         const destination = `uploads/live_session_${Date.now()}.webm`;
-        await uploadFileToGCS(audioFile.filepath, destination);
+        await uploadFileToR2(audioFile.filepath, destination);
         fs.unlinkSync(audioFile.filepath);
 
         const stepKeysForJson = config.procedureSteps.map(s => `"${s.key}": { "score": <number between 0 and 5>, "time": "<string>", "comments": "<string>" }`).join(',\n    ');
@@ -165,7 +177,7 @@ If the resident corrects the mistake on their own, still score a 4.
 ${fullTranscript}
 ---
 `;
-        const evaluationData = await getGeminiResponse(finalPrompt);
+        const evaluationData = await getOpenAIResponse(finalPrompt);
         const resident = await prisma.resident.findUnique({ where: { id: residentId } });
 
         const finalResult = {
