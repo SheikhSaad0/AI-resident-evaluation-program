@@ -10,7 +10,7 @@ import { useApi } from '../lib/useApi';
 // --- TYPE DEFINITIONS ---
 interface Message {
   text: string;
-  sender: 'user' | 'gemini';
+  sender: 'user' | 'assistant';
   context?: ChatContext;
 }
 interface Resident { id: string; name: string; photoUrl?: string | null; year?: string; }
@@ -258,8 +258,8 @@ const ChatPage = () => {
       
       const updatedMessages = [
         ...newMessages,
-        // FIX: Explicitly cast the sender to 'gemini' to fix the TypeScript error
-        { text: res.response, sender: 'gemini' as 'gemini' }
+        // FIX: Explicitly cast the sender to 'assistant' to fix the TypeScript error
+        { text: res.response, sender: 'assistant' as 'assistant' }
       ];
       setMessages(updatedMessages);
 
@@ -273,7 +273,7 @@ const ChatPage = () => {
 
     } catch (error) {
       console.error('Error sending message:', error);
-      setMessages(prev => [...prev, { text: 'Sorry, I encountered an error.', sender: 'gemini' }]);
+      setMessages(prev => [...prev, { text: 'Sorry, I encountered an error.', sender: 'assistant' }]);
     } finally {
       setIsLoading(false);
     }
@@ -416,11 +416,11 @@ const ChatPage = () => {
               </div>
               {messages.map((msg, index) => (
                 <div key={index} className={`flex items-start gap-4 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  {msg.sender === 'gemini' && <Image src="/images/logo.png" alt="Veritas" width={40} height={40} className="rounded-full mt-1 flex-shrink-0" />}
+                  {msg.sender === 'assistant' && <Image src="/images/logo.png" alt="Veritas" width={40} height={40} className="rounded-full mt-1 flex-shrink-0" />}
                   <GlassCard variant={msg.sender === 'user' ? 'strong' : 'subtle'} className="p-4 max-w-3xl">
                     {msg.sender === 'user' && msg.context && <MessageContextPills context={msg.context} />}
                     
-                    {msg.sender === 'gemini' ? (
+                    {msg.sender === 'assistant' ? (
                       <MarkdownRenderer content={msg.text} />
                     ) : (
                       msg.text && <p className="text-white whitespace-pre-wrap">{msg.text}</p>

@@ -1,6 +1,5 @@
 // lib/process-job.ts
 
-import { Job, Resident } from '@prisma/client';
 import OpenAI from 'openai';
 import { createClient, DeepgramError } from '@deepgram/sdk';
 import path from 'path';
@@ -235,7 +234,7 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
     
     try {
         const completion = await openai.chat.completions.create({
-            model: "gpt-5-mini", // For processing evaluations
+            model: "gpt-4o-mini", // For processing evaluations
             messages: [
                 { role: "user", content: prompt }
             ],
@@ -322,7 +321,7 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, r2U
     
     try {
         const completion = await openai.chat.completions.create({
-            model: "gpt-5-mini", // For processing evaluations
+            model: "gpt-4o-mini", // For processing evaluations
             messages: [
                 { role: "user", content: prompt }
             ],
@@ -353,7 +352,7 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, r2U
 }
 
 
-export async function processJob(jobWithDetails: Job & { resident: Resident | null }, prismaClient?: any) {
+export async function processJob(jobWithDetails: any, prismaClient?: any) {
     const prisma = prismaClient || getPrismaClient();
 
     console.log(`[ProcessJob] Starting job ${jobWithDetails.id} for surgery: ${jobWithDetails.surgeryName}`);
@@ -392,8 +391,8 @@ export async function processJob(jobWithDetails: Job & { resident: Resident | nu
                 transcription = await transcribeWithDeepgram(readableUrl);
 
                 console.log("[ProcessJob] Transcription complete. Starting Vertex AI video evaluation...");
-                await prisma.job.update({ where: { id }, data: { status: 'processing-in-gemini' } });
-                const r2Uri = gcsUrl.replace('https://storage.googleapis.com/', 'r2://');
+                await prisma.job.update({ where: { id }, data: { status: 'processing-with-ai' } });
+                const r2Uri = gcsUrl; // Keep the URL as-is since it now points to R2
                 console.log(`[ProcessJob] Using R2 URI for video evaluation: ${r2Uri}`);
                 evaluationResult = await evaluateVideo(surgeryName, additionalContext || '', r2Uri, transcription);
 

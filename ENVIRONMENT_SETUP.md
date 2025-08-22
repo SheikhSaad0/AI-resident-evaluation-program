@@ -5,9 +5,15 @@ After migrating from Google services to OpenAI and Cloudflare R2, you'll need to
 ## OpenAI Configuration
 ```
 OPENAI_API_KEY=your_openai_api_key_here
+
+# Optional: Specify custom models (defaults to gpt-4o-mini if not set)
+OPENAI_LIVE_MODEL=gpt-5-nano         # For live mode (fast responses)
+OPENAI_EVAL_MODEL=gpt-5-mini         # For evaluations and analysis
+OPENAI_CHAT_MODEL=gpt-5-mini         # For chat mode
 ```
 - Get this from your OpenAI dashboard (https://platform.openai.com/api-keys)
-- Make sure your account has access to GPT-5 models (gpt-5-nano and gpt-5-mini)
+- **Note**: GPT-5 models may not be available yet. The app defaults to `gpt-4o-mini` as a fallback
+- If you have access to GPT-5 models, set the environment variables above
 
 ## Cloudflare R2 Configuration
 ```
@@ -16,6 +22,11 @@ R2_ACCESS_KEY_ID=your_r2_access_key_id
 R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
 R2_BUCKET_NAME=your_r2_bucket_name
 R2_CUSTOM_DOMAIN=your_custom_domain_optional
+
+# For frontend components (optional)
+NEXT_PUBLIC_R2_BUCKET_NAME=your_r2_bucket_name
+NEXT_PUBLIC_R2_ACCOUNT_ID=your_cloudflare_account_id
+NEXT_PUBLIC_R2_CUSTOM_DOMAIN=your_custom_domain_optional
 ```
 
 ### How to get Cloudflare R2 credentials:
@@ -50,6 +61,7 @@ The following Google service environment variables are no longer needed:
 - ~~GEMINI_API_KEY~~
 - ~~GCP_SERVICE_ACCOUNT_B64~~
 - ~~GCS_BUCKET_NAME~~
+- ~~NEXT_PUBLIC_GCS_BUCKET_NAME~~
 
 ## Services Setup Required
 
@@ -57,7 +69,7 @@ The following Google service environment variables are no longer needed:
 - Sign up at https://platform.openai.com/
 - Add payment method (required for API access)
 - Generate API key
-- Ensure access to GPT-5 models
+- Ensure access to GPT-5 models (or use GPT-4o-mini as fallback)
 
 ### 2. Cloudflare Account
 - Sign up at https://cloudflare.com/
@@ -66,8 +78,19 @@ The following Google service environment variables are no longer needed:
 - Generate API tokens with R2 permissions
 - Optional: Set up a custom domain for public file access
 
+## New Dependencies Installed
+```
+npm install openai @aws-sdk/client-s3
+```
+
+## Removed Dependencies (can be uninstalled)
+```
+npm uninstall @google/generative-ai @google-cloud/storage @google-cloud/text-to-speech @google-cloud/vertexai @google/genai
+```
+
 ## Migration Notes
 - All AI functionality now uses OpenAI's GPT models instead of Google Gemini
 - File storage now uses Cloudflare R2 instead of Google Cloud Storage
 - Text-to-speech now uses OpenAI TTS with a female voice (nova) instead of Google Cloud TTS
 - Database schema remains unchanged - existing data is compatible
+- Chat interface updated to use 'assistant' instead of 'gemini' terminology

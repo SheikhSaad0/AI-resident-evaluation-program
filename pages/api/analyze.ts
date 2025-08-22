@@ -220,13 +220,15 @@ async function evaluateTranscriptWithOpenAI(transcription: string, surgeryName: 
     const EVALUATION_CONFIG = EVALUATION_CONFIGS[surgeryName as keyof typeof EVALUATION_CONFIGS];
 
     const stepKeysForJson = EVALUATION_CONFIG.procedureSteps.map(s => `"${s.key}": { "score": <number between 0 and 5>, "time": "<string>", "comments": "<string>" }`).join(',\n    ');
-                        time: { type: "STRING" },
-                        comments: { type: "STRING" }
-                    }
-                };
-                return acc;
-            }, {}),
-            caseDifficulty: { type: "NUMBER" },
+
+    const contextPromptSection = additionalContext
+        ? `
+      **Additional Context to Consider:**
+      ---
+      ${additionalContext}
+      ---
+      `
+        : '';
     const prompt = `
       You are an expert surgical education analyst. Your task is to provide a detailed, constructive evaluation of a resident's performance based on a transcript and the provided context.
 
@@ -270,7 +272,7 @@ async function evaluateTranscriptWithOpenAI(transcription: string, surgeryName: 
                 'Authorization': `Bearer ${apiKey}`
             },
             body: JSON.stringify({
-                model: 'gpt-5-mini',
+                model: process.env.OPENAI_EVAL_MODEL || 'gpt-4o-mini',
                 messages: [{ role: 'user', content: prompt }],
                 response_format: { type: 'json_object' },
                 temperature: 0.1

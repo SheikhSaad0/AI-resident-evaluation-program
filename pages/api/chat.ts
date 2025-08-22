@@ -103,7 +103,7 @@ If the provided context does not contain the information needed to answer the us
     messages.push({ role: "user", content: currentMessage });
 
     const completion = await openai.chat.completions.create({
-        model: "gpt-5-mini", // For chat mode
+        model: process.env.OPENAI_CHAT_MODEL || "gpt-4o-mini", // Fallback to gpt-4o-mini if gpt-5-mini not available
         messages: messages,
         temperature: 0.7,
     });

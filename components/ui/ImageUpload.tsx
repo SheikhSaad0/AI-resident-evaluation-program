@@ -55,7 +55,10 @@ export default function ImageUpload({
       }
 
       // Construct the public URL for viewing the image.
-      const publicUrl = `https://storage.googleapis.com/${process.env.NEXT_PUBLIC_GCS_BUCKET_NAME || 'ai-surgical-evaluator'}/${filePath}`;
+      const customDomain = process.env.NEXT_PUBLIC_R2_CUSTOM_DOMAIN;
+      const publicUrl = customDomain 
+        ? `https://${customDomain}/${filePath}`
+        : `https://${process.env.NEXT_PUBLIC_R2_BUCKET_NAME}.${process.env.NEXT_PUBLIC_R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${filePath}`;
       onChange(publicUrl);
       
       console.log("File uploaded successfully to:", publicUrl);

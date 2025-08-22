@@ -122,7 +122,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     try {
         const completion = await openai.chat.completions.create({
-            model: "gpt-5-nano", // Fast and cheap for live mode
+            model: process.env.OPENAI_LIVE_MODEL || "gpt-4o-mini", // Fallback to gpt-4o-mini if gpt-5-nano not available
             messages: [
                 { role: "system", content: populatedPrompt },
                 { role: "user", content: recentTranscript }

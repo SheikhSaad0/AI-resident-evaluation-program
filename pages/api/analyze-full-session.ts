@@ -18,7 +18,7 @@ export const config = {
 
 async function getOpenAIResponse(prompt: string) {
     const completion = await openai.chat.completions.create({
-        model: "gpt-5-mini", // For processing final evaluations
+        model: process.env.OPENAI_EVAL_MODEL || "gpt-4o-mini", // Fallback to gpt-4o-mini if gpt-5-mini not available
         messages: [
             { role: "user", content: prompt }
         ],
