@@ -387,14 +387,14 @@ export async function processJob(jobWithDetails: any, prismaClient?: any) {
                 
                 transcription = await transcribeWithDeepgram(readableUrl);
 
-                console.log("[ProcessJob] Transcription complete. Starting Vertex AI video evaluation...");
-                await prisma.job.update({ where: { id }, data: { status: 'processing-in-gemini' } });
+                console.log("[ProcessJob] Transcription complete. Starting OpenAI video evaluation...");
+                await prisma.job.update({ where: { id }, data: { status: 'processing-in-openai' } });
                 // Note: R2 doesn't use gs:// URIs like GCS, we'll pass the HTTP URL directly
                 console.log(`[ProcessJob] Using R2 URL for video evaluation: ${gcsUrl}`);
                 evaluationResult = await evaluateVideo(surgeryName, additionalContext || '', gcsUrl, transcription);
 
             } catch (videoError) {
-                console.error("[ProcessJob] Vertex AI video evaluation failed. Falling back to audio-only analysis.", videoError);
+                console.error("[ProcessJob] OpenAI video evaluation failed. Falling back to audio-only analysis.", videoError);
                 await prisma.job.update({ where: { id }, data: { status: 'processing-transcription' } });
 
                 if (!transcription) {
@@ -419,7 +419,7 @@ export async function processJob(jobWithDetails: any, prismaClient?: any) {
             evaluationResult = await evaluateTranscript(transcription, surgeryName, additionalContext || '');
         }
 
-        console.log(`Job ${id}: Gemini evaluation complete.`);
+        console.log(`Job ${id}: OpenAI evaluation complete.`);
 
         const finalResult = {
             ...evaluationResult,

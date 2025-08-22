@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import formidable from 'formidable';
 import { createClient, DeepgramError } from '@deepgram/sdk';
+import OpenAI from 'openai';
 import fs from 'fs';
 
 // Define a type for a single step in the evaluation config
@@ -16,9 +17,9 @@ interface EvaluationStep {
   comments: string;
 }
 
-// This interface will hold the result from the Gemini evaluation.
+// This interface will hold the result from the OpenAI evaluation.
 // It uses an index signature to allow for dynamic property names based on procedure steps.
-interface GeminiEvaluationResult {
+interface OpenAIEvaluationResult {
   [key: string]: EvaluationStep | number | string;
   caseDifficulty: number;
   additionalComments: string;
@@ -144,8 +145,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log("✅ Transcription complete.");
     console.log("---");
 
-    console.log("Step 2: Evaluating transcript with Gemini...");
-    const evaluation = await evaluateTranscriptWithGemini(transcription, surgeryName, additionalContext);
+    console.log("Step 2: Evaluating transcript with OpenAI...");
+    const evaluation = await evaluateTranscriptWithOpenAI(transcription, surgeryName, additionalContext);
     console.log("✅ Evaluation complete.");
     console.log("---");
 
@@ -213,31 +214,12 @@ interface SchemaProperties {
     };
 }
 
-async function evaluateTranscriptWithGemini(transcription: string, surgeryName: string, additionalContext: string): Promise<GeminiEvaluationResult> {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("GEMINI_API_KEY environment variable not set.");
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+async function evaluateTranscriptWithOpenAI(transcription: string, surgeryName: string, additionalContext: string): Promise<OpenAIEvaluationResult> {
+    const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY!,
+    });
 
     const EVALUATION_CONFIG = EVALUATION_CONFIGS[surgeryName as keyof typeof EVALUATION_CONFIGS];
-
-    const RESPONSE_JSON_SCHEMA = {
-        type: "OBJECT",
-        properties: {
-            ...EVALUATION_CONFIG.procedureSteps.reduce((acc: SchemaProperties, step: ProcedureStepConfig) => {
-                acc[step.key] = {
-                    type: "OBJECT",
-                    properties: {
-                        score: { type: "NUMBER" },
-                        time: { type: "STRING" },
-                        comments: { type: "STRING" }
-                    }
-                };
-                return acc;
-            }, {}),
-            caseDifficulty: { type: "NUMBER" },
-            additionalComments: { type: "STRING" },
-        }
-    };
 
     const contextPromptSection = additionalContext
         ? `
@@ -247,6 +229,10 @@ async function evaluateTranscriptWithGemini(transcription: string, surgeryName: 
       ---
       `
         : '';
+
+    const stepKeysForJson = EVALUATION_CONFIG.procedureSteps.map(s => 
+        `"${s.key}": { "score": ..., "time": "...", "comments": "..." }`
+    ).join(',\n    ');
 
     const prompt = `
       You are an expert surgical education analyst. Your task is to provide a detailed, constructive evaluation of a resident's performance based on a transcript and the provided context.
@@ -274,29 +260,41 @@ async function evaluateTranscriptWithGemini(transcription: string, surgeryName: 
       5.  **Overall Assessment:**
           * 'caseDifficulty': (Number 1-3) Analyze the entire transcript and provided context to determine the overall case difficulty (1=Low, 2=Moderate, 3=High).
           * 'additionalComments': (String) Provide a concise summary of the resident's overall performance, including strengths and areas for improvement. This is for the final remarks. Make sure to incorporate the additional context in your assessment.
-      6.  **Return ONLY the JSON object.** The entire response must be a single JSON object conforming to a schema.
+      6.  **Return ONLY the JSON object conforming to this structure:**
+      
+      {
+        "caseDifficulty": <number>,
+        "additionalComments": "<string>",
+        ${stepKeysForJson}
+      }
     `;
 
-    const payload = {
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema: RESPONSE_JSON_SCHEMA,
-        },
-    };
-
-    const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+    const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+            {
+                role: "system",
+                content: "You are an expert surgical analyst. Respond with only valid JSON matching the requested structure."
+            },
+            {
+                role: "user",
+                content: prompt
+            }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.1,
     });
 
-    if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`Gemini evaluation API request failed: ${response.status} ${response.statusText} - ${errorBody}`);
+    const responseText = completion.choices[0]?.message?.content;
+    
+    if (!responseText) {
+        throw new Error("Failed to get a valid response from OpenAI.");
     }
 
-    const result = await response.json();
-    const resultText = result.candidates[0].content.parts[0].text;
-    return JSON.parse(resultText) as GeminiEvaluationResult;
+    try {
+        return JSON.parse(responseText) as OpenAIEvaluationResult;
+    } catch (error) {
+        console.error("Failed to parse JSON from OpenAI. Raw response:", responseText);
+        throw new Error("OpenAI returned invalid JSON.");
+    }
 }
