@@ -1,3 +1,4 @@
+// lib/r2.ts
 import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import path from 'path';
@@ -13,10 +14,9 @@ function initializeR2() {
     const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
     const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
     const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
-    const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME;
 
-    if (!accountId || !accessKeyId || !secretAccessKey || !bucketName) {
-        throw new Error("Cloudflare R2 environment variables (CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_R2_ACCESS_KEY_ID, CLOUDFLARE_R2_SECRET_ACCESS_KEY, CLOUDFLARE_R2_BUCKET_NAME) are not set.");
+    if (!accountId || !accessKeyId || !secretAccessKey) {
+        throw new Error("Cloudflare R2 server-side environment variables (CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_R2_ACCESS_KEY_ID, CLOUDFLARE_R2_SECRET_ACCESS_KEY) are not set.");
     }
 
     r2Client = new S3Client({
@@ -90,7 +90,7 @@ export async function generateV4ReadSignedUrl(fileName: string): Promise<string>
     }
 }
 
-export async function uploadFileToGCS(localPath: string, destination: string): Promise<string> {
+export async function uploadFileToR2(localPath: string, destination: string): Promise<string> {
     initializeR2();
     if (!r2Client) {
         throw new Error('R2 Client is not initialized. Check your environment variables.');
@@ -122,20 +122,24 @@ export async function uploadFileToGCS(localPath: string, destination: string): P
     }
 }
 
+// Fix: Use the NEXT_PUBLIC_ variables for the client-side URL
 export function getPublicUrl(destination: string): string {
-    const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME;
-    const customDomain = process.env.CLOUDFLARE_R2_PUBLIC_DOMAIN;
+    const bucketName = process.env.NEXT_PUBLIC_CLOUDFLARE_R2_BUCKET_NAME;
+    const customDomain = process.env.NEXT_PUBLIC_CLOUDFLARE_R2_PUBLIC_DOMAIN;
     
     if (!bucketName) {
         throw new Error("CLOUDFLARE_R2_BUCKET_NAME environment variable not set.");
     }
     
-    // Use custom domain if available, otherwise use the default R2 public URL
     if (customDomain) {
         return `https://${customDomain}/${destination}`;
     }
     
-    const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+    const accountId = process.env.NEXT_PUBLIC_CLOUDFLARE_ACCOUNT_ID;
+    if (!accountId) {
+      throw new Error("CLOUDFLARE_ACCOUNT_ID environment variable not set.");
+    }
+
     return `https://${bucketName}.${accountId}.r2.cloudflarestorage.com/${destination}`;
 }
 

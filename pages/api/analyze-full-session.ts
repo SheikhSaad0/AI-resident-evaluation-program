@@ -3,7 +3,7 @@ import formidable, { File } from 'formidable';
 import fs from 'fs';
 import OpenAI from 'openai';
 import { getPrismaClient } from '../../lib/prisma';
-import { uploadFileToGCS, getPublicUrl } from '../../lib/r2';
+import { uploadFileToR2, getPublicUrl } from '../../lib/r2';
 import { EVALUATION_CONFIGS } from '../../lib/evaluation-configs';
 
 const openai = new OpenAI({
@@ -87,7 +87,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const config = EVALUATION_CONFIGS[procedureId];
 
         const destination = `uploads/live_session_${Date.now()}.webm`;
-        await uploadFileToGCS(audioFile.filepath, destination);
+        await uploadFileToR2(audioFile.filepath, destination);
         fs.unlinkSync(audioFile.filepath);
 
         const stepKeysForJson = config.procedureSteps.map(s => `"${s.key}": { "score": <number between 0 and 5>, "time": "<string>", "comments": "<string>" }`).join(',\n    ');

@@ -1,3 +1,4 @@
+// components/ui/ImageUpload.tsx
 import React, { useState, useRef } from 'react';
 import Image from 'next/image';
 
@@ -22,10 +23,10 @@ export default function ImageUpload({
     setIsUploading(true);
     
     try {
-      // Construct the full, final path for the object in GCS.
+      // Construct the full, final path for the object in R2.
       const fullPath = `resident-photos/${Date.now()}-${file.name.replace(/\s/g, '_')}`;
 
-      // Generate upload URL for Google Cloud Storage
+      // Generate upload URL for Cloudflare R2
       const uploadResponse = await fetch('/api/generate-upload-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -51,11 +52,22 @@ export default function ImageUpload({
       });
 
       if (!fileUploadResponse.ok) {
-        throw new Error('Failed to upload file to Google Cloud Storage');
+        throw new Error('Failed to upload file to Cloudflare R2');
       }
 
-      // Construct the public URL for viewing the image.
-      const publicUrl = `https://storage.googleapis.com/${process.env.NEXT_PUBLIC_GCS_BUCKET_NAME || 'ai-surgical-evaluator'}/${filePath}`;
+      // Fix: Construct the public URL for viewing the image using the new public environment variable
+      const publicDomain = process.env.NEXT_PUBLIC_CLOUDFLARE_R2_PUBLIC_DOMAIN;
+      const bucketName = process.env.NEXT_PUBLIC_CLOUDFLARE_R2_BUCKET_NAME;
+
+      let publicUrl = '';
+      if (publicDomain) {
+        publicUrl = `https://${publicDomain}/${filePath}`;
+      } else {
+        // Fallback to the default R2 URL format
+        const accountId = process.env.NEXT_PUBLIC_CLOUDFLARE_ACCOUNT_ID;
+        publicUrl = `https://${bucketName}.${accountId}.r2.cloudflarestorage.com/${filePath}`;
+      }
+      
       onChange(publicUrl);
       
       console.log("File uploaded successfully to:", publicUrl);

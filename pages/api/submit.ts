@@ -5,6 +5,8 @@ import { getPrismaClient } from '../../lib/prisma';
 import { Client } from '@upstash/qstash';
 import { processJob } from '../../lib/process-job';
 import { Job, Resident } from '@prisma/client';
+// FIX: Renamed import to uploadFileToR2 to match the new function name
+import { uploadFileToR2, getPublicUrl } from '../../lib/r2';
 
 // Initialize QStash Client
 const qstashClient = new Client({
@@ -46,6 +48,7 @@ export default async function handler(
     const job = await prisma.job.create({
       data: {
         status: 'pending',
+        // FIX: The gcsPaths object should now contain R2 URLs and paths
         gcsUrl: gcsPaths[0].url,
         gcsObjectPath: gcsPaths[0].path,
         surgeryName,
