@@ -185,6 +185,7 @@ export async function getFileMetadata(fileName: string) {
     return r2Client.send(command);
 }
 
+
 function getContentType(filePath: string): string {
     const ext = path.extname(filePath).toLowerCase();
     const contentTypes: { [key: string]: string } = {
