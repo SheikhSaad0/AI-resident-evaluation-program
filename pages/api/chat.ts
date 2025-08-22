@@ -1,9 +1,11 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 import { getPrismaClient } from '../../lib/prisma';
 import { PrismaClient } from '@prisma/client';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+});
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -93,26 +95,35 @@ If the provided context does not contain the information needed to answer the us
   }
 
   try {
-    const model = genAI.getGenerativeModel({
-        model: "gemini-2.5-pro",
-        systemInstruction: {
+    // Convert history to OpenAI format
+    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+        {
             role: "system",
-            parts: [{ text: systemPrompt }]
+            content: systemPrompt
+        },
+        ...formattedHistory.map((h: any) => ({
+            role: h.role as "user" | "assistant",
+            content: h.parts[0].text
+        })),
+        {
+            role: "user",
+            content: hasContext 
+                ? `${message}\n\n### CONTEXT ###\n${JSON.stringify(newContext, null, 2)}`
+                : message
         }
-    });
+    ];
 
-    const chat = model.startChat({
-        history: formattedHistory,
+    const completion = await openai.chat.completions.create({
+        model: "gpt-5-mini",
+        messages: messages,
+        temperature: 0.1,
     });
     
-    // Pass the message parts, including the structured context, to sendMessage
-    const result = await chat.sendMessage(finalMessageParts);
-    const response = await result.response;
-    const text = response.text();
+    const text = completion.choices[0]?.message?.content || "";
     
     res.status(200).json({ response: text, context: newContext });
   } catch (error) {
-    console.error('Error calling Generative AI API:', error);
+    console.error('Error calling OpenAI API:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
   // --- CORRECTED FIX END ---

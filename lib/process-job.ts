@@ -1,46 +1,26 @@
 // lib/process-job.ts
 
 import { Job, Resident } from '@prisma/client';
-import { VertexAI, Part } from '@google-cloud/vertexai';
+import OpenAI from 'openai';
 import { createClient, DeepgramError } from '@deepgram/sdk';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import { getPrismaClient } from './prisma'; // Correct: Use the async getter
-import { generateV4ReadSignedUrl } from './gcs';
+import { generateV4ReadSignedUrl } from './r2';
 
-// ... (keep all the service configuration, type definitions, and helper functions the same)
 // --- Services Configuration ---
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY || '');
 
-// --- VertexAI Authentication Setup ---
-const serviceAccountB64 = process.env.GCP_SERVICE_ACCOUNT_B64;
-if (!serviceAccountB64) {
-  throw new Error('GCP_SERVICE_ACCOUNT_B64 environment variable is not set.');
-}
-const serviceAccountJson = Buffer.from(serviceAccountB64, 'base64').toString('utf-8');
-const credentials = JSON.parse(serviceAccountJson);
-
-const credentialsPath = path.join(os.tmpdir(), 'gcp-credentials.json');
-fs.writeFileSync(credentialsPath, serviceAccountJson);
-process.env.GOOGLE_APPLICATION_CREDENTIALS = credentialsPath;
-
-const vertex_ai = new VertexAI({
-    project: credentials.project_id,
-    location: 'us-central1',
-});
-
-const generativeModel = vertex_ai.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-});
-const textModel = vertex_ai.getGenerativeModel({
-    model: 'gemini-2.5-flash',
+// --- OpenAI Setup ---
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
 });
 
 // --- TYPE DEFINITIONS AND CONFIGS ---
 interface ProcedureStepConfig { key: string; name: string; }
 interface EvaluationStep { score: number; time: string; comments:string; }
-interface GeminiEvaluationResult {
+interface OpenAIEvaluationResult {
     [key: string]: EvaluationStep | number | string | undefined;
     caseDifficulty: number;
     additionalComments: string;
