@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Your existing images configuration is preserved
   images: {
     remotePatterns: [
       {
@@ -9,10 +8,22 @@ const nextConfig = {
         port: '',
         pathname: '/**',
       },
+      // Fix: Add the Cloudflare R2 hostname pattern
+      {
+        protocol: 'https',
+        hostname: '**r2.cloudflarestorage.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'pub-03517cc91bec48e7b2b5aef1729826c6.r2.dev',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
   
-  // Your existing headers configuration is preserved
   async headers() {
     return [
       {
@@ -35,7 +46,6 @@ const nextConfig = {
     ];
   },
 
-  // This new block ignores ESLint warnings during the build
   eslint: {
     ignoreDuringBuilds: true,
   },
