@@ -1,46 +1,39 @@
 // lib/process-job.ts
 
-import { Job, Resident } from '@prisma/client';
-import { VertexAI, Part } from '@google-cloud/vertexai';
+import OpenAI from 'openai';
 import { createClient, DeepgramError } from '@deepgram/sdk';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { getPrismaClient } from './prisma'; // Correct: Use the async getter
-import { generateV4ReadSignedUrl } from './gcs';
+import { getPrismaClient } from './prisma';
+import { generateV4ReadSignedUrl, downloadFileAsBuffer } from './r2';
+import ffmpeg from 'fluent-ffmpeg';
+import ffprobeStatic from 'ffprobe-static';
 
-// ... (keep all the service configuration, type definitions, and helper functions the same)
+// Tell fluent-ffmpeg where to find the ffprobe binary
+ffmpeg.setFfprobePath(ffprobeStatic.path);
+
 // --- Services Configuration ---
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY || '');
 
-// --- VertexAI Authentication Setup ---
-const serviceAccountB64 = process.env.GCP_SERVICE_ACCOUNT_B64;
-if (!serviceAccountB64) {
-  throw new Error('GCP_SERVICE_ACCOUNT_B64 environment variable is not set.');
-}
-const serviceAccountJson = Buffer.from(serviceAccountB64, 'base64').toString('utf-8');
-const credentials = JSON.parse(serviceAccountJson);
-
-const credentialsPath = path.join(os.tmpdir(), 'gcp-credentials.json');
-fs.writeFileSync(credentialsPath, serviceAccountJson);
-process.env.GOOGLE_APPLICATION_CREDENTIALS = credentialsPath;
-
-const vertex_ai = new VertexAI({
-    project: credentials.project_id,
-    location: 'us-central1',
+// --- OpenAI Setup ---
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
 });
 
-const generativeModel = vertex_ai.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-});
-const textModel = vertex_ai.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-});
+// Helper function to parse HH:mm:ss.ss to seconds
+const parseTimemarkToSeconds = (timemark: string): number => {
+    const parts = timemark.split(':');
+    const seconds = parseFloat(parts.pop() || '0');
+    const minutes = parseInt(parts.pop() || '0', 10);
+    const hours = parseInt(parts.pop() || '0', 10);
+    return (hours * 3600) + (minutes * 60) + seconds;
+};
 
 // --- TYPE DEFINITIONS AND CONFIGS ---
 interface ProcedureStepConfig { key: string; name: string; }
 interface EvaluationStep { score: number; time: string; comments:string; }
-interface GeminiEvaluationResult {
+interface OpenAIEvaluationResult {
     [key: string]: EvaluationStep | number | string | undefined;
     caseDifficulty: number;
     additionalComments: string;
@@ -145,15 +138,15 @@ async function transcribeWithDeepgram(urlForTranscription: string): Promise<stri
     return utterances.map(utt => `[Speaker ${utt.speaker}] (${utt.start.toFixed(2)}s): ${utt.transcript}`).join('\n');
 }
 
-const getMimeTypeFromGcsUri = (gcsUri: string): string => {
-    const extension = path.extname(gcsUri).toLowerCase();
+const getMimeTypeFromUrl = (url: string): string => {
+    const extension = path.extname(url).toLowerCase();
     if (extension === '.mov') return 'video/quicktime';
     if (extension === '.mp4') return 'video/mp4';
     if (extension === '.webm') return 'video/webm';
     return 'video/mp4';
 };
 
-async function evaluateTranscript(transcription: string, surgeryName: string, additionalContext: string): Promise<GeminiEvaluationResult> {
+async function evaluateTranscript(transcription: string, surgeryName: string, additionalContext: string): Promise<OpenAIEvaluationResult> {
     console.log('Starting text-based evaluation with JSON mode...');
     const config = EVALUATION_CONFIGS[surgeryName as keyof typeof EVALUATION_CONFIGS];
     const stepKeys = config.procedureSteps.map(s => `"${s.key}": { "score": ..., "time": "...", "comments": "..." }`).join(',\n    ');
@@ -202,13 +195,21 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
         - Repositioning a tool without performing the task  
         These are considered *facilitative support*, not takeover.
 
+        - **Redo alone doesn’t justify a 3.** If the resident corrects the mistake on their own, still score a 4.
+
+        - **In unclear situations, lean toward higher score unless the attending did part of the step themselves.**
+
         - **True "taking over" means performing part of the step themselves.** Only deduct for **procedural actions** — cutting, suturing, dissecting, tying, clipping, etc.
 
         - **Redo alone doesn’t justify a 3.** If the resident corrects the mistake on their own, still score a 4.
 
         - **In unclear situations, lean toward higher score unless the attending did part of the step themselves.**
 
-        ---
+        - **True "taking over" means performing part of the step themselves.** Only deduct for **procedural actions** — cutting, suturing, dissecting, tying, clipping, etc.
+
+        - **Redo alone doesn’t justify a 3.** If the resident corrects the mistake on their own, still score a 4.
+
+        - **In unclear situations, lean toward higher score unless the attending did part of the step themselves.**
 
         - **If a step was NOT performed:** Use a score of 0, time "N/A", and comment "This step was not performed or mentioned."
         - Do not make up information about what the attending says, avoid direct quotes, just evaluate each step effectively, if there was no attending comment for that step, mention that.
@@ -217,8 +218,14 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
         - Use the transcripts timestamps and the procedure steps estimated time to asses where in the case the attending and resident might be, the attending may give the score out verbally after completing a section of the case.
         - Listen in to the random comments made by the attending throughout the case and take note of those comments to be later used in the additional comments/overall score section of the finished evaluation.
         - unless the attending EXPLICITLY states that they are taking over, assume the resident is in full control
+        - know the difference between the attending speaking / guiding and taking over, do not make up information about what the attending says, avoid direct quotes, just evaluate each step effectively, if there was no attending comment for that step, mention that.
+        - be as accurate as you can, when the transcript is silent, assume that the surgeons are operating
+        - when an attending is talking, without mention of them taking over or verbal cues that they did take over, assume the resident is performing the procedure as they are being the ones evaluated, by default they are doing the surgery.
+        - use the transcripts timestamps and the procedure steps estimated time to asses where in the case the attending and resident might be, the attending may give the score out verbally after completing a section of the case.
+        - listen in to the random comments made by the attending throughout the case and take note of those comments to be later used in the additional comments/overall score section of the finished evaluation.
+        - unless the attending EXPLICITLY states that they are taking over, assume the resident is in full control
         - know the difference between the attending speaking / guiding and taking over, if the attending is speaking and acting like he is doing the procedure, but the resident is doing the same, assume the resident is operating, take timestamps into consideration as well, they will verbally ASK to switch in, it is never silent
-        - Take into account random mishaps or accidents that may happen in the OR
+        - take into account random mishaps or accidents that may happen in the OR
         - use context clues to differentiate coaching and acting from the attending, things like "let me scrub in now" or "give me that" are some examples
         - keep into account that speak 0 and 1 labels may not be very accurate in the transcript
         - keep in mind, even if the residents makes mistakes or does something wrong and is corrected by the attending verbally, under all circumstances that the attending does nott physically have to take over or do the step, the resident is awarded at minimum a score of 4 for that step, this is due to the fact they only had verbal coachiing and no interference from the attending
@@ -245,33 +252,39 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
         ---
       `;
 
-    const request = {
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-            responseMimeType: "application/json",
-        },
-    };
+    const completion = await openai.chat.completions.create({
+        model: "gpt-5-mini",
+        messages: [
+            {
+                role: "system",
+                content: "You are an expert surgical analyst. Respond with only valid JSON matching the requested structure."
+            },
+            {
+                role: "user",
+                content: prompt
+            }
+        ],
+        response_format: { type: "json_object" },
+    });
     
-    const result = await textModel.generateContent(request);
-    const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text;
+    const responseText = completion.choices[0]?.message?.content;
     
     if (!responseText) {
         throw new Error("Failed to get a valid response from text model.");
     }
     
     try {
-        // Clean the response text to remove potential markdown and whitespace
         const cleanedText = responseText.trim().replace(/^```json\s*/, '').replace(/```$/, '');
-        return JSON.parse(cleanedText) as GeminiEvaluationResult;
+        return JSON.parse(cleanedText) as OpenAIEvaluationResult;
     } catch (error) {
         console.error("Failed to parse JSON from text model. Raw response:", responseText);
         throw new Error("AI model returned invalid JSON.");
     }
 }
 
-async function evaluateVideo(surgeryName: string, additionalContext: string, gcsUri: string, transcription: string): Promise<GeminiEvaluationResult> {
+async function evaluateVideo(surgeryName: string, additionalContext: string, r2Url: string, transcription: string): Promise<OpenAIEvaluationResult> {
     const config = EVALUATION_CONFIGS[surgeryName as keyof typeof EVALUATION_CONFIGS];
-    console.log(`Starting video evaluation with GCS URI: ${gcsUri}`);
+    console.log(`Starting video evaluation with R2 URL: ${r2Url}`);
     const stepKeys = config.procedureSteps.map(s => `"${s.key}": { "score": ..., "time": "...", "comments": "..." }`).join(',\n    ');
     const difficultyText = Object.entries(config.caseDifficultyDescriptions)
         .map(([key, value]) => `- ${key}: ${value}`)
@@ -321,43 +334,50 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, gcs
         ---
       `;
 
-    const filePart: Part = { fileData: { mimeType: getMimeTypeFromGcsUri(gcsUri), fileUri: gcsUri } };
-    const request = {
-        contents: [{ role: 'user', parts: [filePart, { text: prompt }] }],
-        generationConfig: {
-            responseMimeType: "application/json",
-        },
-    };
+    // Note: OpenAI doesn't support direct video analysis like Gemini, 
+    // so we'll process this as text-based analysis using the transcription
+    console.log(`Starting text-based evaluation for video analysis`);
+    
+    const completion = await openai.chat.completions.create({
+        model: "gpt-5-mini",
+        messages: [
+            {
+                role: "system",
+                content: "You are an expert surgical analyst. Respond with only valid JSON matching the requested structure."
+            },
+            {
+                role: "user",
+                content: prompt
+            }
+        ],
+        response_format: { type: "json_object" },
+    });
 
-    const result = await generativeModel.generateContent(request);
-    const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text;
+    const responseText = completion.choices[0]?.message?.content;
     
     if (!responseText) {
-        throw new Error("Failed to get a valid response from the video model.");
+        throw new Error("Failed to get a valid response from OpenAI video analysis.");
     }
 
     try {
-        // Clean the response text to remove potential markdown and whitespace
         const cleanedText = responseText.trim().replace(/^```json\s*/, '').replace(/```$/, '');
-        const parsedResult = JSON.parse(cleanedText) as GeminiEvaluationResult;
+        const parsedResult = JSON.parse(cleanedText) as OpenAIEvaluationResult;
         parsedResult.transcription = transcription;
         return parsedResult;
     } catch(error) {
-        console.error("Failed to parse JSON from video model. Raw response:", responseText);
+        console.error("Failed to parse JSON from OpenAI video analysis. Raw response:", responseText);
         throw new Error("AI model returned invalid JSON.");
     }
 }
 
 
-export async function processJob(jobWithDetails: Job & { resident: Resident | null }, prismaClient?: any) {
+export async function processJob(jobWithDetails: any, prismaClient?: any) {
     const prisma = prismaClient || getPrismaClient();
 
     console.log(`[ProcessJob] Starting job ${jobWithDetails.id} for surgery: ${jobWithDetails.surgeryName}`);
     console.log(`[ProcessJob] Using prisma client: ${prismaClient ? 'provided' : 'default'}`);
     const { id, gcsUrl, gcsObjectPath, surgeryName, additionalContext, withVideo, videoAnalysis, resident } = jobWithDetails;
 
-    // The gcsUrl and gcsObjectPath will now point to the first file.
-    // In a more advanced implementation, you would loop through all files.
     if (!gcsUrl || !gcsObjectPath) {
         console.error(`[ProcessJob] Missing required fields - gcsUrl: ${gcsUrl}, gcsObjectPath: ${gcsObjectPath}`);
         throw new Error(`Job ${id} is missing gcsUrl or gcsObjectPath.`);
@@ -372,10 +392,48 @@ export async function processJob(jobWithDetails: Job & { resident: Resident | nu
         residentName: resident?.name
     });
 
-    let evaluationResult: GeminiEvaluationResult;
+    let evaluationResult: OpenAIEvaluationResult;
     let transcription: string | undefined;
+    let audioDuration: number | null | undefined;
 
     try {
+        await prisma.job.update({ where: { id }, data: { status: 'processing-duration-scan' } });
+
+        console.log(`[ProcessJob] Starting DURATION SCAN for job ${id}`);
+        const tempFilePath = path.join(os.tmpdir(), `temp_audio_${id}.webm`);
+
+        try {
+            const fileContents = await downloadFileAsBuffer(gcsObjectPath);
+            fs.writeFileSync(tempFilePath, fileContents);
+
+            audioDuration = await new Promise<number | null>((resolve, reject) => {
+                ffmpeg.ffprobe(tempFilePath, (err, data) => {
+                    if (err) {
+                        console.error(`[ProcessJob] FFprobe error for job ${id}:`, err.message);
+                        resolve(null);
+                    } else {
+                        const durationInSeconds = data?.format?.duration;
+                        console.log(`[ProcessJob] FFprobe finished. Duration: ${durationInSeconds}s`);
+                        resolve(durationInSeconds ? Math.ceil(durationInSeconds) : null);
+                    }
+                });
+            });
+
+            if (audioDuration && audioDuration > 0) {
+                console.log(`[ProcessJob] SUCCESS! Duration found: ${audioDuration}s. Updating database.`);
+                await prisma.job.update({ where: { id }, data: { audioDuration: audioDuration } });
+            } else {
+                console.error(`[ProcessJob] FAILURE: Scan completed but duration was zero or null for job ${id}.`);
+            }
+        } catch (metaError) {
+            console.error(`[ProcessJob] A critical error occurred during duration scan for job ${id}:`, metaError);
+        } finally {
+            if (fs.existsSync(tempFilePath)) {
+                fs.unlinkSync(tempFilePath);
+            }
+        }
+        
+        // Now proceed with transcription and evaluation
         if (withVideo && videoAnalysis) {
             try {
                 console.log("[ProcessJob] Visual analysis is enabled. Starting transcription...");
@@ -387,14 +445,13 @@ export async function processJob(jobWithDetails: Job & { resident: Resident | nu
                 
                 transcription = await transcribeWithDeepgram(readableUrl);
 
-                console.log("[ProcessJob] Transcription complete. Starting Vertex AI video evaluation...");
-                await prisma.job.update({ where: { id }, data: { status: 'processing-in-gemini' } });
-                const gcsUri = gcsUrl.replace('https://storage.googleapis.com/', 'gs://');
-                console.log(`[ProcessJob] Using GCS URI for video evaluation: ${gcsUri}`);
-                evaluationResult = await evaluateVideo(surgeryName, additionalContext || '', gcsUri, transcription);
+                console.log("[ProcessJob] Transcription complete. Starting OpenAI video evaluation...");
+                await prisma.job.update({ where: { id }, data: { status: 'processing-in-openai' } });
+                console.log(`[ProcessJob] Using R2 URL for video evaluation: ${gcsUrl}`);
+                evaluationResult = await evaluateVideo(surgeryName, additionalContext || '', gcsUrl, transcription);
 
             } catch (videoError) {
-                console.error("[ProcessJob] Vertex AI video evaluation failed. Falling back to audio-only analysis.", videoError);
+                console.error("[ProcessJob] OpenAI video evaluation failed. Falling back to audio-only analysis.", videoError);
                 await prisma.job.update({ where: { id }, data: { status: 'processing-transcription' } });
 
                 if (!transcription) {
@@ -419,7 +476,7 @@ export async function processJob(jobWithDetails: Job & { resident: Resident | nu
             evaluationResult = await evaluateTranscript(transcription, surgeryName, additionalContext || '');
         }
 
-        console.log(`Job ${id}: Gemini evaluation complete.`);
+        console.log(`Job ${id}: OpenAI evaluation complete.`);
 
         const finalResult = {
             ...evaluationResult,

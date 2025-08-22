@@ -1,4 +1,3 @@
-
 // pages/results/[id].tsx
 
 import { useRouter } from 'next/router';
@@ -94,7 +93,6 @@ const InfoWidget = ({ title, value, icon }: { title: string, value: string | num
             <div className="relative w-10 h-10 flex-shrink-0">
                 <Image src={icon} alt={title} layout="fill" objectFit="contain" />
             </div>
-            {/* FIX: Added min-w-0 to allow text to wrap correctly in a flex container */}
             <div className="min-w-0">
                 <p className="text-sm text-text-quaternary">{title}</p>
                 <p className="text-2xl font-bold text-text-primary truncate">{value}</p>
@@ -171,7 +169,6 @@ const TimeWidget = ({ title, value, icon }: { title: string, value: string | num
             <div className="relative w-10 h-10 flex-shrink-0">
                 <Image src={icon} alt={title} layout="fill" objectFit="contain" />
             </div>
-             {/* FIX: Added min-w-0 to allow text to wrap correctly in a flex container */}
             <div className="min-w-0">
                 <p className="text-sm text-text-quaternary">{title}</p>
                 <p className="text-2xl font-bold text-text-primary truncate">{value}</p>
@@ -223,7 +220,6 @@ const LeftSidebar = ({ evaluation }: { evaluation?: EvaluationData | null }) => 
             <div className="relative w-56 h-56 my-6">
                 <Image src={getSurgeryIcon(surgery || '')} alt={surgery || 'Loading'} layout="fill" objectFit="contain"/>
             </div>
-            {/* FIX: Changed grid-cols-2 to grid-cols-1 to create a vertical 1x4 layout */}
             <div className="grid grid-cols-1 gap-4 mt-6 w-full max-w-sm">
                 {displayScore !== undefined && (
                     <InfoWidget title="Overall Score" value={`${displayScore.toFixed(1)}/5`} icon="/images/eval-image.svg" />
@@ -308,7 +304,7 @@ const StepAnalysisTab = ({ procedureSteps, editedEvaluation, isFinalized, onEval
                         </div>
                         <div>
                             <label className="block text-xs text-text-tertiary mb-1">Attending Comments</label>
-                            <GlassTextarea value={aiData?.attendingComments ?? ''} onChange={(e) => onEvaluationChange(step.key, 'attendingComments', e.target.value)} disabled={isFinalized} placeholder={aiData?.comments || 'Enter comments...'} rows={3} />
+                            <GlassTextarea value={aiData?.attendingComments ?? ''} onChange={(e) => onEvaluationChange(step.key, 'attendingComments', e.target.value)} disabled={isFinalized} placeholder={aiData?.comments || 'Enter comments...'} rows={5} />
                         </div>
                     </div>
                 </div>
@@ -469,11 +465,10 @@ export default function RevampedResultsPage() {
                 console.error("Failed to fetch supervisors:", error);
             }
         };
-
+        
         const fetchEvaluation = async (jobId: string) => {
             try {
                 const jobData = await apiFetch(`/api/evaluations/${jobId}`);
-                console.log('[DEBUG] Raw data from API:', jobData);
                 
                 if (jobData.status === 'pending' || jobData.status.startsWith('processing')) {
                     setStatus('polling');
@@ -497,9 +492,7 @@ export default function RevampedResultsPage() {
                     programDirector: jobData.programDirector,
                     audioDuration: jobData.audioDuration,
                 };
-
-                console.log('[DEBUG] Parsed data being set to state:', parsedData);
-
+                
                 setEvaluation(parsedData);
                 setEditedEvaluation(JSON.parse(JSON.stringify(parsedData)));
                 setIsOriginalFileVideo(jobData.withVideo);

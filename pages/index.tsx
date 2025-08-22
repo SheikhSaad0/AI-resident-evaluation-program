@@ -1,3 +1,5 @@
+// pages/index.tsx
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
@@ -82,7 +84,7 @@ export default function Home() {
 
           console.log(`Got upload URL for: ${file.name}`);
 
-          // Upload file to GCS
+          // Upload file to R2
           const uploadResponse = await fetch(uploadUrl, {
             method: 'PUT',
             body: file,
@@ -91,19 +93,29 @@ export default function Home() {
 
           if (!uploadResponse.ok) {
             const errorText = await uploadResponse.text();
-            console.error(`GCS upload failed for ${file.name}:`, uploadResponse.status, errorText);
-            throw new Error(`Failed to upload file ${file.name} to GCS: ${uploadResponse.status} ${uploadResponse.statusText}`);
+            console.error(`R2 upload failed for ${file.name}:`, uploadResponse.status, errorText);
+            throw new Error(`Failed to upload file ${file.name} to R2: ${uploadResponse.status} ${uploadResponse.statusText}`);
           }
 
           console.log(`Successfully uploaded: ${file.name}`);
+          
+          // FIX: Construct the correct R2 URL
+          const accountId = process.env.NEXT_PUBLIC_CLOUDFLARE_ACCOUNT_ID;
+          const bucketName = process.env.NEXT_PUBLIC_CLOUDFLARE_R2_BUCKET_NAME;
+          const publicDomain = process.env.NEXT_PUBLIC_CLOUDFLARE_R2_PUBLIC_DOMAIN;
+
+          const fileUrl = publicDomain 
+            ? `https://${publicDomain}/${filePath}` 
+            : `https://${bucketName}.${accountId}.r2.cloudflarestorage.com/${filePath}`;
+
           gcsPaths.push({
-            url: `gs://${process.env.NEXT_PUBLIC_GCS_BUCKET_NAME || 'ai-surgical-evaluator'}/${filePath}`,
+            url: fileUrl, // Now stores the correct HTTP URL
             path: filePath,
             type: file.type
           });
         }
       } else if (gcsLink) {
-        // Basic validation for gs:// link
+        // Basic validation for gs:// link (since it's still in the UI)
         if (!gcsLink.startsWith('gs://')) {
           alert('Invalid GCS link. It must start with "gs://".');
           setIsAnalyzing(false);

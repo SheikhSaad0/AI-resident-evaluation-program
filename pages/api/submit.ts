@@ -1,6 +1,10 @@
+// pages/api/submit.ts
+
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getPrismaClient } from '../../lib/prisma';
 import { Client } from '@upstash/qstash';
+import { processJob } from '../../lib/process-job';
+import { Job, Resident } from '@prisma/client';
 
 // Initialize QStash Client
 const qstashClient = new Client({
@@ -8,10 +12,6 @@ const qstashClient = new Client({
 });
 
 function getApiBaseUrl() {
-  // Use the new environment variable for the app's public URL
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL;
-  }
   if (process.env.NEXT_PUBLIC_QSTASH_FORWARDING_URL) {
     return process.env.NEXT_PUBLIC_QSTASH_FORWARDING_URL;
   }
@@ -58,24 +58,29 @@ export default async function handler(
     });
 
     const apiBaseUrl = getApiBaseUrl();
-    
-    // --- FIX START ---
-    // Append the database query parameter to the destination URL
-    const db = req.query.db || 'testing';
-    const destinationUrl = `${apiBaseUrl}/api/process?db=${db}`;
-    // --- FIX END ---
+    const isLocal = apiBaseUrl.includes('localhost') || apiBaseUrl.includes('127.0.0.1');
 
-    console.log(`[Submission] Queuing job ${job.id} for processing at: ${destinationUrl}`);
+    if (isLocal) {
+        // Run the job locally without using QStash
+        console.log(`[Submission] Running job ${job.id} locally`);
+        processJob(job as Job & { resident: Resident | null }, prisma);
+    } else {
+        // Use QStash for production deployment
+        const db = req.query.db || 'testing';
+        const destinationUrl = `${apiBaseUrl}/api/process?db=${db}`;
+        
+        console.log(`[Submission] Queuing job ${job.id} for processing at: ${destinationUrl}`);
 
-    await qstashClient.publishJSON({
-      url: destinationUrl,
-      body: {
-        jobId: job.id,
-      },
-      headers: {
-        'Authorization': `Bearer ${process.env.CRON_SECRET}`,
-      },
-    });
+        await qstashClient.publishJSON({
+            url: destinationUrl,
+            body: {
+                jobId: job.id,
+            },
+            headers: {
+                'Authorization': `Bearer ${process.env.CRON_SECRET}`,
+            },
+        });
+    }
 
     res.status(201).json({ jobId: job.id });
 

@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { generateV4UploadSignedUrl } from '../../lib/gcs';
+import { generateV4UploadSignedUrl } from '../../lib/r2';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== 'POST') {

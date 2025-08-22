@@ -1,7 +1,7 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import fs from 'fs';
 import path from 'path';
+import fs from 'fs';
 
 let r2Client: S3Client | null = null;
 
@@ -30,11 +30,66 @@ function initializeR2() {
 }
 
 /**
- * Uploads a local file to Cloudflare R2.
- * @param localPath The path to the local file to upload.
- * @param destination The destination path in the R2 bucket.
- * @returns The public URL of the uploaded file.
+ * Downloads a file from R2 and returns its contents as a Buffer.
+ * @param fileName The path to the file in the bucket.
+ * @returns A promise that resolves to a Buffer containing the file's data.
  */
+export async function downloadFileAsBuffer(fileName: string): Promise<Buffer> {
+    initializeR2();
+    if (!r2Client) {
+        throw new Error('R2 Client is not initialized.');
+    }
+    
+    const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME!;
+    
+    try {
+        const command = new GetObjectCommand({
+            Bucket: bucketName,
+            Key: fileName,
+        });
+        
+        const response = await r2Client.send(command);
+        const chunks: Uint8Array[] = [];
+        
+        if (response.Body) {
+            // @ts-ignore - Handle stream properly
+            for await (const chunk of response.Body) {
+                chunks.push(chunk);
+            }
+        }
+        
+        return Buffer.concat(chunks);
+    } catch (error) {
+        console.error(`Failed to download file ${fileName}:`, error);
+        throw error;
+    }
+}
+
+export async function generateV4ReadSignedUrl(fileName: string): Promise<string> {
+    initializeR2();
+    if (!r2Client) {
+        throw new Error('R2 Client is not initialized.');
+    }
+
+    const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME!;
+
+    try {
+        const command = new GetObjectCommand({
+            Bucket: bucketName,
+            Key: fileName,
+        });
+
+        const url = await getSignedUrl(r2Client, command, { 
+            expiresIn: 15 * 60 // 15 minutes
+        });
+        
+        return url;
+    } catch (error) {
+        console.error('ERROR generating read signed R2 URL:', error);
+        throw error;
+    }
+}
+
 export async function uploadFileToGCS(localPath: string, destination: string): Promise<string> {
     initializeR2();
     if (!r2Client) {
@@ -67,9 +122,6 @@ export async function uploadFileToGCS(localPath: string, destination: string): P
     }
 }
 
-/**
- * This function returns the public URL for a file in R2.
- */
 export function getPublicUrl(destination: string): string {
     const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME;
     const customDomain = process.env.CLOUDFLARE_R2_PUBLIC_DOMAIN;
@@ -85,6 +137,48 @@ export function getPublicUrl(destination: string): string {
     
     const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
     return `https://${bucketName}.${accountId}.r2.cloudflarestorage.com/${destination}`;
+}
+
+export async function generateV4UploadSignedUrl(destination: string, contentType: string): Promise<string> {
+    initializeR2();
+    if (!r2Client) {
+        throw new Error('R2 Client is not initialized. Check your environment variables.');
+    }
+
+    const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME!;
+
+    try {
+        const command = new PutObjectCommand({
+            Bucket: bucketName,
+            Key: destination,
+            ContentType: contentType,
+        });
+
+        const url = await getSignedUrl(r2Client, command, { 
+            expiresIn: 15 * 60 // 15 minutes
+        });
+        
+        return url;
+    } catch (error) {
+        console.error('ERROR generating signed R2 URL:', error);
+        throw error;
+    }
+}
+
+export async function getFileMetadata(fileName: string) {
+    initializeR2();
+    if (!r2Client) {
+        throw new Error('R2 Client is not initialized.');
+    }
+    
+    const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME!;
+    
+    const command = new HeadObjectCommand({
+        Bucket: bucketName,
+        Key: fileName,
+    });
+    
+    return r2Client.send(command);
 }
 
 function getContentType(filePath: string): string {

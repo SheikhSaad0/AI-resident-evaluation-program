@@ -226,7 +226,8 @@ const ChatPage = () => {
 
     setMessages(newMessages);
     setInput('');
-    setContext(initialContext);
+    // FIX: Remove this line to prevent clearing context after each message
+    // setContext(initialContext);
     setIsLoading(true);
 
     const contextSummary = {
