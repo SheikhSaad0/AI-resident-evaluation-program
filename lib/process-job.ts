@@ -227,7 +227,7 @@ async function evaluateTranscript(transcription: string, surgeryName: string, ad
       `;
 
     const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-5-mini",
         messages: [
             {
                 role: "system",
@@ -315,7 +315,7 @@ async function evaluateVideo(surgeryName: string, additionalContext: string, r2U
     console.log(`Starting text-based evaluation for video analysis`);
     
     const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-5-mini",
         messages: [
             {
                 role: "system",
