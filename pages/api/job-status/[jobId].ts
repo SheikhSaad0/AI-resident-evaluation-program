@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getPrismaClient } from '../../../lib/prisma';
-import { generateV4ReadSignedUrl } from '../../../lib/gcs';
+import { generateV4ReadSignedUrl } from '../../../lib/r2';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     const { jobId } = req.query;

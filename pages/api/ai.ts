@@ -122,7 +122,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     try {
         const completion = await openai.chat.completions.create({
-            model: "gpt-5-nano",
+            model: "gpt-4o-mini",
             messages: [
                 {
                     role: "system",

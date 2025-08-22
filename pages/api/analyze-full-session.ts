@@ -18,7 +18,7 @@ export const config = {
 
 async function getOpenAIResponse(prompt: string) {
     const completion = await openai.chat.completions.create({
-        model: "gpt-5-mini",
+        model: "gpt-4o",
         messages: [
             {
                 role: "system",

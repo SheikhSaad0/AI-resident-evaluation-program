@@ -114,7 +114,7 @@ If the provided context does not contain the information needed to answer the us
     ];
 
     const completion = await openai.chat.completions.create({
-        model: "gpt-5-mini",
+        model: "gpt-4o-mini",
         messages: messages,
         temperature: 0.1,
     });
