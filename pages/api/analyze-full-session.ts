@@ -165,7 +165,6 @@ If the resident corrects the mistake on their own, still score a 4.
 ${fullTranscript}
 ---
 `;
-
         const evaluationData = await getGeminiResponse(finalPrompt);
         const resident = await prisma.resident.findUnique({ where: { id: residentId } });
 
