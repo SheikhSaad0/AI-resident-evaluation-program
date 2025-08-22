@@ -83,10 +83,10 @@ If the provided context does not contain the information needed to answer the us
   
   // --- CORRECTED FIX START ---
   // Create a structured history array for the API request without context in the message text
-  const formattedHistory = history.map((h: any) => ({
-      role: h.sender === 'user' ? 'user' : 'model',
-      parts: [{ text: h.text }]
-  }));
+    const formattedHistory = history.map((h: any) => ({
+        role: h.sender === 'user' ? 'user' : 'assistant',
+        parts: [{ text: h.text }]
+    }));
   
   // Prepare the parts for the final message, with context as a separate part
   const finalMessageParts = [{ text: message }];
@@ -95,7 +95,6 @@ If the provided context does not contain the information needed to answer the us
   }
 
   try {
-    // Convert history to OpenAI format
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
         {
             role: "system",
@@ -107,16 +106,15 @@ If the provided context does not contain the information needed to answer the us
         })),
         {
             role: "user",
-            content: hasContext 
+            content: hasContext
                 ? `${message}\n\n### CONTEXT ###\n${JSON.stringify(newContext, null, 2)}`
                 : message
         }
     ];
 
     const completion = await openai.chat.completions.create({
-        model: "gpt-5-mini",
-        messages: messages,
-        temperature: 0.1,
+        model: "gpt-4.1-mini",
+        messages: messages
     });
     
     const text = completion.choices[0]?.message?.content || "";
