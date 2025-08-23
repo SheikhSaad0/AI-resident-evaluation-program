@@ -12,6 +12,7 @@
     "dev": "npm-run-all --parallel dev:next dev:ws"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.60.0",
     "@aws-sdk/client-s3": "^3.515.0",
     "@aws-sdk/s3-request-presigner": "^3.515.0",
     "@deepgram/sdk": "^4.9.1",
