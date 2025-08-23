@@ -11,6 +11,7 @@ const navItems = [
   { name: 'Dashboard', href: '/dashboard', icon: '/images/dashboard-icon.svg' },
   { name: 'View Reports', href: '/evaluations', icon: '/images/dashboard-icon.svg' },
   { name: 'Manage Profiles', href: '/manage-profiles', icon: '/images/default-avatar.svg' },
+  { name: 'Chat', href: '/chat', icon: '/images/chat.svg' }
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {

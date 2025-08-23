@@ -152,7 +152,7 @@ If the resident corrects the mistake on their own, still score a 4.
 ---
 
 - **If a step was NOT performed:** Use a score of 0, time "N/A", and comment "This step was not performed or mentioned."
-- Do not make up information about what the attending says, avoid direct quotes, justevaluate each step effectively, if there was no attending comment for that step, mention that.
+- Do not make up information about what the attending says, avoid direct quotes, just evaluate each step effectively, if there was no attending comment for that step, mention that.
 - Be as accurate as you can, when the transcript is silent, assume that the surgeons are operating
 - When an attending is talking, without mention of them taking over or verbal cues that they did take over, assume the resident is performing the procedure as they are being the ones evaluated, by default they are doing the surgery.
 - Listen in to the random comments made by the attending throughout the case and take note of those comments to be later used in the additional comments/overall score section of the finished evaluation.
@@ -160,9 +160,10 @@ If the resident corrects the mistake on their own, still score a 4.
 - know the difference between the attending speaking / guiding and taking over, if the attending is speaking and acting like he is doing the procedure, but the resident is doing the same, assume the resident is operating.
 - Take into account random mishaps or accidents that may happen in the OR
 - use context clues to differentiate coaching and acting from the attending, things like "let me scrub in now" or "give me that" are some examples
-- keep into account that speak 0 and 1 labels may not be very accurate in the transcript
+- keep into account that speak 0, 1, 2, etc. labels may not be very accurate in the transcript
 - keep in mind, even if the residents makes mistakes or does something wrong and is corrected by the attending verbally, under all circumstances that the attending does not physically have to take over or do the step, the resident is awarded at minimum a score of 4 for that step, this is due to the fact they only had verbal coaching and no interference from the attending
 - we can define a 5 as done without intensive coaching (This can be defined as constant direction and comments from the attending for a step, a few comments before he does the step would generally not count), the attending may speak but overall the resident probably would have been fine if the attending did not make any comments at all, this is up to you to evaluate based on context
+- keep in mind, steps like port closure, may have the resident TEACHING a medical student, please try to identify this, you can use context clues and discretion to figure this out, most of the time, medical students suture/close with the resident, and the resident teaches them, functioning as an attending, they get a 5 for this
 
 **Provide Overall Assessment:**
 - **\`caseDifficulty\`**: (Number 1-3) Rate the case difficulty based on the available information.
