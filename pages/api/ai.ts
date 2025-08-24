@@ -1,17 +1,17 @@
 import { NextApiRequest, NextApiResponse } from 'next';
+import OpenAI from 'openai';
 import { EVALUATION_CONFIGS } from '../../lib/evaluation-configs';
-import Anthropic from '@anthropic-ai/sdk';
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
+// Ensure your environment variable is correctly set up
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
 });
 
+// Helper function to format time
 const formatTime = (seconds: number): string => {
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = Math.floor(seconds % 60);
-  return `${minutes.toString().padStart(2, '0')}:${remainingSeconds
-    .toString()
-    .padStart(2, '0')}`;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
 };
 
 const systemPrompt = `
@@ -26,7 +26,6 @@ You are Veritas, an intelligent AI assistant for live surgical evaluations. Your
 ---
 
 ### State Management & Step Transitions
-
 - **Inference with Reasoning**: When you detect a potential step change based on the conversation (e.g., requests for new instruments, discussion of new anatomy), you will announce the likely next step **and the reason you believe it has changed**, then ask for confirmation. This transparency is crucial.
 - **Example Inference**: "Observing requests for the clip applier. It looks like we are moving to 'Clipping'. Please confirm."
 - **Implicit Confirmation**: The user begins actions or requests instruments clearly related to the proposed step. For example, if you propose 'Clipping', and the user says "Clip applier, please", treat this as confirmation.
@@ -35,7 +34,6 @@ You are Veritas, an intelligent AI assistant for live surgical evaluations. Your
 ---
 
 ### Direct Correction Protocol
-
 **Golden Rule**: A direct correction from the user is the absolute source of truth. You must accept it immediately. Do not argue, ask for clarification on the same point twice, or get stuck in a loop.
 
 If the user indicates you have fallen behind (e.g., "We finished that step five minutes ago" or "We are on Gallbladder Dissection now"), you must follow this simplified protocol:
@@ -47,7 +45,6 @@ If the user indicates you have fallen behind (e.g., "We finished that step five 
 ---
 
 ### Intelligent Check-ins
-
 - You will check in a maximum of **TWO** times per step.
 - **First Check-in**: If the \`timeElapsedInStep\` has passed 75% of the estimated time for the step AND \`lastCheckinTime\` is null for that step, perform a check-in.
 - **Second Check-in**: If the attending responds to a check-in with a specific time (e.g., "give us 5 more minutes"), set a timer. When it expires, perform the second and final check-in for that step.
@@ -55,7 +52,6 @@ If the user indicates you have fallen behind (e.g., "We finished that step five 
 ---
 
 ### General Queries (Trivia)
-
 - If you are directly addressed with a wake word and asked a general knowledge question not related to the surgery, answer it concisely.
 - Your primary function is surgical assistance, so after answering, you must immediately return to silent operation.
 
@@ -92,7 +88,6 @@ If the user indicates you have fallen behind (e.g., "We finished that step five 
 ---
 
 ### Context for Your Analysis
-
 - **Procedure**: \${config.name}
 - **Procedure Steps**: \${JSON.stringify(config.procedureSteps)}
 - **Current State**: \${JSON.stringify(currentState)}
@@ -101,112 +96,94 @@ If the user indicates you have fallen behind (e.g., "We finished that step five 
 `;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method Not Allowed' });
-  }
-
-  const { transcript, currentState, liveNotes, procedureId } = req.body;
-  const config = EVALUATION_CONFIGS[procedureId];
-
-  // Get the last 10 messages from the transcript
-  const messages = transcript.split('\n');
-  const last10Messages = messages.slice(-10);
-  const recentTranscript = last10Messages.join('\n');
-
-  // Function to replace placeholders in the system prompt
-  const populatePrompt = (prompt: string) => {
-    return prompt
-      .replace(/\$\{config.name\}/g, config.name)
-      .replace(/\$\{JSON.stringify\(config.procedureSteps\)\}/g, JSON.stringify(config.procedureSteps, null, 2))
-      .replace(/\$\{JSON.stringify\(currentState\)\}/g, JSON.stringify(currentState, null, 2))
-      .replace(/\$\{JSON.stringify\(liveNotes\)\}/g, JSON.stringify(liveNotes, null, 2))
-      .replace(/\$\{recentTranscript\}/g, recentTranscript);
-  };
-
-  const populatedPrompt = populatePrompt(systemPrompt);
-
-  try {
-    const completion = await anthropic.messages.create({
-      model: "claude-3-5-haiku-latest",
-      max_tokens: 1024,
-      temperature: 0.2,
-      system: populatedPrompt,
-      messages: [
-        {
-          role: "user",
-          content: recentTranscript,
-        },
-      ],
-    });
-
-    // Extract all text blocks and join them
-    let responseText = "";
-    if (Array.isArray(completion.content)) {
-      responseText = completion.content
-        .filter(block => block.type === "text" && typeof (block as any).text === "string")
-        .map(block => (block as any).text as string)
-        .join("");
-    } else if (typeof completion.content === "string") {
-      responseText = completion.content;
+    if (req.method !== 'POST') {
+        return res.status(405).json({ message: 'Method Not Allowed' });
     }
 
-    // Remove Markdown code block markers and backticks if present
-    responseText = responseText.trim();
-    if (
-      responseText.startsWith('```json') ||
-      responseText.startsWith('```') ||
-      responseText.startsWith('`')
-    ) {
-      // Remove all leading/trailing backticks and code block markers
-      responseText = responseText
-        .replace(/^`{1,3}(json)?/, '')
-        .replace(/`{1,3}$/, '')
-        .trim();
-    }
+    const { transcript, currentState, liveNotes, procedureId } = req.body;
+    const config = EVALUATION_CONFIGS[procedureId];
 
-    if (responseText) {
-      try {
-        const responseJson = JSON.parse(responseText);
+    // Get the last 10 messages from the transcript
+    const messages = transcript.split('\n');
+    const last10Messages = messages.slice(-10);
+    const recentTranscript = last10Messages.join('\n');
 
-        // This function will replace placeholders like \${currentState.currentStepName}
-        // with actual values from the current state.
-        const processPayload = (text: any) => {
-          if (typeof text === 'string') {
-            return text
-              .replace(/\\\$\{formatTime\(currentState.timeElapsedInSession\)\}/g, formatTime(currentState.timeElapsedInSession))
-              .replace(/\\\$\{formatTime\(currentState.timeElapsedInStep\)\}/g, formatTime(currentState.timeElapsedInStep))
-              .replace(/\\\$\{currentState.currentStepName\}/g, currentState.currentStepName || 'the current step');
-          }
-          return text;
-        };
+    // Function to replace placeholders in the system prompt
+    const populatePrompt = (prompt: string) => {
+        return prompt
+            .replace(/\$\{config.name\}/g, config.name)
+            .replace(/\$\{JSON.stringify\(config.procedureSteps\)\}/g, JSON.stringify(config.procedureSteps, null, 2))
+            .replace(/\$\{JSON.stringify\(currentState\)\}/g, JSON.stringify(currentState, null, 2))
+            .replace(/\$\{JSON.stringify\(liveNotes\)\}/g, JSON.stringify(liveNotes, null, 2))
+            .replace(/\$\{recentTranscript\}/g, recentTranscript);
+    };
 
-        if (responseJson.payload) {
-          // Check if payload is an object and process its properties
-          if (typeof responseJson.payload === 'object' && responseJson.payload !== null) {
-            for (const key in responseJson.payload) {
-              if (Object.prototype.hasOwnProperty.call(responseJson.payload, key)) {
-                responseJson.payload[key] = processPayload(responseJson.payload[key]);
-              }
+    const populatedPrompt = populatePrompt(systemPrompt);
+
+    try {
+        const completion = await openai.chat.completions.create({
+            model: "gpt-4.1",
+            messages: [
+                {
+                    role: "system",
+                    content: populatedPrompt
+                },
+                {
+                    role: "user", 
+                    content: recentTranscript
+                }
+            ],
+            response_format: { type: "json_object" },
+        });
+
+        const responseText = completion.choices[0]?.message?.content;
+
+        if (responseText) {
+            try {
+                const responseJson = JSON.parse(responseText);
+
+                // This function will replace placeholders like \${currentState.currentStepName}
+                // with actual values from the current state.
+                const processPayload = (text: any) => {
+                    if (typeof text === 'string') {
+                        return text
+                            .replace(/\\\$\{formatTime\(currentState.timeElapsedInSession\)\}/g, formatTime(currentState.timeElapsedInSession))
+                            .replace(/\\\$\{formatTime\(currentState.timeElapsedInStep\)\}/g, formatTime(currentState.timeElapsedInStep))
+                            .replace(/\\\$\{currentState.currentStepName\}/g, currentState.currentStepName || 'the current step');
+                    }
+                    return text;
+                };
+
+                if (responseJson.payload) {
+                    // Check if payload is an object and process its properties
+                    if (typeof responseJson.payload === 'object' && responseJson.payload !== null) {
+                        for (const key in responseJson.payload) {
+                            if (Object.prototype.hasOwnProperty.call(responseJson.payload, key)) {
+                                responseJson.payload[key] = processPayload(responseJson.payload[key]);
+                            }
+                        }
+                    } else {
+                         responseJson.payload = processPayload(responseJson.payload);
+                    }
+                }
+                if (responseJson.speak) {
+                    responseJson.speak = processPayload(responseJson.speak);
+                }
+
+
+                return res.status(200).json(responseJson);
+
+            } catch (e) {
+                console.error("Failed to parse AI JSON response:", e);
+                console.error("Raw AI Response Text:", responseText);
+                return res.status(200).json({ action: 'none', speak: "I had trouble processing that. Could you please repeat?" });
             }
-          } else {
-            responseJson.payload = processPayload(responseJson.payload);
-          }
-        }
-        if (responseJson.speak) {
-          responseJson.speak = processPayload(responseJson.speak);
         }
 
-        return res.status(200).json(responseJson);
-      } catch (e) {
-        console.error("Failed to parse AI JSON response:", e);
-        console.error("Raw AI Response Text:", responseText);
-        return res.status(200).json({ action: 'none', speak: "I had trouble processing that. Could you please repeat?" });
-      }
+        return res.status(200).json({ action: 'none' });
+
+    } catch (error) {
+        console.error("Error calling OpenAI API:", error);
+        return res.status(500).json({ action: 'none', error: 'Internal Server Error' });
     }
-
-    return res.status(200).json({ action: 'none' });
-  } catch (error) {
-    console.error("Error calling Claude 3 Haiku API:", error);
-    return res.status(500).json({ action: 'none', error: 'Internal Server Error' });
-  }
 }
