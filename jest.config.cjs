@@ -1,14 +1,12 @@
 // jest.config.cjs
-module.exports = {
-  preset: 'ts-jest',
+
+/** @type {import('jest').Config} */
+const config = {
+  // ... your other jest config options
   testEnvironment: 'node',
-  roots: ['<rootDir>/__tests__'],
-  testMatch: ['**/*.test.ts', '**/*.spec.ts'],
-  clearMocks: true,
-  coverageDirectory: 'coverage',
-  transform: {
-    '^.+\\.(ts|tsx)$': ['ts-jest', {
-      babelConfig: true,
-    }],
-  },
+  setupFilesAfterEnv: ['./jest.setup.js'],
+  // Add this line to explicitly define what a test file is
+  testMatch: ['**/__tests__/**/*.test.ts?(x)'],
 };
+
+module.exports = config;
