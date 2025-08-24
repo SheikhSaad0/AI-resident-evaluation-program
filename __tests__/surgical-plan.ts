@@ -9,74 +9,82 @@ export interface SurgicalPhase {
 export const surgicalPlan: SurgicalPhase[] = [
   {
     name: "Time-Out",
-    objective: "Initiate and complete the pre-surgery time-out procedure.",
+    objective: "Initiate and complete the time-out procedure with perfect accuracy.",
     user_prompts: [
       "SESSION_START",
       "James Harris attending.",
-      "Hanna Kakish resident.",
+      "Saad Mahmood, resident.",
     ],
   },
   {
-    name: "Port Placement",
-    objective: "Silently place ports and make standard instrument requests. The AI should not speak unless spoken to.",
+    name: "Port Placement & Chatter",
+    objective: "Place ports while engaging in normal OR chatter. Veritas should remain silent unless a specific trigger is met.",
     user_prompts: [
       "Scalpel, please.",
-      "Yeah. It's like a skin graft. You did it last time too.", // Irrelevant chatter
-      "Trocar, please.",
+      "Yeah, it's like a skin graft. You did it last time too. I saw a case once where the piercing went right through the fascia.",
+      "Okay, can I get the first trocar?",
+      "last port is in.",
     ],
   },
   {
-    name: "Robot Docking",
-    objective: "Give verbal cues that imply the robot is being docked. Veritas should proactively suggest a step change.",
+    name: "Robot Docking & Ambiguity",
+    objective: "Provide a mix of direct and indirect cues for robot docking to test if Veritas can handle forward-looking statements without changing the step prematurely.",
     user_prompts: [
-      "Alright, can you drive the robot here now? A little closer.",
-      "Hey Veritas, confirm we've moved on.", // Explicit confirmation if needed
+      "Bring the robot in now.", // Ambiguous cue
+      "drive the robot in, just a little closer.", // Direct cue
     ],
   },
   {
-    name: "Instrument Placement",
-    objective: "Request instruments for the next phase. Veritas should infer the step change.",
+    name: "Instrument Placement & Correction Test",
+    objective: "Test the AI's ability to differentiate a question from a correction.",
     user_prompts: [
-      "Okay, the robot is docked. Can I get the instruments please?",
+      "Alright, instruments are in",
+      "Oh wait we still have one more left to go", // Self-correction
+      "Hey Veritas, how long have we been on this step?", // This is a QUESTION, not a correction.
+      "Hey veritas, hows the time?",
     ],
   },
   {
-    name: "Calot's Triangle Dissection",
-    objective: "Manually announce the start of this critical step and ask a time-related question.",
+    name: "Calot's Triangle Dissection & Stress Test",
+    objective: "Perform a lengthy dissection with a safety warning and repeated phrases to test the AI's check-in logic and ability to avoid getting stuck.",
     user_prompts: [
-      "Hey Veritas, we have now started the dissection of Calot's triangle.",
-      "Hey, Veritas. How how long have we been doing this port placement?",
-      "That grasper has a tooth on it, don't use that one.", // A safety warning to be logged
+      "Just carefully working this tissue plane.",
+      "We have some adhesions we have to deal with now",
+      "Careful, that grasper has a tooth on it, don't use that one.",
+      "Just keep working that plane, nice and easy.", // Repetitive chatter
+      "Okay, I can see the critical view now. I think we're ready",
+      "Whats the time, Veritas?",
     ],
   },
   {
-    name: "Cystic Artery and Duct Clipping",
-    objective: "Implicitly confirm a step change by requesting a relevant instrument.",
+    name: "Clipping & Back-filling Test",
+    objective: "Use an explicit, timed correction to test the back-filling logic accurately.",
     user_prompts: [
       "Clip applier, please.",
+      "Carefully clip the cystic duct.",
+      "Move your clipper more laterally against the inferior side of the liver",
+      "Yes yes good",
+      "Hey Veritas, we actually finished clipping around two minutes ago. We are now taking the gallbladder off the liver.",
     ],
   },
   {
-    name: "Gallbladder Dissection",
-    objective: "Provide a direct correction to test the back-filling logic.",
+    name: "Specimen Removal & Final Steps",
+    objective: "Use a clear trigger phrase and then conclude the case, testing the final step logic.",
     user_prompts: [
-      "Hey Veritas, we actually finished clipping five minutes ago and are now dissecting the gallbladder.",
+      "Alright, the gallbladder is free",
+      "Bag please",
+      "Gas off. Lights on.", // This should trigger a suggestion for Port Closure
+      "Confirm. We are starting port closure.",
+      "Alright, you can finish your side now.",
+      "Can I get the total case time please",
     ],
   },
   {
-    name: "Specimen Removal & Undocking",
-    objective: "Give a clear verbal cue that the main part of the surgery is over, expecting Veritas to suggest the next step.",
+    name: "Post-Op Trivia",
+    objective: "Ask some casual questions to test the AI's ability to handle non-medical queries.",
     user_prompts: [
-      "Gas off. Lights on.",
-    ],
-  },
-  {
-    name: "Skin Closure & End of Case",
-    objective: "Proceed with the final steps and conclude the operation.",
-    user_prompts: [
-      "Now proceeding with skin closure.",
-      "last stitch is in",
-      "What was the name of the AI again?", // Casual question
+      "What's the name of the AI again?",
+      "Hey Veritas, who was the sidekick to Johnny Carson on the Tonight Show?",
     ],
   },
 ];
