@@ -9,7 +9,8 @@
   "scripts": {
     "dev:next": "next dev",
     "dev:ws": "tsx scripts/webSocketServer.ts",
-    "dev": "npm-run-all --parallel dev:next dev:ws"
+    "dev": "npm-run-all --parallel dev:next dev:ws",
+    "test": "jest"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.60.0",
@@ -43,21 +44,33 @@
     "ws": "^8.18.3"
   },
   "devDependencies": {
+    "@babel/core": "^7.28.3",
+    "@babel/preset-env": "^7.28.3",
+    "@babel/preset-react": "^7.27.1",
+    "@babel/preset-typescript": "^7.27.1",
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^16.3.0",
     "@types/ffprobe": "^1.1.8",
     "@types/fluent-ffmpeg": "^2.1.27",
     "@types/formidable": "^3.4.5",
+    "@types/jest": "^30.0.0",
     "@types/node": "^24",
     "@types/nodemailer": "^6.4.17",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/ws": "^8.18.1",
     "autoprefixer": "^10.4.21",
+    "babel-jest": "^30.0.5",
     "dotenv": "^17.2.0",
     "eslint": "^9",
     "eslint-config-next": "15.4.1",
+    "jest": "^30.0.5",
+    "jest-environment-jsdom": "^30.0.5",
+    "node-mocks-http": "^1.17.2",
     "npm-run-all": "^4.1.5",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
+    "ts-jest": "^29.4.1",
     "ts-node": "^10.9.2",
     "tsx": "^4.20.4",
     "typescript": "^5",
