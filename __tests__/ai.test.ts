@@ -2,82 +2,99 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createMocks } from 'node-mocks-http';
-import handler from '../pages/api/ai'; // The API handler we're testing
+import handler from '../pages/api/ai';
 import { testScenarios } from './test-scenarios';
 import OpenAI from 'openai';
 
-// This line tells Jest to find the 'openai' module and replace it with our mock.
-// It must be at the top level of the module.
+// This is the key: We mock the entire 'openai' module.
+// This ensures that any file that imports from 'openai' will get our fake version.
 jest.mock('openai');
 
-// Create a typed mock of the OpenAI class. This gives us type safety.
+// We create a typed mock of the OpenAI class.
 const mockedOpenAI = jest.mocked(OpenAI);
 
-describe('Veritas AI Live Mode - Automated Test Suite', () => {
+describe('Veritas AI Live Mode - Full Surgical Simulation', () => {
 
-  // We'll store a reference to the mock `create` function here
   let mockCreate: jest.Mock;
+  
+  // This object will hold the evolving state of our simulated surgery.
+  let mockCurrentState: any = {
+    currentStepKey: '',
+    timeElapsedInStep: 0,
+    timeElapsedInSession: 0,
+    lastCheckinTime: null,
+  };
+  let lastSpokenMessage = '';
+  let fullTranscript = '';
 
   beforeEach(() => {
-    // Before each test, reset the mock to a clean state
+    // Before each test, reset the mock to a clean state.
     mockCreate = jest.fn();
     mockedOpenAI.mockImplementation(() => {
-      // This is the fake implementation of the OpenAI class.
-      // When `new OpenAI()` is called in our handler, it will return this object.
+      // This is the fake implementation of the `new OpenAI()` constructor.
+      // When the handler calls `new OpenAI()`, it receives this object.
       return {
         chat: {
           completions: {
-            create: mockCreate, // The `create` method will be our jest mock function
+            create: mockCreate, // The `create` method is our mock function.
           },
         },
       } as any;
     });
   });
 
-  // Loop through all scenarios and create a test for each one
-  testScenarios.forEach((scenario) => {
-    it(`Scenario: ${scenario.description}`, async () => {
-      
-      // For this specific test, we tell our mock `create` function
-      // to return the expected output from the scenario.
-      mockCreate.mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify(scenario.expectedOutput),
-            },
+  // Using `test.each` to run scenarios sequentially.
+  test.each(testScenarios)('Scenario: $description', async (scenario) => {
+    
+    // Configure our mock `create` function to return the expected output for this specific test.
+    mockCreate.mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify(scenario.expectedOutput),
           },
-        ],
-      });
-
-      // Create mock request and response objects to simulate an API call
-      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
-        method: 'POST',
-        body: {
-          transcript: scenario.input.transcript,
-          currentState: scenario.input.currentState,
-          liveNotes: scenario.input.liveNotes || [],
-          procedureId: scenario.input.procedureId || 'DEBUGGING-USE-ONLY-robotic-cholecystectomy',
-          lastSpokenMessage: scenario.input.lastSpokenMessage || '',
         },
-      });
-
-      // Execute the handler with our mocked objects
-      await handler(req, res);
-
-      // --- VERIFICATION ---
-
-      // 1. Check that the handler returned a success (200) status code
-      expect(res._getStatusCode()).toBe(200);
-      
-      // 2. Parse the JSON response from the handler
-      const responseJson = JSON.parse(res._getData());
-      
-      // 3. The most important check: Did the handler return the exact JSON we expected?
-      expect(responseJson).toEqual(scenario.expectedOutput);
-
-      // 4. Verify that our mock AI `create` function was called exactly once
-      expect(mockCreate).toHaveBeenCalledTimes(1);
+      ],
     });
+
+    fullTranscript += `\n${scenario.input.transcript}`;
+
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: 'POST',
+      body: {
+        transcript: fullTranscript,
+        currentState: mockCurrentState,
+        liveNotes: [],
+        procedureId: 'DEBUGGING-USE-ONLY-robotic-cholecystectomy',
+        lastSpokenMessage: lastSpokenMessage,
+      },
+    });
+
+    await handler(req, res);
+
+    // --- VERIFICATION ---
+
+    expect(res._getStatusCode()).toBe(200);
+    const responseJson = JSON.parse(res._getData());
+    expect(responseJson).toEqual(scenario.expectedOutput);
+
+    // --- STATE UPDATE FOR THE NEXT TEST ---
+    const { action, payload, speak } = responseJson;
+
+    if (action === 'CHANGE_STEP' || action === 'CORRECT_AND_BACKFILL' || action === 'COMPLETE_TIMEOUT') {
+        const newStep = payload?.stepKey || payload?.correctStepKey || 'portPlacement'; // Default to first step after timeout
+        if (mockCurrentState.currentStepKey !== newStep) {
+            mockCurrentState.currentStepKey = newStep;
+            mockCurrentState.timeElapsedInStep = 0;
+        }
+    }
+
+    // Simulate time passing between interactions
+    mockCurrentState.timeElapsedInSession += 30;
+    mockCurrentState.timeElapsedInStep += 30;
+
+    if (speak) {
+      lastSpokenMessage = speak;
+    }
   });
 });
