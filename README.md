@@ -27,10 +27,8 @@ Johns Hopkins School of Medicine
 Original Feed Back Form:
 https://docs.google.com/forms/d/e/1FAIpQLSdhSQJndBsHkoP5m5unfK7wfpXnAEbugSdb0Ba3Ua8BuaTUMw/viewform
 
-This site is available at https://ai-resident-evaluation-program-amgtfpmhua-uk.a.run.app/
-This web app is hosted by google cloud run
 
-Use BELOW to test out live mode
+Use BELOW to test out live mode - automatic feedback testing loop...
 ```
 npx tsx run-intelligent-simulation.cjs
 ```
