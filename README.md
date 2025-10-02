@@ -15,12 +15,12 @@ Upload an MP3 file or toggle on live mode and enjoy!
 
 ## Credits
 
-Created by Saad M. Mahmood
-Original Idea by James Harris Jr.
+Created by Saad M. Mahmood¹ ²,
+Original Idea by James Harris Jr.¹ ²
 
 Affiliated with:
-Johns Hopkins Howard County Medical Center,
-Johns Hopkins School of Medicine
+Johns Hopkins Howard County Medical Center¹,
+Johns Hopkins School of Medicine²
 
 Original Feed Back Form:
 https://docs.google.com/forms/d/e/1FAIpQLSdhSQJndBsHkoP5m5unfK7wfpXnAEbugSdb0Ba3Ua8BuaTUMw/viewform
