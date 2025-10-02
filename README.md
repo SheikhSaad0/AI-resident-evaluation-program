@@ -1,5 +1,3 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
-
 ## Getting Started
 
 First, run the development server in your root folder's terminal (Example: Open your folder, open it in terminal, run the command):
@@ -8,10 +6,10 @@ First, run the development server in your root folder's terminal (Example: Open 
 npm run dev
 
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the website.
 
-
-Upload an MP3 file and enjoy!
+Sign into the website with your profile.
+Upload an MP3 file or toggle on live mode and enjoy!
 ```
 
 
