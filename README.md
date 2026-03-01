@@ -19,6 +19,7 @@ Upload an MP3 file and enjoy!
 
 Created by Saad M. Mahmood
 Original Idea by James Harris Jr.
+R.I.S.E Scale by James Harris Jr. and Udit Choubey
 
 Affiliated with:
 Johns Hopkins Howard County Medical Center,
@@ -26,9 +27,6 @@ Johns Hopkins School of Medicine
 
 Original Feed Back Form:
 https://docs.google.com/forms/d/e/1FAIpQLSdhSQJndBsHkoP5m5unfK7wfpXnAEbugSdb0Ba3Ua8BuaTUMw/viewform
-
-This site is available at https://ai-resident-evaluation-program-amgtfpmhua-uk.a.run.app/
-This web app is hosted by google cloud run
 
 Use BELOW to test out live mode
 ```
