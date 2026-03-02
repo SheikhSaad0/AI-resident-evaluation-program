@@ -56,6 +56,7 @@ const getSurgeryIcon = (s: string) => {
     if (s.toLowerCase().includes('appendic')) return '/images/appendectomyArt.png';
     if (s.toLowerCase().includes('inguinal')) return '/images/herniaArt.png';
     if (s.toLowerCase().includes('ventral')) return '/images/herniaArt.png';
+    if (s.toLowerCase().includes('consult') || s.toLowerCase().includes('aware')) return '/images/chat.svg';
     return '/images/default-avatar.svg';
 };
 
@@ -95,7 +96,7 @@ const InfoWidget = ({ title, value, icon }: { title: string, value: string | num
             </div>
             <div className="min-w-0">
                 <p className="text-sm text-text-quaternary">{title}</p>
-                <p className="text-2xl font-bold text-text-primary truncate">{value}</p>
+                <p className="text-lg md:text-2xl font-bold text-text-primary truncate">{value}</p>
             </div>
         </div>
     </GlassCard>
@@ -138,7 +139,7 @@ const StepAssessmentWidget = ({ stepName, score, comments, attendingComments }: 
                     <h4 className="font-semibold text-text-primary mb-2">{stepName}</h4>
                     <div className="space-y-3">
                         <p className="text-sm text-text-tertiary leading-relaxed">
-                            {wasPerformed ? comments : "This step was not performed or mentioned."}
+                            {wasPerformed ? comments : "This section was not performed or mentioned."}
                         </p>
                         {attendingComments && (
                             <div className="border-l-2 border-brand-secondary pl-3">
@@ -179,12 +180,12 @@ const TimeWidget = ({ title, value, icon }: { title: string, value: string | num
 
 // --- SIDEBAR & TABS ---
 const LeftSidebar = ({ evaluation }: { evaluation?: EvaluationData | null }) => {
-    console.log('[DEBUG] LeftSidebar received evaluation prop:', evaluation);
-
     const surgery = evaluation?.surgery as string;
     const finalScore = evaluation?.finalScore as number;
     const caseDifficulty = (evaluation?.attendingCaseDifficulty ?? evaluation?.caseDifficulty) as number;
     const config = Object.values(EVALUATION_CONFIGS).find(c => c.name === surgery);
+    
+    const isConsult = surgery === 'A.W.A.R.E Consult Evaluation';
 
     let displayScore = finalScore;
     if (finalScore === undefined && evaluation && config) {
@@ -197,22 +198,26 @@ const LeftSidebar = ({ evaluation }: { evaluation?: EvaluationData | null }) => 
     }
 
     const scheduledTime = useMemo(() => {
-        if (!config || !caseDifficulty) {
-             console.log('[DEBUG] SKIPPING Scheduled Time calculation (missing config or caseDifficulty).');
+        if (!config || !caseDifficulty || isConsult) {
              return 0;
         }
         const difficultyMultiplier: { [key: number]: number } = { 1: 0.75, 2: 0.85, 3: 1 };
         const totalEstimatedTime = config.procedureSteps.reduce((acc, step) => acc + (step.estimatedTime || 0), 0);
         const multiplier = difficultyMultiplier[caseDifficulty] || 1;
-        const finalTime = (totalEstimatedTime * multiplier) + 20;
+        return (totalEstimatedTime * multiplier) + 20;
+    }, [config, caseDifficulty, isConsult]);
 
-        console.log(`[DEBUG] CALC Scheduled Time: ${finalTime} (Base: ${totalEstimatedTime}, Multiplier: ${multiplier})`);
-        return finalTime;
-    }, [config, caseDifficulty]);
+    const totalCaseTime = evaluation?.audioDuration ? (evaluation.audioDuration / 60).toFixed(1) : 'N/A';
+    
+    // Formatting Difficulty String for Consults vs Surgeries
+    let difficultyDisplay = `${caseDifficulty}/3`;
+    let difficultyTitle = "Case Difficulty";
 
-    const totalCaseTime = evaluation?.audioDuration ? (evaluation.audioDuration / 60).toFixed(0) : 'N/A';
-    console.log(`[DEBUG] RENDER Total Case Time value: ${totalCaseTime}`);
-    console.log(`[DEBUG] RENDER Scheduled Time value: ${scheduledTime}`);
+    if (isConsult && config?.caseDifficultyDescriptions) {
+        difficultyTitle = "Case Type";
+        const stringMapping = (config.caseDifficultyDescriptions as any)[caseDifficulty];
+        difficultyDisplay = stringMapping || caseDifficulty.toString();
+    }
 
     return (
         <div className="flex flex-col items-center justify-start h-full p-6 text-center">
@@ -225,33 +230,40 @@ const LeftSidebar = ({ evaluation }: { evaluation?: EvaluationData | null }) => 
                     <InfoWidget title="Overall Score" value={`${displayScore.toFixed(1)}/5`} icon="/images/eval-image.svg" />
                 )}
                 {caseDifficulty !== undefined && (
-                    <InfoWidget title="Case Difficulty" value={`${caseDifficulty}/3`} icon="/images/difficulty-icon.svg" />
+                    <InfoWidget title={difficultyTitle} value={difficultyDisplay} icon="/images/difficulty-icon.svg" />
                 )}
                 {scheduledTime > 0 && (
                     <TimeWidget title="Estimated Scheduled Case Time" value={`${scheduledTime.toFixed(0)} min`} icon="/images/clock-image.svg" />
                 )}
                 {totalCaseTime !== 'N/A' && (
-                     <TimeWidget title="Total Case Time" value={`${totalCaseTime} min`} icon="/images/total-time.svg" />
+                     <TimeWidget title={isConsult ? "Presentation Duration" : "Total Case Time"} value={`${totalCaseTime} min`} icon="/images/total-time.svg" />
                 )}
             </div>
         </div>
     );
 };
 
-// ... (The rest of the file remains the same)
-
 const OverviewTab = ({ evaluation }: { evaluation: EvaluationData }) => {
     const config = Object.values(EVALUATION_CONFIGS).find(c => c.name === evaluation.surgery);
     if (!config) return <p>Could not find configuration for {evaluation.surgery as string}.</p>;
+    
+    // Helper to strip out the system prompt logic we previously injected in the frontend
+    const cleanContext = (context: string) => {
+        if (!context) return '';
+        return context.replace(/\[SYSTEM NOTE:[\s\S]*?\]\s*/, '').trim();
+    };
+    
+    const displayContext = cleanContext(evaluation.additionalContext as string);
+
     return (
         <div className="space-y-6">
             <GlassCard variant="strong" className="p-6">
                 <h3 className="heading-md mb-4">Overall Remarks</h3>
                 <p className="text-text-secondary leading-relaxed">{(evaluation.attendingAdditionalComments || evaluation.additionalComments) as string}</p>
-                {evaluation.additionalContext && (
+                {displayContext && displayContext !== '' && (
                      <div className="mt-4">
                         <h4 className="font-semibold text-text-tertiary mb-2">Provided Context</h4>
-                        <p className="text-text-quaternary text-sm italic">"{evaluation.additionalContext as string}"</p>
+                        <p className="text-text-quaternary text-sm italic">"{displayContext}"</p>
                     </div>
                 )}
             </GlassCard>
@@ -385,13 +397,13 @@ const MediaTab = ({ transcription, liveNotes, mediaUrl, isOriginalFileVideo }: {
 const EditTab = ({
     editedEvaluation, isFinalized, onOverallChange, onFinalize,
     onDelete, onEdit, supervisors, selectedSupervisor,
-    setSelectedSupervisor, onSaveSupervisor,
+    setSelectedSupervisor, onSaveSupervisor, isConsult
 }: {
     editedEvaluation: EvaluationData; isFinalized: boolean; onOverallChange: Function;
     onFinalize: () => void; onDelete: () => void; onEdit: () => void;
     supervisors: Supervisor[]; selectedSupervisor: Supervisor | null;
     setSelectedSupervisor: (supervisor: Supervisor | null) => void;
-    onSaveSupervisor: () => void;
+    onSaveSupervisor: () => void; isConsult: boolean;
 }) => (
     <div className="space-y-6">
         <GlassCard variant="strong" className="p-6 relative z-10">
@@ -414,7 +426,7 @@ const EditTab = ({
             <h3 className="heading-md mb-6">Attending Final Assessment</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-text-tertiary mb-2">Case Difficulty Override (1-3)</label>
+                  <label className="block text-sm font-medium text-text-tertiary mb-2">{isConsult ? 'Case Type Override (1-3)' : 'Case Difficulty Override (1-3)'}</label>
                   <GlassInput type="number" min={1} max={3} value={(editedEvaluation.attendingCaseDifficulty as number)?.toString() ?? ''} onChange={(e) => onOverallChange('attendingCaseDifficulty', e.target.value ? parseInt(e.target.value) : undefined)} disabled={isFinalized} placeholder={`AI rated: ${editedEvaluation.caseDifficulty}`} />
                 </div>
                 <div>
@@ -622,6 +634,7 @@ export default function RevampedResultsPage() {
 
     const config = evaluation ? Object.values(EVALUATION_CONFIGS).find(c => c.name === evaluation.surgery) : null;
     const isFinalizedAndLocked = editedEvaluation?.isFinalized === true;
+    const isConsult = evaluation?.surgery === 'A.W.A.R.E Consult Evaluation';
 
     const tabs = editedEvaluation && config ? [
         { id: 'overview', label: 'Overview', content: <OverviewTab evaluation={editedEvaluation} /> },
@@ -633,7 +646,7 @@ export default function RevampedResultsPage() {
                 onOverallChange={handleOverallChange} onFinalize={handleFinalize}
                 onDelete={handleDelete} onEdit={handleEdit} supervisors={supervisors}
                 selectedSupervisor={selectedSupervisor} setSelectedSupervisor={setSelectedSupervisor}
-                onSaveSupervisor={handleSaveSupervisor}
+                onSaveSupervisor={handleSaveSupervisor} isConsult={isConsult}
             />
         )},
     ] : [];

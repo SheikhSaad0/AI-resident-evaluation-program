@@ -16,7 +16,9 @@ interface Resident {
 interface PastEvaluation { id: string; surgery: string; date: string; residentName?: string; withVideo?: boolean; type: 'video' | 'audio'; }
 
 export default function Home() {
+  const [evalMode, setEvalMode] = useState('surgery');
   const [selectedSurgery, setSelectedSurgery] = useState('');
+  const [consultCaseType, setConsultCaseType] = useState('New Consult');
   const [files, setFiles] = useState<File[]>([]);
   const [gcsLink, setGcsLink] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -42,15 +44,12 @@ export default function Home() {
 
   useEffect(() => {
     fetchData();
-
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         fetchData();
       }
     };
-
     document.addEventListener('visibilitychange', handleVisibilityChange);
-
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
@@ -65,7 +64,27 @@ export default function Home() {
       alert('Please select a resident.');
       return;
     }
+
+    // FIX: Using the exact string 'A.W.A.R.E Consult Evaluation' so it matches the config name lookup
+    const finalSurgeryName = evalMode === 'consult' ? 'A.W.A.R.E Consult Evaluation' : selectedSurgery;
+    if (!finalSurgeryName) {
+      alert('Please select a surgery or consult type.');
+      return;
+    }
+
     setIsAnalyzing(true);
+
+    // Inject AWARE rubric into context if it's a consult to ensure AI scores correctly
+    let finalContext = additionalContext;
+    if (evalMode === 'consult') {
+        finalContext = `[SYSTEM NOTE: This is an A.W.A.R.E. Consult Evaluation. Case Type: ${consultCaseType}. 
+Please grade the SOAP presentation strictly on a 1-5 scale:
+5 = Complete, accurate, concise, no prompting needed.
+4 = Minor omissions/inaccuracies, minimal clarification.
+3 = Missed important elements, incomplete differential.
+2 = Major gaps, significant misinterpretations, heavy prompting.
+1 = Disorganized, unsafe, incorrect reasoning.]\n\n${additionalContext}`;
+    }
 
     try {
       let r2Paths = [];
@@ -74,16 +93,12 @@ export default function Home() {
           console.log(`Starting upload for file: ${file.name}`);
           const r2Path = `uploads/${Date.now()}-${file.name.replace(/\s/g, '_')}`;
           
-          // Get upload URL using useApi hook for consistency
           const { uploadUrl, filePath } = await apiFetch('/api/generate-upload-url', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ fileName: r2Path, fileType: file.type }),
           });
 
-          console.log(`Got upload URL for: ${file.name}`);
-
-          // Upload file to R2
           const uploadResponse = await fetch(uploadUrl, {
             method: 'PUT',
             body: file,
@@ -92,14 +107,9 @@ export default function Home() {
 
           if (!uploadResponse.ok) {
             const errorText = await uploadResponse.text();
-            console.error(`R2 upload failed for ${file.name}:`, uploadResponse.status, errorText);
             throw new Error(`Failed to upload file ${file.name} to R2: ${uploadResponse.status} ${uploadResponse.statusText}`);
           }
-
-          console.log(`Successfully uploaded: ${file.name}`);
           
-          // FIX: The component now correctly handles building the URL from env variables.
-          // This part of the code is simplified because the API endpoint does most of the heavy lifting.
           r2Paths.push({
             url: `https://${process.env.NEXT_PUBLIC_CLOUDFLARE_R2_PUBLIC_DOMAIN}/${filePath}`, 
             path: filePath,
@@ -107,7 +117,6 @@ export default function Home() {
           });
         }
       } else if (gcsLink) {
-        // Basic validation for gs:// link (since it's still in the UI)
         if (!gcsLink.startsWith('gs://')) {
           alert('Invalid GCS link. It must start with "gs://".');
           setIsAnalyzing(false);
@@ -116,27 +125,21 @@ export default function Home() {
         const bucketAndPath = gcsLink.substring(5);
         const [bucket, ...pathParts] = bucketAndPath.split('/');
         const path = pathParts.join('/');
-        r2Paths.push({
-          url: gcsLink,
-          path: path,
-          type: 'video/mp4' // Assume mp4 for now, could be improved
-        });
+        r2Paths.push({ url: gcsLink, path: path, type: 'video/mp4' });
       }
 
-      console.log(`Submitting analysis with ${r2Paths.length} files`);
       const { jobId } = await apiFetch('/api/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           gcsPaths: r2Paths,
-          surgeryName: selectedSurgery,
+          surgeryName: finalSurgeryName,
           residentId: selectedResident.id,
-          additionalContext,
+          additionalContext: finalContext,
           analysisType
         }),
       });
       
-      console.log(`Analysis submitted successfully, jobId: ${jobId}`);
       router.push(`/results/${jobId}`);
 
     } catch (error) {
@@ -157,12 +160,42 @@ export default function Home() {
       <div className="space-y-6">
         <div className="text-center xl:text-left">
           <h1 className="heading-xl text-gradient mb-2">New Evaluation</h1>
-          <p className="text-text-tertiary text-lg">Analyze surgical performance with AI-powered evaluation</p>
+          <p className="text-text-tertiary text-lg">Analyze performance with AI-powered evaluation</p>
         </div>
         <GlassCard variant="strong" className="p-8 space-y-6">
-          <div className="relative z-30">
-            <SurgerySelector selected={selectedSurgery} setSelected={setSelectedSurgery} />
+          
+          <div>
+            <label className="block mb-3 text-sm font-medium text-text-secondary">Evaluation Mode</label>
+            <PillToggle 
+                options={[{ id: 'surgery', label: 'OR / Surgery' }, { id: 'consult', label: 'Consult Presentation' }]} 
+                value={evalMode} 
+                onChange={(mode: string) => {
+                    setEvalMode(mode);
+                    if (mode === 'consult') setAnalysisType('audio');
+                }} 
+            />
           </div>
+
+          {evalMode === 'surgery' ? (
+            <div className="relative z-30">
+              <SurgerySelector selected={selectedSurgery} setSelected={setSelectedSurgery} />
+            </div>
+          ) : (
+             <div>
+                <label className="block mb-3 text-sm font-medium text-text-secondary">Case Type</label>
+                <PillToggle 
+                    options={[
+                        { id: 'New Consult', label: 'New Consult' }, 
+                        { id: 'Established Patient', label: 'Established Patient' },
+                        { id: 'Post-Op', label: 'Post-Op' },
+                        { id: 'Other', label: 'Other' }
+                    ]} 
+                    value={consultCaseType} 
+                    onChange={setConsultCaseType} 
+                />
+             </div>
+          )}
+
           <div className="relative z-20">
             <ResidentSelector residents={residents} selected={selectedResident} setSelected={setSelectedResident} />
           </div>
@@ -172,7 +205,7 @@ export default function Home() {
           </div>
           <div>
             <label className="block mb-3 text-sm font-medium text-text-secondary">Analysis Type</label>
-            <PillToggle options={[{ id: 'audio', label: 'Audio Analysis' }, { id: 'video', label: 'Visual Analysis' }]} value={analysisType} onChange={setAnalysisType} />
+            <PillToggle options={[{ id: 'audio', label: 'Audio Analysis' }, { id: 'video', label: 'Visual Analysis' }]} value={analysisType} onChange={setAnalysisType} disabled={evalMode === 'consult'} />
           </div>
           <div>
             <label className="block mb-3 text-sm font-medium text-text-secondary">Upload Recordings</label>
@@ -200,14 +233,14 @@ export default function Home() {
             />
           </div>
           <div className="pt-4">
-            <GlassButton variant="primary" size="lg" onClick={handleSubmit} disabled={!selectedSurgery || !selectedResident || (files.length === 0 && !gcsLink)} loading={isAnalyzing} className="w-full">
+            <GlassButton variant="primary" size="lg" onClick={handleSubmit} disabled={ (evalMode === 'surgery' && !selectedSurgery) || !selectedResident || (files.length === 0 && !gcsLink)} loading={isAnalyzing} className="w-full">
               {isAnalyzing ? 'Analyzing Recording...' : 'Start AI Analysis'}
             </GlassButton>
           </div>
         </GlassCard>
       </div>
       <div className="space-y-6">
-        <div className="text-center xl:text-left"><h2 className="heading-lg mb-2">Recent Evaluations</h2><p className="text-text-tertiary">View and analyze previous surgical assessments</p></div>
+        <div className="text-center xl:text-left"><h2 className="heading-lg mb-2">Recent Evaluations</h2><p className="text-text-tertiary">View and analyze previous assessments</p></div>
         <GlassCard variant="default" className="p-6">
           <div className="space-y-4 max-h-[calc(100vh-12rem)] overflow-y-auto scrollbar-glass">
             {pastEvaluations.map(evalItem => (

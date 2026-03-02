@@ -7,7 +7,6 @@ export interface ProcedureStepConfig {
   estimatedTime?: number; 
 }
 
-// ... (difficultyDescriptions object remains the same) ...
 const difficultyDescriptions = {
     standard: {
         1: 'Low Difficulty: Primary, straightforward case with normal anatomy and no prior abdominal or pelvic surgeries. Minimal dissection required; no significant adhesions or anatomical distortion.',
@@ -28,9 +27,13 @@ const difficultyDescriptions = {
         1: 'Easy: Defect <5 cm with minimal to no adhesions, good-quality fascia, and no prior mesh or wound infection. Retrorectus space is easily developed, mesh placement is tension-free, and closure is achieved without undue difficulty; may or may not need drains.',
         2: 'Moderate: Defect 5–10 cm, moderate adhesions requiring careful lysis, prior abdominal surgeries without mesh, or modest scarring. Retrorectus dissection requires moderate effort; mesh placement and fascial closure are feasible but require precision. One or more drains may be placed.',
         3: 'Difficult: Large or complex defect >10 cm, dense adhesions from multiple prior surgeries or mesh explantation, scarred or attenuated posterior sheath, and need for advanced exposure techniques (e.g., component separation). Retrorectus dissection is challenging, and closure may require reinforcement, advanced techniques, or staged approaches. Significant bleeding risk or compromised soft tissue envelope may be present.'
+    },
+    consultAWARE: {
+        1: 'New Consult',
+        2: 'Established Patient',
+        3: 'Post-Op / Other'
     }
 };
-
 
 export interface EvaluationConfigs {
     [key: string]: {
@@ -44,7 +47,6 @@ export const EVALUATION_CONFIGS: EvaluationConfigs = {
     'laparoscopic-cholecystectomy': {
         name: 'Laparoscopic Cholecystectomy',
         procedureSteps: [
-            // FIX: Added 'estimatedTime' to every step
             { key: 'portPlacement', name: 'Port Placement', time: '5-10 min', estimatedTime: 8 },
             { key: 'calotTriangleDissection', name: "Dissection of Calot's Triangle", time: '10-25 min', estimatedTime: 18 },
             { key: 'cysticArteryDuctClipping', name: 'Clipping and division of Cystic Artery and Duct', time: '5-10 min', estimatedTime: 8 },
@@ -82,7 +84,6 @@ export const EVALUATION_CONFIGS: EvaluationConfigs = {
         ],
         caseDifficultyDescriptions: difficultyDescriptions.lapAppy,
     },
-    // ... (rest of the configurations with estimatedTime added)
     'laparoscopic-inguinal-hernia-repair-tep': {
         name: 'Laparoscopic Inguinal Hernia Repair with Mesh (TEP)',
         procedureSteps: [
@@ -151,19 +152,14 @@ export const EVALUATION_CONFIGS: EvaluationConfigs = {
         ],
         caseDifficultyDescriptions: difficultyDescriptions.openVentralRetrorectus,
     },
-    'DEBUGGING-USE-ONLY-robotic-cholecystectomy': {
-        name: 'DEBUGGING USE ONLY Robotic Cholecystectomy',
+    'aware-consult-evaluation': {
+        name: 'A.W.A.R.E Consult Evaluation',
         procedureSteps: [
-            { key: 'portPlacement', name: 'Port Placement', time: '1-3 min', estimatedTime: 2 },
-            { key: 'robotDocking', name: 'Docking the robot', time: '2-4 min', estimatedTime: 3 },
-            { key: 'instrumentPlacement', name: 'Instrument Placement', time: '1-2 min', estimatedTime: 2 },
-            { key: 'calotTriangleDissection', name: "Dissection of Calot's Triangle", time: '1-5 min', estimatedTime: 3 },
-            { key: 'cysticArteryDuctClipping', name: 'Clipping and division of Cystic Artery and Duct', time: '5-10 min', estimatedTime: 8 },
-            { key: 'gallbladderDissection', name: 'Gallbladder Dissection of the Liver', time: '10-20 min', estimatedTime: 15 },
-            { key: 'specimenRemoval', name: 'Specimen removal', time: '5-10 min', estimatedTime: 8 },
-            { key: 'undocking', name: 'Undocking and Tocar Removal', time: '5-10 min', estimatedTime: 8 },
-            { key: 'skinClosure', name: 'Skin Closure', time: '5-10 min', estimatedTime: 8 },
+            { key: 'subjective', name: 'SUBJECTIVE (HPI, PMHx, Context)', time: '1-3 min', estimatedTime: 2 },
+            { key: 'objective', name: 'OBJECTIVE (Exam, Labs, Imaging)', time: '1-3 min', estimatedTime: 2 },
+            { key: 'assessment', name: 'ASSESSMENT (Clinical Reasoning & Differential)', time: '1-3 min', estimatedTime: 2 },
+            { key: 'plan', name: 'PLAN (Management & Disposition)', time: '1-3 min', estimatedTime: 2 },
         ],
-        caseDifficultyDescriptions: difficultyDescriptions.standard,
+        caseDifficultyDescriptions: difficultyDescriptions.consultAWARE,
     }
 };
