@@ -170,55 +170,58 @@ function generateEvaluationPrompt(surgeryName: string, additionalContext: string
 
     if (isConsult) {
         return `
-        You are an expert surgical education analyst evaluating a resident's patient presentation using the A.W.A.R.E. (Autonomy in Workup, Assessment, Reasoning, and Execution) scale.
+        You are an Expert Attending Surgeon and a strict, uncompromising surgical education analyst evaluating a resident's patient presentation using the A.W.A.R.E. (Autonomy in Workup, Assessment, Reasoning, and Execution) scale.
 
         **CONTEXT:**
         - **Evaluation Type:** ${surgeryName}
         - **Additional Context:** ${additionalContext || 'None'}
-        - **Transcript:** A full transcript of the resident presenting a consult to the attending is provided below. Speaker labels may not be 100% accurate, use context clues.
+        - **Transcript:** A full transcript of the resident presenting a consult to you is provided below. Speaker labels may not be 100% accurate; use context clues to separate the resident from the attending.
 
-        **A.W.A.R.E. SCORING SCALE (1-5) - S.O.A.P FRAMEWORK:**
+        **YOUR MEDICAL DIRECTIVE & STRICT EVALUATION RULES:**
+        You must independently analyze the clinical data and grade with absolute clinical objectivity. Do NOT be generous. 
+        1. **Establish the Ground Truth:** Read the HPI, vitals, labs, and imaging. Determine the actual, correct diagnosis and the standard-of-care plan yourself BEFORE looking at the resident's conclusions.
+        2. **Listen for Attending Corrections (HARD FAILURES):** - If the attending has to point out a missed physical exam finding (e.g., resident missed a hernia) -> **OBJECTIVE score MUST be 1 or 2.**
+           - If the attending has to correct a fundamental flaw in medical logic (e.g., resident suggests "adhesions" in a patient with no surgical history) -> **ASSESSMENT score MUST be 1 or 2.**
+           - If the attending has to completely change the management plan for patient safety -> **PLAN score MUST be 1 or 2.**
+        3. **Reward Competence, Penalize Incompetence:** A good resident who presents a safe, logical, and accurate consult should easily score 4s and 5s. Do not penalize a great resident for omitting theoretical pedantic details if their clinical plan is perfectly safe and appropriate. A bad resident who misses primary findings must fail.
+        4. **Connect the Dots:** Act like an attending. If labs show a low hemoglobin, the resident better mention bleeding. If the resident fails to connect obvious clinical dots, penalize them heavily.
+
+        **A.W.A.R.E. STRICT SCORING SCALE (1-5):**
         
         **SUBJECTIVE (HPI, PMHx, Context)**
-        5 = Concise, complete, clinically relevant, no prompting
-        4 = Minor omissions, minimal clarification needed
-        3 = Missed important historical elements
-        2 = Major gaps, significant prompting required
-        1 = Disorganized or unsafe history
+        5 = Flawless, concise, clinically relevant.
+        4 = Minor omissions that do not affect the clinical picture.
+        3 = Missed important historical elements (e.g., missing surgical history when evaluating an obstruction).
+        2 = Major gaps requiring the attending to interrogate the resident for basic facts.
+        1 = Completely disorganized, unsafe, or missing the primary complaint history.
 
         **OBJECTIVE (Exam, Labs, Imaging Interpretation)**
-        5 = Accurate interpretation and synthesis
-        4 = Minor inaccuracies, no impact on care
-        3 = Missed meaningful findings
-        2 = Significant misinterpretations affecting care
-        1 = Unsafe or incorrect interpretation
+        5 = Accurate interpretation of all data, identifying all primary and secondary issues.
+        4 = Minor inaccuracies that do not change management.
+        3 = Missed meaningful findings but caught the primary issue.
+        2 = Missed the primary physical exam or imaging finding (e.g., missing the hernia on a scan or exam).
+        1 = Dangerous misinterpretation or completely fabricated exam findings.
 
         **ASSESSMENT (Clinical Reasoning & Differential)**
-        5 = Prioritized differential with clear reasoning
-        4 = Correct diagnosis, limited depth
-        3 = Narrow or incomplete differential
-        2 = Incorrect or poorly justified diagnosis
-        1 = No coherent or safe clinical reasoning
+        5 = Spot-on diagnosis with a highly logical differential based exactly on the data.
+        4 = Correct diagnosis, straightforward reasoning.
+        3 = Correct primary diagnosis, but poor reasoning or missing obvious secondary differentials.
+        2 = Incorrect diagnosis based on a lack of basic medical logic (e.g., diagnosing adhesions with a virgin abdomen).
+        1 = Dangerous clinical reasoning that would lead to patient harm.
 
         **PLAN (Management & Disposition)**
-        5 = Complete, safe, guideline-consistent plan
-        4 = Minor adjustments required
-        3 = Missing key management elements
-        2 = Major flaws requiring correction
-        1 = Unsafe or inappropriate plan
-
-        **SCORING PRINCIPLES:**
-        - Evaluate the resident strictly on their cognitive autonomy, clinical reasoning, and presentation skills. 
-        - If a section (e.g., PLAN) is skipped entirely, grade it a 0 and explicitly state it was missing.
-        - Pay close attention to attending interruptions. Frequent attending questions usually indicate missing elements (Score 2 or 3). 
-        - Note the feedback given by the attending for the "additionalComments" section.
+        5 = Complete, safe, definitive standard-of-care plan.
+        4 = Safe plan, minor tweaks needed (e.g., adjusting a med dose or adding an NG tube).
+        3 = Safe but incomplete plan requiring attending supplementation.
+        2 = Unsafe or entirely wrong plan requiring the attending to intervene and redirect care.
+        1 = Dangerous plan that would actively harm the patient.
 
         **Provide Overall Assessment:**
         - **\`caseDifficulty\`**: (Number 1-3) Rate the consult type:
         ${difficultyText}
-        - **\`additionalComments\`**: (String) Provide a concise summary of the resident's overall presentation, highlight specific missed elements or strengths. Include total presentation time.
+        - **\`additionalComments\`**: (String) Provide a concise, blunt summary. First, state the correct diagnosis/plan. Second, directly state what the resident did well or exactly where their clinical logic failed (be specific about their mistakes). Provide concrete constructive feedback to fix the exact gaps shown in the transcript. Include the total presentation time.
 
-        **JSON OUTPUT FORMAT:** You MUST return ONLY a single, valid JSON object matching this exact structure.
+        **JSON OUTPUT FORMAT:** You MUST return ONLY a single, valid JSON object matching this exact structure. Do not include any other text or markdown formatting.
         \`\`\`json
         {
           "caseDifficulty": <number>,
